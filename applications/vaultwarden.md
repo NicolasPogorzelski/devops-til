@@ -20,7 +20,7 @@ environment:
   SIGNUPS_ALLOWED: "false"
   INVITATIONS_ALLOWED: "false"
   WEBSOCKET_ENABLED: "true"
-  DOMAIN: "https://vault.tail-xxxx.ts.net"
+  DOMAIN: "https://vault.<tailnet-id>.ts.net"
 ```
 
 | Variable                | What it does                                                                          |

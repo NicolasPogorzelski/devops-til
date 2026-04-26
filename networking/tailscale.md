@@ -90,11 +90,11 @@ LAN IPs are untrusted and may change. Tailscale IPs are stable and identity-back
 
 ## MagicDNS — name resolution inside the tailnet
 
-Tailscale assigns each node a hostname like `nextcloud.tail-xxxx.ts.net`.
+Tailscale assigns each node a hostname like `nextcloud.<tailnet-id>.ts.net`.
 With MagicDNS enabled, those names resolve from any tailnet member:
 
 ```bash
-dig +short nextcloud.tail-xxxx.ts.net    # returns the 100.x.y.z IP
+dig +short nextcloud.<tailnet-id>.ts.net    # returns the 100.x.y.z IP
 ```
 
 Names are stable across IP changes — useful for services binding to a
@@ -110,22 +110,22 @@ For services that handle their own TLS (e.g., Apache for Nextcloud), Tailscale
 can provision Let's Encrypt certs for the MagicDNS hostname:
 
 ```bash
-tailscale cert nextcloud.tail-xxxx.ts.net
-# writes to /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.{crt,key}
+tailscale cert nextcloud.<tailnet-id>.ts.net
+# writes to /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.{crt,key}
 ```
 
 Apache then uses those paths directly:
 
 ```apache
-SSLCertificateFile    /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.crt
-SSLCertificateKeyFile /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.key
+SSLCertificateFile    /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.crt
+SSLCertificateKeyFile /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.key
 ```
 
 Renewal: re-run `tailscale cert` (idempotent — re-issues if close to expiry).
 Cron weekly:
 
 ```cron
-0 4 * * 0 tailscale cert nextcloud.tail-xxxx.ts.net && systemctl reload apache2
+0 4 * * 0 tailscale cert nextcloud.<tailnet-id>.ts.net && systemctl reload apache2
 ```
 
 This is the alternative to the loopback + `tailscale serve` pattern. Use direct
