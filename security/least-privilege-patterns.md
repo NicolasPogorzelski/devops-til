@@ -92,7 +92,69 @@ Files in `/etc/sudoers.d/` must:
 
 sudo ignores or rejects files that don't meet these requirements.
 
+## Secret generation
+
+When a service needs a random secret (signing key, admin token, encryption key),
+do not invent one. Use a CSPRNG:
+
+```bash
+openssl rand -hex 32       # 256 bits, 64 hex chars — most env vars
+openssl rand -base64 32    # 256 bits, 44 base64 chars — denser
+openssl rand -base64 48    # 384 bits — when you want extra margin
+```
+
+| Property                | `-hex`            | `-base64`           |
+|-------------------------|-------------------|---------------------|
+| Charset                 | `[0-9a-f]`         | `[A-Za-z0-9+/=]`   |
+| URL/env-safe out of box | Yes               | Mostly (watch `+`, `/`, `=`) |
+| Length per byte         | 2 chars           | ~1.33 chars        |
+
+For Argon2id-stored admin tokens (e.g., Vaultwarden):
+
+```bash
+echo -n "your-very-long-secret" | argon2 "$(openssl rand -base64 32)" -e -id -t 3 -m 16 -p 4
+```
+
+The hash, not the secret, goes in the env file. An attacker with read access
+to `.env` cannot directly use the secret — they would have to crack the hash.
+
+### Rotation
+
+Every secret should have a documented rotation procedure:
+
+| Secret type           | Rotation cadence                                                  |
+|-----------------------|-------------------------------------------------------------------|
+| Service-to-service tokens (DB passwords, API keys) | When personnel changes, suspected leak |
+| Admin/root credentials | Quarterly (or after personnel changes)                          |
+| TLS certificates      | Automatic via ACME / `tailscale cert`                              |
+| SSH keys              | When a host is decommissioned, on suspected key theft             |
+
+A secret that has never been rotated is a secret you don't know how to rotate.
+The first rotation reveals every place the secret is hardcoded.
+
+## Defense in depth — multiple independent layers
+
+Single-mechanism security is brittle. Pattern: stack independent controls so
+defeating any one of them is not sufficient:
+
+```
+Network layer:  Tailscale ACL (only specific tags reach this port)
+Bind layer:     Service binds to specific IP only
+Auth layer:     Service requires credential
+Authz layer:    Credential limited to specific scope
+Audit layer:    Access logged for review
+```
+
+A compromised credential doesn't grant network access; a compromised network
+ACL doesn't bypass auth; auth doesn't grant scope it shouldn't have. Each layer
+is independently configured and independently auditable.
+
+See [PostgreSQL Zero-Trust](../database/postgres-zero-trust.md) for a worked
+example of this pattern.
+
 ## Related
 
 - [Networking: Tailscale](../networking/tailscale.md)
 - [Ansible: Privilege Escalation](../ansible/privilege-escalation.md)
+- [PostgreSQL Zero-Trust](../database/postgres-zero-trust.md)
+- [Samba Server Config](../storage/samba-server-config.md)

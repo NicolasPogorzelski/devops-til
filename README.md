@@ -15,8 +15,14 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [LVM Thin Provisioning](linux/lvm-thin-provisioning.md) | How thin-pool storage works, why `df` lies inside containers, and how to reclaim space with fstrim |
 | [Namespaces & nsenter](linux/namespaces-nsenter.md) | What Linux namespaces are, how LXC containers use them, and how to enter them from the host |
 | [ELF Binaries & Corruption](linux/elf-binary-corruption.md) | What ELF format is, how to detect a corrupt binary, and how to reinstall it |
-| [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, dpkg audit and repair, cleaning the package cache |
-| [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, and mount units |
+| [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, dpkg audit and repair, Ansible `upgrade: dist` modes, cache hygiene |
+| [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, mount units, `Type=oneshot`, drop-in overrides |
+| [systemd Service Hardening](linux/systemd-service-hardening.md) | `Restart=on-failure`, `RestartPreventExitStatus`, `After=` vs `Wants=`, race-condition fixes |
+| [Bash Scripting Patterns](linux/bash-scripting-patterns.md) | Strict mode, pre-flight checks, `command -v`, `install -m`, HEREDOC, sub-commands, `mktemp+trap` |
+| [SSH Keys](linux/ssh-keys.md) | Ed25519 keys, agent forwarding caveats, authorized_keys hygiene, key rotation |
+| [Cron and Scheduling](linux/cron-and-scheduling.md) | crontab vs `/etc/cron.d/`, systemd timers, when to choose which, log conventions |
+| [Disk Diagnostics](linux/disk-diagnostics.md) | `smartctl`, `dmesg`, identifying drive failures, SMART attribute thresholds |
+| [Network Tools](linux/network-tools.md) | `nc -zv`, `ss`, `findmnt`, Python socket fallback, layer-by-layer reachability |
 
 ## Ansible
 
@@ -24,57 +30,87 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 |---|---|
 | [Playbook Structure](ansible/playbook-structure.md) | Minimum required fields, plays vs tasks, YAML indentation rules |
 | [Privilege Escalation](ansible/privilege-escalation.md) | `become`, `become_user`, and how to configure NOPASSWD sudo for Ansible |
-| [Inventory Groups](ansible/inventory-groups.md) | How to structure inventory groups by function and type |
+| [Inventory Groups](ansible/inventory-groups.md) | Group structure, per-host overrides, `host_vars`/`group_vars`, sanitized inventory pattern |
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
+| [Ansible Configuration](ansible/configuration.md) | `ansible.cfg` settings explained: `host_key_checking`, pipelining, ControlMaster, fork count |
 
 ## Proxmox
 
 | Topic | Summary |
 |---|---|
 | [Thin-Pool Recovery](proxmox/thin-pool-recovery.md) | How to diagnose and recover from a full LVM thin-pool on a Proxmox host |
-| [LXC & VM Management](proxmox/lxc-vm-management.md) | `pct` and `qm` commands, LXC vs VM differences, UID mapping, noVNC access |
+| [LXC & VM Management](proxmox/lxc-vm-management.md) | `pct` and `qm`, LXC vs VM, mount points, boot order, `nesting=1`, `/dev/disk/by-id`, bind-mount propagation |
+| [Tailscale TUN in Unprivileged LXCs](proxmox/lxc-tailscale-tun.md) | CT210-pattern: `cgroup2.devices.allow` + `mount.entry` for kernel WireGuard, userspace-networking pitfall |
 
 ## Networking
 
 | Topic | Summary |
 |---|---|
-| [Tailscale](networking/tailscale.md) | Tailscale IPs, ACL tags, `tailscale serve`, and detecting deauthentication |
+| [Tailscale](networking/tailscale.md) | Tailscale IPs, MagicDNS, Tailscale-managed certs, app-layer security boundary, vendor-lock-in considerations |
+| [Loopback + Tailscale Serve](networking/loopback-tailscale-serve.md) | The `127.0.0.1` + Serve binding pattern, alternatives evaluated, HTTPS/HTTP mismatch |
+| [Tailscale ACL Design](networking/tailscale-acl-design.md) | Tier-based design, hosts aliases, access matrix, ACL changelog, pre-existing tunnel pitfall |
 
 ## Docker
 
 | Topic | Summary |
 |---|---|
-| [Compose Patterns](docker/compose-patterns.md) | Named volumes, restart policies, `network_mode: host`, logging, GPU passthrough |
+| [Compose Patterns](docker/compose-patterns.md) | Restart policies, `network_mode: host`, logging, `depends_on` w/ healthcheck, `env_file` vs environment, PUID/PGID, named-volume mix |
+| [Bind-Mount Pitfalls](docker/bind-mount-pitfalls.md) | Silent directory creation for missing files, host-networking DNS loss, UID alignment in unprivileged LXCs |
+| [GPU Passthrough](docker/gpu-passthrough.md) | NVIDIA Container Toolkit, `pid: host`, `deploy.resources.reservations.devices`, capability scoping |
 
 ## Monitoring
 
 | Topic | Summary |
 |---|---|
 | [Prometheus Stack](monitoring/prometheus-stack.md) | Scrape jobs, node_exporter, textfile collector pattern, alert rules, Alertmanager routing |
+| [Prometheus Configuration](monitoring/prometheus-config.md) | `scrape_configs`, rule_files, alertmanagers static_configs, job-naming, retention/lifecycle flags |
+| [PromQL & Alert Rules](monitoring/promql-patterns.md) | `for:` debouncing, severity labels, fstype filters, aggregations, annotation templating, recording rules |
+| [Alertmanager Routing](monitoring/alertmanager-routing.md) | Routes, group_by/wait/interval, repeat_interval, inhibit_rules, silences, Discord webhooks |
 
 ## Storage
 
 | Topic | Summary |
 |---|---|
-| [SnapRAID + MergerFS](storage/snapraid-mergerfs.md) | Homelab storage stack architecture, sync/scrub discipline, content files, stable disk references |
+| [SnapRAID + MergerFS](storage/snapraid-mergerfs.md) | Storage stack architecture, sync/scrub discipline, `noatime`, excludes, multiple content files, `category.create=mfs`, hash-mismatch recovery |
+| [CIFS via systemd Automount](storage/cifs-automount.md) | Reboot-safe network mounts, `x-systemd.automount` options, boot-trigger oneshot, app-state vs uploads split |
+| [Samba Server Config](storage/samba-server-config.md) | `smb.conf` structure, SMB3-only, mandatory signing, bind interfaces, share types (RW/RO/Ingest) |
 
 ## Database
 
 | Topic | Summary |
 |---|---|
-| [PostgreSQL Operations](database/postgresql-ops.md) | `pg_dumpall`, `pg_dump`, `pg_isready`, `pg_hba.conf` auth methods, backup retention |
+| [PostgreSQL Operations](database/postgresql-ops.md) | `pg_dumpall`, backup scripts with `install -m`, `crontab -u`, `pg_monitor` role, dump validation |
+| [PostgreSQL CLI](database/postgresql-cli.md) | psql meta-commands, `pg_stat_activity`, `pg_terminate_backend`, `dropdb`, restore verification |
+| [Zero-Trust PostgreSQL Access](database/postgres-zero-trust.md) | Four-layer access: Tailscale ACL + binding + `pg_hba` `hostssl` + role privileges |
+
+## AI / LLM Inference
+
+| Topic | Summary |
+|---|---|
+| [Ollama Deployment](ai/ollama-deployment.md) | Modelfile syntax, quantization tags, context-window trade-offs, OLLAMA_HOST, ROCm vs CUDA |
+
+## Applications
+
+| Topic | Summary |
+|---|---|
+| [Nextcloud Administration](applications/nextcloud-admin.md) | `occ` CLI, `files:scan`, `files_external:verify`, APCu+Redis cache split, Apache TLS via Tailscale certs |
+| [Paperless-ngx](applications/paperless-ngx.md) | Pipeline (Gotenberg+Tika+Redis), CSRF origins, OCR languages, polling vs inotify on CIFS, USERMAP_UID/GID |
+| [Vaultwarden](applications/vaultwarden.md) | Argon2id ADMIN_TOKEN, signups/invitations off, non-root container user, "no SQLite on CIFS" rule |
 
 ## Security
 
 | Topic | Summary |
 |---|---|
-| [Least-Privilege Patterns](security/least-privilege-patterns.md) | SMB share permissions, credentials files, `.env` hygiene, service isolation, sudoers.d |
+| [Least-Privilege Patterns](security/least-privilege-patterns.md) | SMB perms, credentials files, `.env` hygiene, service isolation, sudoers.d, secret generation, defense in depth |
 
 ## Operations
 
 | Topic | Summary |
 |---|---|
-| [Runbook Methodology](operations/runbook-methodology.md) | Root-cause process, failure domain thinking, KE pattern, boot order dependency modeling |
+| [Runbook Methodology](operations/runbook-methodology.md) | Root-cause process, failure-modes table, layer-by-layer health checks, verification log, doku-first workflow, fail-forward visibility |
+| [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
+| [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
+| [Backup Strategy](operations/backup-strategy.md) | 3-2-1 rule, threat coverage matrix, restic with append-only credentials, retention policies, restore verification |
 
 ---
 

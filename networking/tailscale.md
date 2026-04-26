@@ -88,6 +88,121 @@ Then ensure the service is enabled: `systemctl enable tailscaled`.
 
 LAN IPs are untrusted and may change. Tailscale IPs are stable and identity-backed.
 
+## MagicDNS — name resolution inside the tailnet
+
+Tailscale assigns each node a hostname like `nextcloud.tail-xxxx.ts.net`.
+With MagicDNS enabled, those names resolve from any tailnet member:
+
+```bash
+dig +short nextcloud.tail-xxxx.ts.net    # returns the 100.x.y.z IP
+```
+
+Names are stable across IP changes — useful for services binding to a
+Tailscale IP directly. Bind to the IP in configs, but use the MagicDNS name
+in client URLs so a re-issued IP doesn't break links.
+
+MagicDNS is also what makes `tailscale cert <hostname>` work — the cert is
+issued for the MagicDNS name and resolves only within the tailnet.
+
+## TLS via Tailscale-managed certs
+
+For services that handle their own TLS (e.g., Apache for Nextcloud), Tailscale
+can provision Let's Encrypt certs for the MagicDNS hostname:
+
+```bash
+tailscale cert nextcloud.tail-xxxx.ts.net
+# writes to /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.{crt,key}
+```
+
+Apache then uses those paths directly:
+
+```apache
+SSLCertificateFile    /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.crt
+SSLCertificateKeyFile /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.key
+```
+
+Renewal: re-run `tailscale cert` (idempotent — re-issues if close to expiry).
+Cron weekly:
+
+```cron
+0 4 * * 0 tailscale cert nextcloud.tail-xxxx.ts.net && systemctl reload apache2
+```
+
+This is the alternative to the loopback + `tailscale serve` pattern. Use direct
+TLS when:
+
+- Multi-GB uploads make the Serve proxy hop wasteful
+- The service already has well-tested TLS handling (Apache, nginx)
+- You need protocol features Serve doesn't support (HTTP/2 push, WebDAV chunking)
+
+## Pre-existing tunnels mask missing ACLs
+
+**Symptom:** A new node added without specific ACL rules can still reach existing
+services.
+
+**Cause:** Tailscale connections are persistent. ACL changes filter *new*
+connection attempts, not existing TCP sessions. A long-lived connection from
+before the rule was added stays alive indefinitely.
+
+**Verification (don't trust existing connectivity):**
+
+```bash
+# On the source: check what's already connected
+ss -t state established | grep <target-tailscale-ip>
+
+# Force a fresh connection — this respects current ACLs
+nc -zv <target> <port>
+```
+
+**Fix after ACL changes:** restart `tailscaled` on relevant nodes, or briefly
+deauthorize+reauthorize the node. Then verify with a fresh `nc -zv`, not by
+checking that an existing service still works.
+
+See [Tailscale ACL Design](tailscale-acl-design.md) for the full ACL methodology.
+
+## Vendor lock-in considerations
+
+Tailscale is a SaaS product. The control plane (coordination server, ACL store,
+admin console) is Tailscale Inc.'s infrastructure. The data plane (WireGuard
+between nodes) is yours.
+
+Migration path if Tailscale becomes untenable: **Headscale**, an open-source
+re-implementation of the Tailscale coordination server. Same client binary,
+self-hosted control plane.
+
+| Aspect                     | Tailscale (managed)             | Headscale (self-hosted)            |
+|----------------------------|----------------------------------|------------------------------------|
+| Control plane              | Tailscale's servers              | Your Debian VM                     |
+| MagicDNS                   | Yes                              | Yes                                |
+| ACLs                       | Yes (web UI + JSON)              | Yes (CLI + JSON)                   |
+| Tailscale Serve            | Yes                              | Limited (newer feature)            |
+| Tailscale Funnel           | Yes (public exposure)            | No                                 |
+| Cert provisioning          | Yes                              | Manual                             |
+| Operational burden         | Near zero                        | Real (DB, backups, upgrades)       |
+
+Designing the homelab to use Tailscale-IP-binding + MagicDNS keeps the migration
+small: replace coordination server, re-register nodes, ACL JSON ports over.
+The actual services don't change.
+
+## Application-layer security is independent
+
+A common misconception: "Tailscale encrypts the connection, so I don't need
+HTTPS inside it."
+
+**WireGuard encrypts node-to-node traffic on the wire.** That's transport-layer
+security between Tailscale endpoints. It does not provide:
+
+- Application-layer authentication (who's the user? — service does that)
+- Database-level encryption (at rest, on disk)
+- Protection from a compromised endpoint (other end is in clear)
+
+Practical implication: PostgreSQL on a Tailnet still needs `hostssl` in
+`pg_hba.conf` and SCRAM-SHA-256 auth. The Tailscale layer is a perimeter,
+not a substitute for service-level controls.
+
 ## Related
 
+- [Loopback + Tailscale Serve](loopback-tailscale-serve.md)
+- [Tailscale ACL Design](tailscale-acl-design.md)
 - [Security: Least-Privilege Patterns](../security/least-privilege-patterns.md)
+- [PostgreSQL Zero-Trust](../database/postgres-zero-trust.md)
