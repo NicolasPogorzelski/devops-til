@@ -60,14 +60,14 @@ The Nextcloud docs explicitly recommend "APCu local + Redis distributed/locking"
 ## TLS via Tailscale-managed certs
 
 Tailscale can issue Let's Encrypt certs for MagicDNS hostnames and store them at
-`/var/lib/tailscale/certs/<hostname>.<tailnet>.ts.net.{crt,key}`.
+`/var/lib/tailscale/certs/<hostname>.<tailnet-id>.ts.net.{crt,key}`.
 
 Apache config:
 
 ```apache
 SSLEngine on
-SSLCertificateFile      /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.crt
-SSLCertificateKeyFile   /var/lib/tailscale/certs/nextcloud.tail-xxxx.ts.net.key
+SSLCertificateFile      /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.crt
+SSLCertificateKeyFile   /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.key
 ```
 
 Renewal: `tailscale cert <hostname>` re-issues; cron it weekly. The cert is

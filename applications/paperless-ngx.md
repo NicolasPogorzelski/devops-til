@@ -72,8 +72,8 @@ hostname), POST requests fail with `403 CSRF verification failed`.
 
 ```yaml
 environment:
-  PAPERLESS_URL: "https://paperless.tail-xxxx.ts.net"
-  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.tail-xxxx.ts.net"
+  PAPERLESS_URL: "https://paperless.<tailnet-id>.ts.net"
+  PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.<tailnet-id>.ts.net"
 ```
 
 | Variable                          | Purpose                                                             |
