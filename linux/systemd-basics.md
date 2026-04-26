@@ -85,6 +85,116 @@ systemctl enable tailscaled
 If a unit is `active (running)` but `disabled`, it started manually or by dependency
 but will not start automatically after reboot.
 
+## Service `Type=` — what "started" actually means
+
+The `[Service]` `Type=` directive tells systemd how to detect that a unit is
+running. This affects `After=` ordering — a dependent unit starts only when
+this one is "active".
+
+| `Type=`     | "Active" means                                                       | Use for                              |
+|-------------|----------------------------------------------------------------------|--------------------------------------|
+| `simple`    | Main process forked. Default. Often premature for daemons            | Foreground processes                 |
+| `forking`   | Parent exited (classic daemon double-fork)                          | Legacy daemons that fork themselves  |
+| `notify`    | Process called `sd_notify(READY=1)`                                 | Modern daemons (sshd, postgresql)    |
+| `oneshot`   | Process ran and exited                                              | Boot scripts, maintenance jobs       |
+| `idle`      | Like `simple`, but waits for active jobs to complete                | Last-thing-on-tty loggers            |
+
+For boot-time scripts that do work and exit:
+
+```ini
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/setup-thing.sh
+RemainAfterExit=yes
+```
+
+`RemainAfterExit=yes` is the subtle part. Without it, a successful oneshot exits
+to "inactive" and `WantedBy=multi-user.target` may re-trigger it later. With it,
+the unit stays "active" after exit, marking "this work is done".
+
+## `WantedBy=` — what "enabled" hooks into
+
+```ini
+[Install]
+WantedBy=multi-user.target
+```
+
+`WantedBy=` declares which target this unit attaches to when enabled.
+`systemctl enable foo.service` creates a symlink:
+
+```
+/etc/systemd/system/multi-user.target.wants/foo.service
+   → /etc/systemd/system/foo.service
+```
+
+When `multi-user.target` is reached during boot, every `.service` in its
+`.wants` directory is started.
+
+| Common targets       | When reached                                                       |
+|----------------------|--------------------------------------------------------------------|
+| `multi-user.target`  | System ready for non-graphical login. Server-typical "fully booted" |
+| `graphical.target`   | Multi-user + display manager started                                |
+| `network-online.target` | Network has at least one routable address                       |
+
+For server services: `WantedBy=multi-user.target` is right. For services that
+need network: also `After=network-online.target` + `Wants=network-online.target`
+in `[Unit]` — `WantedBy` and `After` solve different problems (hook-point vs ordering).
+
+## Drop-in overrides — `/etc/systemd/system/<unit>.d/*.conf`
+
+The right way to modify a packaged unit: drop-in files. They merge with the
+upstream unit at runtime; you never touch `/lib/systemd/system/<unit>.service`.
+
+```bash
+systemctl edit ssh.service
+# Opens an editor for /etc/systemd/system/ssh.service.d/override.conf
+```
+
+```ini
+[Service]
+Restart=on-failure
+RestartSec=15s
+```
+
+Inspect the result:
+
+```bash
+systemctl cat ssh.service        # upstream + every drop-in concatenated
+systemctl show ssh.service       # effective resolved values, one per line
+```
+
+`systemctl edit --full` is the wrong default — it copies the entire upstream
+unit to `/etc`, breaking future package upgrades that update the upstream file.
+Use it only when reordering or removing existing directives makes a drop-in
+impossible.
+
+For deeper restart-policy and race-condition handling, see
+[systemd Service Hardening](systemd-service-hardening.md).
+
+## `RestartPreventExitStatus=` — when restart policies seem ignored
+
+A common surprise: `Restart=on-failure` is set, but the unit doesn't restart
+after a failure. Cause: the upstream unit ships a `RestartPreventExitStatus=`
+that lists the exit code your service is producing.
+
+```bash
+systemctl show ssh.service -p RestartPreventExitStatus
+# RestartPreventExitStatus=255
+```
+
+To **re-enable restart on all exit codes**, set the directive to empty:
+
+```ini
+[Service]
+RestartPreventExitStatus=
+```
+
+The empty value overrides the upstream non-empty list. Do this only when you
+*want* restart on every failure — for race-condition-vulnerable services,
+this is correct.
+
 ## Related
 
 - [Proxmox: LXC & VM Management](../proxmox/lxc-vm-management.md)
+- [systemd Service Hardening](systemd-service-hardening.md)
+- [Cron and Scheduling](cron-and-scheduling.md)

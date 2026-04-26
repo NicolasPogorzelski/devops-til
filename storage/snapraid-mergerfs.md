@@ -90,7 +90,169 @@ Access is least-privilege:
 - Read-write for producers (Nextcloud, Paperless)
 - Never use SMB for database files (SQLite locking breaks over CIFS)
 
+## fstab tuning — `noatime`
+
+ext4 by default updates each file's *access time* on every read (`atime`).
+For a media or archive disk that is mostly read, this is pure write amplification:
+every read causes a tiny metadata write.
+
+```
+UUID=... /mnt/disk1 ext4 defaults,noatime 0 2
+```
+
+| Mount option  | Effect                                                                  |
+|---------------|-------------------------------------------------------------------------|
+| `noatime`     | Don't update access time on read. Big win for read-heavy filesystems    |
+| `relatime`    | Update atime only when mtime is newer (default since 2.6.30). Better than nothing, worse than `noatime` |
+| `nodiratime`  | Skip atime updates on directories. Subset of `noatime`                  |
+
+`noatime` implies `nodiratime`. Use `noatime` for media disks, archive disks,
+and anything where atime semantics aren't needed (i.e., almost everywhere).
+
+The trailing `0 2` is `<dump>` and `<fsck-pass>`:
+
+| Field              | Meaning                                                            |
+|--------------------|--------------------------------------------------------------------|
+| `<dump>` (0 or 1)  | Used by the (deprecated) `dump` command. `0` always.               |
+| `<fsck-pass>`      | `0` skip, `1` root, `2` other. Disks at `2` are checked in parallel |
+
+For data disks: `0 2`. For system root: `0 1`. Don't mix `1` for non-root —
+fsck passes are ordered, and pass 1 should be reserved for root.
+
+## SnapRAID `excludes` — what not to protect
+
+```
+exclude *.tmp
+exclude *.bak
+exclude /lost+found/
+exclude /.snapraid.content*
+```
+
+Directives:
+
+| Pattern                | Why exclude                                                        |
+|------------------------|--------------------------------------------------------------------|
+| `*.tmp`, `*.bak`       | Transient. Already-protected files don't need duplicate protection |
+| `/lost+found/`         | fsck-recovery dir. Volatile, never real data                       |
+| `/.snapraid.content*`  | SnapRAID's own metadata. Excluded by default in newer versions     |
+
+Excluded files are not parity-protected. If you exclude something important by
+accident, a disk failure means losing those files. Test exclude patterns:
+
+```bash
+snapraid status              # shows excluded file count per disk
+snapraid diff | head -50     # what changed since last sync, after exclusions
+```
+
+## Multiple `content` files — robustness
+
+SnapRAID's `content` file is the catalog of every file's hash. Lose all copies
+and you cannot verify integrity or recover. Configure multiple copies (one per
+data disk + one per parity disk):
+
+```
+content /var/snapraid/snapraid.content
+content /mnt/disk1/.snapraid.content
+content /mnt/disk2/.snapraid.content
+content /mnt/disk3/.snapraid.content
+content /mnt/parity/.snapraid.content
+```
+
+Why one per disk: any single disk failure leaves all other content files intact.
+Why one outside the array (`/var`): protects against a corrupt-everything-
+on-the-pool scenario.
+
+The first listed `content` file is the *primary* — SnapRAID writes it most
+aggressively. Make it the most reliable disk (often `/var` on the system SSD).
+
+## MergerFS create policy — `category.create=mfs`
+
+MergerFS decides which underlying disk a new file goes to via a *create policy*:
+
+```
+defaults,category.create=mfs
+```
+
+| Policy         | Behavior                                                            |
+|----------------|---------------------------------------------------------------------|
+| `mfs`          | Most free space. New file goes to disk with the most free bytes     |
+| `epmfs`        | Existing-path most-free. Prefer disks where the parent dir exists   |
+| `lus`          | Least-used space. Prefer the most-empty disk                        |
+| `rand`         | Random                                                              |
+
+`mfs` is the right default for media storage: it spreads load evenly. `epmfs`
+keeps related files together (good for "all of season 1 on one disk"), at the
+cost of imbalanced fill. Pick one and stay with it — switching later does
+not redistribute existing files.
+
+## Anti-pattern: `--force-deletions`
+
+When SnapRAID detects that many files have disappeared since the last sync,
+it refuses to update parity (in case a disk silently un-mounted and you'd
+lose protection for files that didn't actually disappear).
+
+```bash
+snapraid sync
+# > too many deleted files, use --force-deletions to override
+```
+
+**Do not blindly add `--force-deletions`**. The error means: verify first.
+
+Verification:
+
+```bash
+snapraid diff                   # shows what changed
+findmnt -t ext4 /mnt/disk*      # are all data disks really mounted?
+df -h /mnt/disk*                # if a disk shows unexpectedly empty, it's not mounted
+```
+
+If the disks are mounted and the deletions are real (you actually deleted
+those files), then `--force-deletions` is correct. If a disk is unmounted,
+fix that first.
+
+## Hash mismatch during scrub — critical signal
+
+```
+snapraid scrub
+# > WARNING! Hash mismatch in file '...'
+```
+
+A hash mismatch means SnapRAID expected one hash, computed another. Cause is
+**always** one of:
+
+1. Bit rot on the disk (silent corruption since last sync)
+2. Hardware failure (RAM, controller, disk)
+3. The file was modified without `snapraid sync` being aware (rare)
+
+Recovery:
+
+```bash
+snapraid -e fix /<path/to/file>     # restore from parity
+snapraid scrub --plan=full          # re-verify entire array
+```
+
+`smartctl -a /dev/sdX` and `dmesg` for the affected disk are mandatory follow-ups.
+Hash mismatches are rarely isolated; if SMART shows growing reallocated sectors,
+plan the disk replacement before the next scrub.
+
+## `snapraid fix` — parity-based recovery
+
+When a disk fails entirely or files are corrupted, `snapraid fix` rebuilds them
+from parity:
+
+```bash
+snapraid fix -d <disk-name>       # restore one disk to a fresh replacement
+snapraid fix -e                   # repair only files with errors detected by scrub
+snapraid fix -f /path/to/file     # repair specific file
+```
+
+Time to fix scales with array size. For a 50TB array with a single failed disk,
+expect 8–24h of read+write across all surviving disks. During this time,
+**no further sync should run** — the array is in a degraded state.
+
 ## Related
 
 - [Operations: Runbook Methodology](../operations/runbook-methodology.md)
 - [Security: Least-Privilege Patterns](../security/least-privilege-patterns.md)
+- [Disk Diagnostics](../linux/disk-diagnostics.md)
+- [Samba Server Config](samba-server-config.md)
