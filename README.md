@@ -15,7 +15,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [LVM Thin Provisioning](linux/lvm-thin-provisioning.md) | How thin-pool storage works, why `df` lies inside containers, and how to reclaim space with fstrim |
 | [Namespaces & nsenter](linux/namespaces-nsenter.md) | What Linux namespaces are, how LXC containers use them, and how to enter them from the host |
 | [ELF Binaries & Corruption](linux/elf-binary-corruption.md) | What ELF format is, how to detect a corrupt binary, and how to reinstall it |
-| [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, dpkg audit and repair, Ansible `upgrade: dist` modes, cache hygiene |
+| [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, `dpkg --verify` with conffile filtering, dpkg audit and repair, Ansible `upgrade: dist` modes, cache hygiene |
 | [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, mount units, `Type=oneshot`, drop-in overrides |
 | [systemd Service Hardening](linux/systemd-service-hardening.md) | `Restart=on-failure`, `RestartPreventExitStatus`, `After=` vs `Wants=`, race-condition fixes |
 | [Bash Scripting Patterns](linux/bash-scripting-patterns.md) | Strict mode, pre-flight checks, `command -v`, `install -m`, HEREDOC, sub-commands, `mktemp+trap` |
@@ -29,6 +29,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Playbook Structure](ansible/playbook-structure.md) | Minimum required fields, plays vs tasks, YAML indentation rules |
+| [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command` |
 | [Privilege Escalation](ansible/privilege-escalation.md) | `become`, `become_user`, and how to configure NOPASSWD sudo for Ansible |
 | [Inventory Groups](ansible/inventory-groups.md) | Group structure, per-host overrides, `host_vars`/`group_vars`, sanitized inventory pattern |
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
@@ -55,6 +56,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Compose Patterns](docker/compose-patterns.md) | Restart policies, `network_mode: host`, logging, `depends_on` w/ healthcheck, `env_file` vs environment, PUID/PGID, named-volume mix |
+| [Daemon Recovery](docker/daemon-recovery.md) | Docker vs containerd process model, stale task state after ungraceful crash, `docker rm -f` + `compose up` recovery |
 | [Bind-Mount Pitfalls](docker/bind-mount-pitfalls.md) | Silent directory creation for missing files, host-networking DNS loss, UID alignment in unprivileged LXCs |
 | [GPU Passthrough](docker/gpu-passthrough.md) | NVIDIA Container Toolkit, `pid: host`, `deploy.resources.reservations.devices`, capability scoping |
 
