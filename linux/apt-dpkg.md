@@ -38,6 +38,52 @@ apt --fix-broken install -y
 apt-get install --reinstall <package>
 ```
 
+## `dpkg --verify` — detect corrupt installed files
+
+`dpkg --verify` compares every file of every installed package against the
+checksum stored in dpkg's database. Unlike `dpkg --audit`, it catches
+corruption that dpkg's own state machine doesn't know about — e.g. a binary
+that was partially overwritten by a truncated apt write.
+
+```bash
+dpkg --verify
+```
+
+Output format: one line per mismatched file.
+
+```
+??5?????? c /etc/crontab          # conffile — admin-modified, expected
+??5??????   /usr/bin/runc         # non-conffile — CORRUPT
+??5??????   /usr/bin/somebin      # non-conffile — CORRUPT
+```
+
+Each character position is a specific check (md5sum, mode, owner, etc.).
+`5` in position 3 = md5sum mismatch. `c` after the spaces = conffile.
+
+Conffile mismatches are expected — admins are allowed to modify them.
+Lines without `c` are corrupt non-conffiles.
+
+**Filter to show only corrupt binaries:**
+
+```bash
+dpkg --verify 2>&1 | grep -v ' c /'
+```
+
+Empty output = all installed files are intact.
+
+**Find which package owns a corrupt file:**
+
+```bash
+dpkg -S /usr/bin/somebin
+# somepackage: /usr/bin/somebin
+```
+
+**Reinstall all corrupt packages in one pass:**
+
+```bash
+apt-get install --reinstall <pkg1> <pkg2>
+```
+
 ## What `dpkg --audit` detects
 
 | Output | Meaning |
