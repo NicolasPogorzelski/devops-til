@@ -50,6 +50,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Tailscale](networking/tailscale.md) | Tailscale IPs, MagicDNS, Tailscale-managed certs, app-layer security boundary, vendor-lock-in considerations |
 | [Loopback + Tailscale Serve](networking/loopback-tailscale-serve.md) | The `127.0.0.1` + Serve binding pattern, alternatives evaluated, HTTPS/HTTP mismatch |
 | [Tailscale ACL Design](networking/tailscale-acl-design.md) | Tier-based design, hosts aliases, access matrix, ACL changelog, pre-existing tunnel pitfall |
+| [Tailscale Debugging](networking/tailscale-debugging.md) | How Tailscale's userspace packet filter works, `tailscale ping` bypasses ACL, duplicate node key problem, tcpdump as layer-separator, fix via daemon restart |
 
 ## Docker
 

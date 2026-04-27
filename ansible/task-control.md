@@ -111,6 +111,41 @@ The `|| true` at the end of the shell command ensures exit code 0 even when
 `grep -v` finds no output (grep exits 1 when no lines match). Without it,
 a clean system would cause the task to fail.
 
+## Pre-upgrade dry-run + conditional service restart
+
+Before running an upgrade, capture which packages are pending. Use this to
+conditionally restart services that need it after the upgrade:
+
+```yaml
+- name: collect packages pending upgrade
+  ansible.builtin.shell: apt-get -s dist-upgrade 2>/dev/null | awk '/^Inst /{print $2}'
+  register: packages_pending
+  changed_when: false
+
+- name: upgrade apt
+  ansible.builtin.apt:
+    upgrade: dist
+
+- name: restart tailscaled if tailscale was upgraded
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: restarted
+  when: "'tailscale' in packages_pending.stdout"
+```
+
+- `apt-get -s dist-upgrade` — simulate only, no changes; lists what would be upgraded
+- `awk '/^Inst /{print $2}'` — lines starting with `Inst` are packages being installed/upgraded; `$2` is the package name
+- `changed_when: false` — this task only reads state, never mark it as changed
+- The restart task is skipped entirely when `tailscale` is not in the pending list
+
+Run the dry-run **before** the actual upgrade. Afterwards, the dpkg log reflects
+the new state and you can no longer reliably detect what changed.
+
+Why this matters for tailscale: after a `tailscaled` restart triggered by an
+upgrade, the daemon can start with a stale packet filter, blocking all incoming
+TCP connections despite correct ACL configuration. A forced restart ensures a
+clean netmap fetch. See [Tailscale Debugging](../networking/tailscale-debugging.md).
+
 ## Related
 
 - [Playbook Structure](playbook-structure.md)
