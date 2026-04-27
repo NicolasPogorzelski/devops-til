@@ -62,17 +62,35 @@ For Ansible-managed nodes, use:
 
 ## Configuring NOPASSWD sudo
 
-Create a file in `/etc/sudoers.d/` (never edit `/etc/sudoers` directly):
+Create a file in `/etc/sudoers.d/` (never edit `/etc/sudoers` directly).
 
+**Manually:**
 ```bash
-echo 'gpu ALL=(root) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/ansible-apt
-chmod 440 /etc/sudoers.d/ansible-apt
+echo 'ansible ALL=(root) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/ansible
+chmod 440 /etc/sudoers.d/ansible
 ```
+
+**Via Ansible (`ansible.builtin.copy` with validation):**
+```yaml
+- name: set NOPASSWD sudo rule
+  ansible.builtin.copy:
+    content: "ansible ALL=(ALL) NOPASSWD: ALL\n"
+    dest: /etc/sudoers.d/ansible
+    mode: '0440'
+    validate: /usr/sbin/visudo -csf %s
+```
+
+`validate` runs `visudo -csf %s` on a temp copy before writing. If the syntax
+is invalid, the file is never written — sudo cannot be broken by a typo.
+`%s` is replaced by Ansible with the temp file path.
+
+`mode: '0440'` must be a quoted string — unquoted `0440` can be misinterpreted
+as a decimal integer by YAML parsers.
 
 **Important:** The file must be owned by root. sudo refuses files with wrong ownership:
 
 ```
-sudo: /etc/sudoers.d/ansible-apt is owned by uid 1000, should be 0
+sudo: /etc/sudoers.d/ansible is owned by uid 1000, should be 0
 ```
 
 Verify with:
@@ -80,6 +98,34 @@ Verify with:
 ```bash
 sudo -n id   # should return uid=0(root) without password prompt
 ```
+
+## sudo is not installed by default on Debian LXCs
+
+Debian minimal installs (including Proxmox LXC templates) do not include `sudo`.
+`/etc/sudoers.d/` does not exist without the package.
+
+If a bootstrap playbook deploys a sudoers rule before installing sudo, the task
+fails with: `Destination directory /etc/sudoers.d does not exist`.
+
+Install sudo before writing the sudoers file:
+
+```yaml
+- name: install sudo
+  ansible.builtin.apt:
+    name: sudo
+    state: present
+
+- name: set NOPASSWD sudo rule
+  ansible.builtin.copy:
+    content: "ansible ALL=(ALL) NOPASSWD: ALL\n"
+    dest: /etc/sudoers.d/ansible
+    mode: '0440'
+    validate: /usr/sbin/visudo -csf %s
+```
+
+`state: present` — install if missing, do nothing if already installed (idempotent).
+`state: latest` — always upgrade to newest version. Use `present` in bootstrap
+playbooks to avoid unintended upgrades.
 
 ## The dedicated ansible user pattern
 
