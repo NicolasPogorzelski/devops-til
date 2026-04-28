@@ -34,7 +34,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Inventory Groups](ansible/inventory-groups.md) | Group structure, per-host overrides, `host_vars`/`group_vars`, sanitized inventory pattern |
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
 | [Ansible Configuration](ansible/configuration.md) | `ansible.cfg` settings explained: `host_key_checking`, pipelining, ControlMaster, fork count |
-| [Roles](ansible/roles.md) | Why roles exist, directory structure, when to use vs inline tasks, handlers pattern |
+| [Roles](ansible/roles.md) | Why roles exist, directory structure, `defaults/` vs `vars/`, `files/` vs `templates/`, binary deployment pattern, handlers |
 
 ## Proxmox
 

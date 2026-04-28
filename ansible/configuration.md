@@ -35,6 +35,22 @@ ssh_args              = -o ControlMaster=auto -o ControlPersist=60s
 
 ## Each setting explained
 
+### `roles_path = ./roles`
+
+Where Ansible looks for roles. Without this, Ansible searches `<playbook_dir>/roles/`,
+`~/.ansible/roles`, and `/etc/ansible/roles` — but not `ansible/roles/` if your
+playbooks live in a subdirectory.
+
+Set this whenever your `roles/` directory is not a sibling of your playbooks:
+
+```ini
+roles_path = ./roles
+```
+
+Relative to the directory where `ansible.cfg` lives. Verify it's being found:
+if Ansible reports `role 'X' was not found in <playbook_dir>/roles`, this setting
+is missing or wrong.
+
 ### `inventory = ./inventory/hosts.yml`
 
 Default inventory file. Without this, every `ansible-playbook` invocation needs
