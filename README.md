@@ -112,6 +112,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Runbook Methodology](operations/runbook-methodology.md) | Root-cause process, failure-modes table, layer-by-layer health checks, verification log, doku-first workflow, fail-forward visibility |
+| [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy |
 | [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
 | [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
 | [Backup Strategy](operations/backup-strategy.md) | 3-2-1 rule, threat coverage matrix, restic with append-only credentials, retention policies, restore verification |
