@@ -60,6 +60,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 |---|---|
 | [Compose Patterns](docker/compose-patterns.md) | Restart policies, `network_mode: host`, logging, `depends_on` w/ healthcheck, `env_file` vs environment, PUID/PGID, named-volume mix |
 | [Daemon Recovery](docker/daemon-recovery.md) | Docker vs containerd process model, stale task state after ungraceful crash, `docker rm -f` + `compose up` recovery |
+| [Data Root Migration](docker/data-root-migration.md) | Moving containerd + Docker data root off the root disk to Aux storage: `daemon.json`, `config.toml`, `rsync -aH`, boot-time dependency, fstrim |
 | [Bind-Mount Pitfalls](docker/bind-mount-pitfalls.md) | Silent directory creation for missing files, host-networking DNS loss, UID alignment in unprivileged LXCs |
 | [GPU Passthrough](docker/gpu-passthrough.md) | NVIDIA Container Toolkit, `pid: host`, `deploy.resources.reservations.devices`, capability scoping |
 
