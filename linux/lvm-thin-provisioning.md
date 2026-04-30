@@ -58,6 +58,31 @@ for ctid in 200 210 211 220 230 240 260; do
 done
 ```
 
+## Investigating what fills a root disk
+
+### `df -h` vs `du -xh` discrepancy
+
+`df -h /` shows the filesystem size and usage. `du` without flags crosses into submounts
+and inflates numbers. Always use `-x` (one filesystem only):
+
+```bash
+sudo du -xh --max-depth=2 / 2>/dev/null | sort -rh | head -20
+```
+
+`-x` / `--one-file-system`: do not cross filesystem boundaries (ignores bind mounts, SMB
+mounts, Docker volumes on different partitions). Without `-x`, `du /var/lib` in an LXC
+with a bind-mount at `/var/lib/paperless` will include the full Aux1TB disk in the total.
+
+### Checking Proxmox storage pools
+
+```bash
+pvesm status          # all pools: type, total, used, available, %
+pvesm list local-lvm  # all volumes in the thin-pool with nominal sizes
+```
+
+Nominal size (from `pvesm list`) ≠ actual thin-pool consumption (from `pvesm status`).
+A 64 GB nominal disk only consumes thin-pool blocks for data actually written.
+
 ## Key commands
 
 ```bash
