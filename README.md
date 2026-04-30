@@ -35,6 +35,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
 | [Ansible Configuration](ansible/configuration.md) | `ansible.cfg` settings explained: `host_key_checking`, pipelining, ControlMaster, fork count |
 | [Roles](ansible/roles.md) | Why roles exist, directory structure, `defaults/` vs `vars/`, `files/` vs `templates/`, binary deployment pattern, handlers |
+| [Jinja2 Templates](ansible/jinja2-templates.md) | Generating config files from inventory: `groups[]`, `hostvars[]`, for loops, if conditions, mixing static and dynamic sections, `template` module |
 
 ## Proxmox
 
