@@ -1,0 +1,147 @@
+# Jinja2 Templates in Ansible
+
+## What they are
+
+A `.j2` file is a text file with Jinja2 placeholders and logic. Ansible renders it
+at run time — substituting variables from the inventory — and writes the result to
+the target host. The source file stays in the repo without real IPs or secrets.
+
+Use case: generate a `prometheus.yml` from inventory so Prometheus targets and
+Ansible inventory stay in sync. One source of truth.
+
+## Syntax overview
+
+| Syntax | Purpose |
+|---|---|
+| `{{ variable }}` | Output a value |
+| `{% for x in list %}` ... `{% endfor %}` | Loop |
+| `{% if condition %}` ... `{% endif %}` | Condition |
+| `{# comment #}` | Template comment (not in output) |
+
+## Ansible special variables used in templates
+
+### `groups`
+
+Dictionary of all inventory groups. `groups['lxcs']` returns a list of hostnames
+in that group.
+
+```jinja2
+{% for host in groups['lxcs'] %}
+{{ host }}
+{% endfor %}
+```
+
+### `hostvars`
+
+Dictionary of all hosts. `hostvars['lxc260']['ansible_host']` returns the
+`ansible_host` variable of `lxc260`.
+
+Inside a loop, `host` is the current loop variable:
+```jinja2
+{{ hostvars[host]['ansible_host'] }}
+```
+
+Outside a loop, use a literal string:
+```jinja2
+{{ hostvars['lxc260']['ansible_host'] }}
+```
+
+## Generating a list from inventory
+
+```jinja2
+{% for host in groups['lxcs'] %}
+  - job_name: "node-{{ host }}-{{ hostvars[host]['prometheus_label'] }}"
+    static_configs:
+      - targets: ["{{ hostvars[host]['ansible_host'] }}:9100"]
+{% endfor %}
+```
+
+## Excluding specific hosts from a loop
+
+Ansible's `hosts: all:!lxc200` syntax only works in playbook `hosts:` fields.
+Inside a Jinja2 template, use an `if` condition:
+
+```jinja2
+{% for host in groups['lxcs'] %}
+{% if host != 'lxc200' %}
+  - job_name: "node-{{ host }}-{{ hostvars[host]['prometheus_label'] }}"
+    static_configs:
+      - targets: ["{{ hostvars[host]['ansible_host'] }}:9100"]
+{% endif %}
+{% endfor %}
+```
+
+Note the closing order: `{% endif %}` before `{% endfor %}` — close inner blocks first.
+
+## Custom host variables as template input
+
+Any variable defined per-host in inventory is accessible via `hostvars`.
+
+Adding a `prometheus_label` to each host in `hosts.yml`:
+```yaml
+lxcs:
+  hosts:
+    lxc210:
+      ansible_host: <tailscale-ip-nextcloud>
+      prometheus_label: nextcloud
+```
+
+Then in the template:
+```jinja2
+{{ hostvars[host]['prometheus_label'] }}  # → nextcloud
+```
+
+Define per-host variables in groups that list each node exactly once
+(e.g. `lxcs`, `vms`) to avoid duplicate definitions.
+
+## Mixing static and dynamic sections
+
+Templates can combine hardcoded blocks with generated loops:
+
+```jinja2
+scrape_configs:
+  # Static — special cases
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["127.0.0.1:9090"]
+
+  - job_name: "node-lxc200-monitoring"
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+
+  # Dynamic — from inventory
+  {% for host in groups['lxcs'] %}
+  {% if host != 'lxc200' %}
+  - job_name: "node-{{ host }}-{{ hostvars[host]['prometheus_label'] }}"
+    static_configs:
+      - targets: ["{{ hostvars[host]['ansible_host'] }}:9100"]
+  {% endif %}
+  {% endfor %}
+```
+
+## Deploying with the template module
+
+```yaml
+- name: render prometheus config
+  ansible.builtin.template:
+    src: prometheus.yml.j2     # relative to roles/<name>/templates/
+    dest: /etc/prometheus/prometheus.yml
+    owner: root
+    group: root
+    mode: '0644'
+```
+
+The `template` module renders the `.j2` file and copies the result to `dest` on
+the target host. `src` is relative to the role's `templates/` directory.
+
+## References
+
+- [Ansible Templating](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_templating.html)
+- [Jinja2 Template Designer Docs](https://jinja.palletsprojects.com/en/3.1.x/templates/)
+- [Ansible Special Variables](https://docs.ansible.com/ansible/latest/reference_appendices/special_variables.html)
+- [ansible.builtin.template module](https://docs.ansible.com/ansible/latest/collections/ansible/builtin/template_module.html)
+
+## Related
+
+- [Roles](roles.md)
+- [Inventory Groups](inventory-groups.md)
