@@ -250,6 +250,67 @@ Time to fix scales with array size. For a 50TB array with a single failed disk,
 expect 8–24h of read+write across all surviving disks. During this time,
 **no further sync should run** — the array is in a degraded state.
 
+## Live disk expansion without remounting (mergerfs xattr)
+
+MergerFS exposes a control interface via extended attributes on the hidden
+`.mergerfs` file at the mountpoint root. This allows adding or removing disks
+at runtime without unmounting — and without interrupting services that are
+currently reading or writing through the pool.
+
+```bash
+# Read current branches
+getfattr -n user.mergerfs.branches /mnt/pool/.mergerfs
+
+# Add a new disk live ('+' prefix = append)
+setfattr -n user.mergerfs.branches -v '+/mnt/new-disk' /mnt/pool/.mergerfs
+
+# Verify
+getfattr -n user.mergerfs.branches /mnt/pool/.mergerfs
+```
+
+After adding live, update `/etc/fstab` so the change persists after reboot:
+
+```
+/mnt/disk1:/mnt/disk2:/mnt/disk3:/mnt/new-disk  /mnt/pool  fuse.mergerfs  defaults,...  0 0
+```
+
+Note: `mergerfs.ctl` (a helper binary) is not installed by default. The xattr
+approach works on all mergerfs versions that support the control interface
+(verified on 2.33.5).
+
+## Adding an empty disk to SnapRAID
+
+When adding a new, empty disk to the SnapRAID data pool, the sync is fast.
+
+**Why:** SnapRAID parity = XOR across all data disks. An empty disk contains
+only zeros. `data XOR 0 = data` — parity is unchanged. SnapRAID only needs to
+register the new disk in its content files and scan the empty disk (instant).
+
+Procedure:
+1. Add `data <diskname> /mnt/<diskname>` to `snapraid.conf`
+2. Add `content /mnt/<diskname>/snapraid.content` to `snapraid.conf`
+3. Run `snapraid sync` — completes in minutes (scan + content file writes)
+
+Contrast: removing a disk **with data** requires moving files off it first,
+then syncing. Removing an already-empty disk is equally fast (XOR with zeros
+again leaves parity unchanged).
+
+## `snapraid status` — output interpretation
+
+Key fields in the status report:
+
+| Field | Meaning |
+|-------|---------|
+| Free GB | Based on last sync state — may differ from `df` if files were added since last sync |
+| Scrub graph (`*`) | Blocks scrubbed most recently. `o` = older. Sparse graph = scrub hasn't covered the full array yet |
+| `X% not scrubbed` | Normal after monthly partial scrubs — each run covers a fraction of the array |
+| `N files with zero sub-second timestamp` | Files copied without sub-second precision; fix with `snapraid touch` → `snapraid sync` |
+
+**Free space discrepancy (snapraid vs df):** If snapraid reports more free space
+than `df`, files were written to the pool since the last sync. Those files exist
+on disk but snapraid doesn't know about them yet — they are unprotected.
+Run `snapraid sync` to close the gap.
+
 ## Related
 
 - [Operations: Runbook Methodology](../operations/runbook-methodology.md)
