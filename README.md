@@ -102,6 +102,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Nextcloud Administration](applications/nextcloud-admin.md) | `occ` CLI, `files:scan`, `files_external:verify`, APCu+Redis cache split, Apache TLS via Tailscale certs |
 | [Paperless-ngx](applications/paperless-ngx.md) | Pipeline (Gotenberg+Tika+Redis), CSRF origins, OCR languages, polling vs inotify on CIFS, USERMAP_UID/GID |
 | [Vaultwarden](applications/vaultwarden.md) | Argon2id ADMIN_TOKEN, signups/invitations off, non-root container user, "no SQLite on CIFS" rule |
+| [Audiobookshelf Library Structure](applications/audiobookshelf-library-structure.md) | `Author/Series/Book/` folder layout, prefix stripping, series detection regex, dry-run/execute pattern, privacy in public repos |
 
 ## Security
 
