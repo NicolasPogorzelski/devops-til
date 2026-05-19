@@ -36,6 +36,44 @@ qm resume <vmid>           # resume from io-error or suspended state
 `qm guest exec` runs commands inside VMs — but requires qemu-guest-agent
 to be installed and running. Without it, use the console instead.
 
+```bash
+# Run a command synchronously and get output + exit code
+qm guest exec <vmid> --sync -- <command> [args]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--sync` | Wait for the command to finish before returning (otherwise returns immediately with a PID) |
+| `--` | Separates qm options from the command to execute |
+
+Output is JSON:
+```json
+{
+   "exitcode" : 0,
+   "exited" : 1,
+   "out-data" : "line1\nline2\n",
+   "out-truncated" : 0
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `exitcode` | Return code of the command (0 = success) |
+| `exited` | 1 = command has finished |
+| `out-data` | stdout as a string (newlines as `\n`) |
+| `out-truncated` | 1 if output was cut off due to length |
+
+**`pct exec` vs `qm guest exec`:** The critical difference:
+
+| | `pct exec` | `qm guest exec` |
+|---|---|---|
+| Target | LXC containers only | KVM VMs only |
+| Requirement | None (uses namespace access) | qemu-guest-agent must be running |
+| Syntax | `pct exec <ctid> -- <cmd>` | `qm guest exec <vmid> --sync -- <cmd>` |
+
+Using `pct exec` on a VM VMID gives: `Configuration file 'nodes/server/lxc/<id>.conf' does not exist`.
+Using `qm guest exec` on an LXC CTID gives a similar error. Know which type you're targeting.
+
 ## Console access
 
 ```bash

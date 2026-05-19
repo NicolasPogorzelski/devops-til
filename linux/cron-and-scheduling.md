@@ -206,6 +206,70 @@ journalctl -u pg-backup.service    # see job output
 The `Persistent=true` behavior is the killer feature: a laptop that was off at 03:00 will run
 the missed backup when it boots back up. Cron has no equivalent — missed runs are lost.
 
+## Scheduled wakeup via RTC (`rtcwake`)
+
+`rtcwake` programs the hardware Real-Time Clock (RTC) to wake the system from a
+powered-off or suspended state at a specific time. The RTC runs independently of
+the OS — it keeps ticking even when the machine is fully off.
+
+```bash
+# Program wakeup for a specific Unix timestamp (no sleep, just set the alarm)
+rtcwake -m no -t 1779300000
+
+# Show current alarm without changing it
+rtcwake -m show -v
+```
+
+| Flag | Meaning |
+|---|---|
+| `-m no` | Don't suspend/sleep — only program the alarm, then return |
+| `-m show` | Show the current alarm state without modifying it |
+| `-t <timestamp>` | Wake at this Unix epoch timestamp (UTC) |
+| `-v` | Verbose — shows RTC time, system time, and alarm time |
+
+**Important: rtcwake always uses UTC timestamps.** Even if your system is in a
+local timezone, `-t` expects seconds since epoch in UTC. Use `date -d "tomorrow
+07:30" +%s` to generate the correct value — `date` converts local time to epoch
+correctly.
+
+**Verify the alarm is set:**
+```bash
+rtcwake -m show -v
+# Look for: alarm: on  Thu May 21 05:30:00 2026
+# That's UTC — add your UTC offset to get local time (e.g. +2h CEST = 07:30 local)
+```
+
+### Day-of-week aware wakeup script
+
+Combine with cron for a scheduled shutdown/wakeup cycle with different times per
+weekday:
+
+```bash
+# /usr/local/sbin/homelab-setwake.sh — run at 00:45 before 01:00 shutdown
+TOMORROW=$(date -d tomorrow +%u)  # 1=Mon ... 7=Sun
+case $TOMORROW in
+    2|3)  WAKE_TIME=$(date -d "tomorrow 16:00" +%s) ;;  # Tue/Wed: late start
+    *)    WAKE_TIME=$(date -d "tomorrow 07:30" +%s) ;;  # all others
+esac
+rtcwake -m no -t "$WAKE_TIME"
+```
+
+`date +%u` returns ISO weekday number: 1 = Monday, 7 = Sunday.
+`date -d "tomorrow 16:00"` resolves to tomorrow at 16:00 in the local timezone,
+then `+%s` converts to UTC epoch — which is exactly what `rtcwake -t` needs.
+
+### The cron pair (Proxmox host scheduled shutdown example)
+
+```
+# /etc/cron.d/homelab-schedule
+45 0 * * *  root  /usr/local/sbin/homelab-setwake.sh   # program next wakeup
+0  1 * * *  root  /usr/local/sbin/homelab-shutdown.sh  # shut down
+```
+
+The setwake job runs at 00:45, *before* the 01:00 shutdown, so the RTC alarm is
+set before the machine goes off. Without this ordering, the machine would shut
+down with no wakeup alarm programmed.
+
 ## Related
 
 - [Linux: systemd Basics](systemd-basics.md)
