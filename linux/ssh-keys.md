@@ -19,7 +19,7 @@
 ## Generate a key pair
 
 ```bash
-ssh-keygen -t ed25519 -C "user1@laptop-2026"
+ssh-keygen -t ed25519 -C "<user>@<hostname>"
 ```
 
 | Flag | Meaning |
@@ -131,7 +131,7 @@ on intermediate hosts.
 
 ```bash
 # 1. Generate dedicated key
-ssh-keygen -t ed25519 -C "user1-github" -f ~/.ssh/id_ed25519_github
+ssh-keygen -t ed25519 -C "<user>-github" -f ~/.ssh/id_ed25519_github
 
 # 2. Add the public key to GitHub
 #    https://github.com/settings/keys → New SSH key → paste id_ed25519_github.pub

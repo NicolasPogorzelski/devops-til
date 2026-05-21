@@ -160,7 +160,7 @@ Paperless v2.20+ supports workflows that trigger on path patterns:
 trigger:
   type: consumption
   source: folder
-  path: "*user1*"
+  path: "*<user1>*"
 ```
 
 The pattern is shell-glob: `*` matches any sequence, `?` matches one character,

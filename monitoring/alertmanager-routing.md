@@ -168,7 +168,7 @@ A silence suppresses alerts matching a label set for a duration:
 
 ```bash
 amtool silence add severity=warning instance=vm100 \
-  --duration=2h --comment="planned reboot" --author="user1"
+  --duration=2h --comment="planned reboot" --author="<username>"
 ```
 
 | Flag           | Why                                                                       |

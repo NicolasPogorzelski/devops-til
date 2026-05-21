@@ -65,7 +65,7 @@ root SSH access enabled by default). Per-host override in inventory:
 ```yaml
 vm100:
   ansible_host: 100.x.y.z
-  ansible_user: user1       # overrides the default
+  ansible_user: <username>    # overrides the default
 ```
 
 For production: this should be a dedicated `ansible` user with sudo, not `root`.

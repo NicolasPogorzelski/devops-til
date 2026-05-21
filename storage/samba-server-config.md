@@ -110,11 +110,11 @@ operations; raise to `3` only when debugging a specific client.
 A read-write share for a specific user:
 
 ```ini
-[user1]
-   path = /mnt/storage/users/user1
-   valid users = user1
-   force user = user1
-   force group = user1
+[<username>]
+   path = /mnt/storage/users/<username>
+   valid users = <username>
+   force user = <username>
+   force group = <username>
    read only = no
    create mask = 0640
    directory mask = 0750
@@ -214,8 +214,8 @@ authenticate to Samba but cannot log in via SSH or any other Linux service.
 ```bash
 testparm                                # syntax + effective settings
 testparm --section-name=paperless-inbox # specific share
-smbclient -L //localhost -U user1     # list shares as a user
-smbclient //localhost/user1 -U user1# interactive client session
+smbclient -L //localhost -U <username>              # list shares as a user
+smbclient //localhost/<username> -U <username>      # interactive client session
 ```
 
 `testparm` is mandatory after any edit. It catches typos that would otherwise

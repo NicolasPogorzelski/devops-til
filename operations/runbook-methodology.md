@@ -146,8 +146,8 @@ that gets filled in after each rehearsal:
 
 | Date       | Scope                  | Result | Operator   | Notes                  |
 |------------|------------------------|--------|------------|------------------------|
-| 2026-01-15 | postgres full restore  | OK     | user1    | 3min duration          |
-| 2026-04-10 | nextcloud config       | OK     | user1    | Files matched checksum |
+| 2026-01-15 | postgres full restore  | OK     | <username> | 3min duration          |
+| 2026-04-10 | nextcloud config       | OK     | <username> | Files matched checksum |
 | 2026-07-01 | full disaster recovery | —      | (planned)  |                        |
 ```
 

@@ -89,7 +89,7 @@ all:
   children:
     workstations:
       vars:
-        ansible_user: user1       # group override
+        ansible_user: <username>    # group override
       hosts:
         lxc250:
           ansible_host: 100.x.y.z
