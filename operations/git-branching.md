@@ -63,6 +63,44 @@ feat/ansible    ─────────────────────�
 - Use cherry-pick for isolated, dependency-free commits (docs, hotfixes) that
   are ready before the feature is done
 
+## Branch Deletion: `-d` vs `-D`
+
+```bash
+git branch -d feat/my-feature   # safe: blocks if not fully merged
+git branch -D feat/my-feature   # force: deletes regardless
+```
+
+`-d` checks whether all commits on the branch are reachable from another branch
+(typically `main`). If not, it refuses — preventing accidental data loss.
+
+`-D` skips that check. Use it only when you are certain the content is already
+in another branch (e.g., it was merged via a squash merge or history was rewritten).
+
+## filter-repo: side effects of broad replacement patterns
+
+`git filter-repo --replace-text replacements.txt` rewrites every commit that
+contains a matched string. A pattern that is too broad will hit unintended content.
+
+Example: replacing `Nicolas` → `Operator` to remove a first name also rewrites
+`Nicolas Pogorzelski` in README.md — turning the author attribution into
+"Operator Pogorzelski".
+
+**Rule:** review the diff on a test clone before force-pushing. After running
+filter-repo, check:
+
+```bash
+git log --all --oneline | head -20
+git diff <old-tip> HEAD -- README.md   # compare against pre-rewrite tip
+```
+
+After a history rewrite, old local branches (including `feat/*`) have hashes
+that no longer match `main`. Git considers them "not fully merged" even if the
+content is identical. Delete them with `-D`, not `-d`:
+
+```bash
+git branch -D feat/old-branch
+```
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
