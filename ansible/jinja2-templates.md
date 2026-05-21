@@ -129,10 +129,34 @@ scrape_configs:
     owner: root
     group: root
     mode: '0644'
+    lstrip_blocks: yes
 ```
 
 The `template` module renders the `.j2` file and copies the result to `dest` on
 the target host. `src` is relative to the role's `templates/` directory.
+
+### `lstrip_blocks` and `trim_blocks`
+
+Jinja2 block tags (`{% for %}`, `{% if %}`, etc.) on their own line leave behind
+whitespace in the output if not handled carefully.
+
+| Option | Effect | Default in Ansible |
+|---|---|---|
+| `trim_blocks` | Removes the newline **after** `%}` | yes |
+| `lstrip_blocks` | Removes leading spaces/tabs **before** `{%` | no |
+
+With both active, a line like `  {% for host in groups['lxcs'] %}` produces
+**nothing** in the output — the leading spaces are stripped by `lstrip_blocks`,
+the trailing newline by `trim_blocks`.
+
+**Always set `lstrip_blocks: yes`** when the template contains `for`/`if` blocks
+and the output format is whitespace-sensitive (YAML, TOML, Python, etc.).
+
+Without it, each control tag line leaves a "ghost line" with just spaces — in YAML
+this causes inconsistent indentation that may confuse parsers or produce invalid structure.
+
+Do not use `{%-` / `-%}` whitespace control as a substitute — it strips newlines
+from adjacent content lines, causing entries to run together.
 
 ## References
 
