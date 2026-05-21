@@ -270,6 +270,52 @@ The setwake job runs at 00:45, *before* the 01:00 shutdown, so the RTC alarm is
 set before the machine goes off. Without this ordering, the machine would shut
 down with no wakeup alarm programmed.
 
+## Diagnosing a broken cron setup
+
+When a cron job silently doesn't run, work through this stack:
+
+**1. Are any jobs scheduled at all?**
+```bash
+crontab -l
+# "no crontab for root" → nothing is scheduled, no job will ever run
+```
+
+**2. Is the cron daemon running?**
+```bash
+systemctl status cron
+# Expected: Active: active (running)
+```
+
+**3. Did cron actually execute the job?**
+```bash
+journalctl -u cron --since "2026-05-22 00:40" --until "2026-05-22 01:10"
+# Look for lines like: (root) CMD (/usr/local/sbin/homelab-shutdown.sh)
+```
+
+**4. Locate deployed scripts (not the repo, the live path):**
+```bash
+find / -name "homelab-shutdown.sh" 2>/dev/null
+# 2>/dev/null suppresses "Permission denied" noise from /proc etc.
+```
+
+**5. Verify boot time after a scheduled wakeup:**
+```bash
+who -b              # single line: system boot  2026-05-21 07:31
+last reboot | head  # full history with duration per session
+```
+
+`last reboot` format: `start - end (duration)`. Duration `2+16:10` = 2 days 16h 10min.
+Useful to confirm both *when* the system booted and *when* the previous session ended.
+
+### Common root causes
+
+| Symptom | Root cause |
+|---|---|
+| `no crontab for root` | Jobs were scripted but never added to crontab |
+| Job exists, daemon runs, still no execution | Script not executable (`chmod +x`) |
+| Job runs but does nothing | Wrong PATH — binary not found; use absolute paths |
+| Output missing | cron mails output; without MTA it's silently dropped — redirect to log or `logger` |
+
 ## Related
 
 - [Linux: systemd Basics](systemd-basics.md)
