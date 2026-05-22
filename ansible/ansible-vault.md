@@ -119,6 +119,64 @@ The password file must never be committed. Add to `.gitignore`:
 *.vault_pass
 ```
 
+## Practical workflow: encrypt_string
+
+For individual secrets inside a vars file (recommended for homelab — keeps files readable):
+
+```bash
+# encrypt a single value and print ready-to-paste YAML
+ansible-vault encrypt_string 'my-secret-value' --name 'vault_db_password'
+```
+
+Output is valid YAML — paste directly into `group_vars/all/vault.yml`:
+
+```yaml
+vault_db_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          38653262373932623861326437...
+```
+
+The `!vault` YAML tag tells Ansible to decrypt this value at runtime.
+
+Verify decryption works before using in a playbook:
+
+```bash
+ansible all -m debug -a "var=vault_db_password" -l lxc211
+```
+
+## Role pattern with Vault
+
+A role that deploys a `.env` file splits variables into three layers:
+
+```
+roles/myservice/
+  defaults/main.yml     # non-secret defaults (plain YAML)
+  templates/app.env.j2  # Jinja2 template referencing both layers
+group_vars/all/
+  vault.yml             # encrypted secrets only
+```
+
+`defaults/main.yml` — plain, readable:
+```yaml
+app_dbport: 5432
+app_dbname: mydb
+```
+
+`vault.yml` — encrypted:
+```yaml
+vault_app_dbpass: !vault |
+    $ANSIBLE_VAULT;1.1;AES256
+    ...
+```
+
+`templates/app.env.j2` — bridges both:
+```
+APP_DBPORT={{ app_dbport }}
+APP_DBPASS={{ vault_app_dbpass }}
+```
+
+The `.env` written to the node contains plaintext — Vault only protects the value in the repo and during transit. Access control on the target is a separate concern.
+
 ## What Vault does NOT protect
 
 Vault protects secrets in your Ansible code and Git repo. It does not protect the deployed secret on the target server — the `.env` file or config file on disk remains plaintext. Access control on the target server is a separate concern.
