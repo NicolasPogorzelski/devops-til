@@ -181,6 +181,69 @@ The `.env` written to the node contains plaintext — Vault only protects the va
 
 Vault protects secrets in your Ansible code and Git repo. It does not protect the deployed secret on the target server — the `.env` file or config file on disk remains plaintext. Access control on the target server is a separate concern.
 
+## Vault IDs and the --ask-vault-pass conflict
+
+Every Ansible Vault password source gets a label called a **vault ID**. When no ID is specified explicitly, Ansible assigns the label `default`.
+
+Two sources produce two `default` IDs — Ansible cannot determine which to use for encryption:
+
+```
+vault_password_file = ~/.vault_pass   →  vault ID: default
+--ask-vault-pass                      →  vault ID: default
+```
+
+Error:
+```
+[ERROR]: The vault-ids default,default are available to encrypt.
+Specify the vault-id to encrypt with --encrypt-vault-id
+```
+
+**Fix:** do not combine `vault_password_file` (in `ansible.cfg`) with `--ask-vault-pass`. Use one or the other.
+
+## Changing the vault password (inline vault format)
+
+`ansible-vault rekey` works on whole encrypted files. It does **not** work on inline `!vault |` blocks inside a YAML file.
+
+For inline vault, each value must be re-encrypted individually:
+
+1. Read current plaintext values from a running node (Ansible decrypts on the fly):
+   ```bash
+   ansible lxc211 -m debug -a "var=vault_paperless_dbpass"
+   ```
+
+2. Update `~/.vault_pass` with the new password **first** — this avoids the vault-ID conflict:
+   ```bash
+   echo 'new-password' > ~/.vault_pass
+   ```
+
+3. Re-encrypt each value without `--ask-vault-pass` (Ansible reads the new password from `ansible.cfg` automatically):
+   ```bash
+   ansible-vault encrypt_string 'VALUE' --name 'vault_paperless_dbpass'
+   ```
+
+4. Rebuild `vault.yml` with the three new `!vault |` blocks.
+
+5. Verify decryption and run the playbook to confirm idempotency.
+
+## The !vault | YAML syntax
+
+`!vault` is a YAML tag. It tells the YAML parser: "this is not a plain string — pass it to Ansible Vault for decryption." Without the tag, Ansible would treat the ciphertext as a literal string and never decrypt it.
+
+`|` is the YAML block scalar operator. It preserves newlines in multi-line values. The AES256 ciphertext spans multiple lines, so `|` is required.
+
+Together: `!vault |` = "multi-line encrypted value — decrypt at runtime."
+
+## Where decryption happens
+
+Decryption always happens on the **control node** (the machine running `ansible` or `ansible-playbook`), not on the target (managed node).
+
+The managed node never sees:
+- The vault password
+- The encrypted ciphertext
+- `~/.vault_pass` or `ansible.cfg`
+
+It only receives the final plaintext value — either as a variable in memory, or written to a file by a task (e.g., a deployed `.env`).
+
 ## Official documentation
 
 - Vault guide: https://docs.ansible.com/ansible/latest/vault_guide/index.html
