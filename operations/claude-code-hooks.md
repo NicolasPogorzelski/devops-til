@@ -93,6 +93,33 @@ Neither alone is sufficient:
 - Local hook can be bypassed with `--no-verify`.
 - GitHub protection only catches it at push time, not commit time.
 
+## Stop Hook: systemMessage Pattern
+
+A Stop hook that outputs `{"systemMessage": "..."}` shows a visible message to the user when Claude's turn ends.
+Use this for session-end reminders that must not be forgotten.
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "printf '{\"systemMessage\": \"SESSION-END CHECKLIST\\n1. Homelab-Repo: Doku aktualisieren\\n2. commit + push\\n3. devops-til: aktualisieren + push\"}'",
+        "statusMessage": "Session-Ende Checkliste"
+      }]
+    }]
+  }
+}
+```
+
+Key points:
+- `Stop` hooks have **no matcher** (no tool to match against)
+- The command must output valid JSON with a `systemMessage` field
+- `\n` in the printf string produces newlines in the displayed message
+- `statusMessage` is shown in the spinner while the hook runs
+
+Difference from `additionalContext`: `systemMessage` is shown to the **user**. `additionalContext` (in `hookSpecificOutput`) is injected into **Claude's context** and not shown to the user.
+
 ## Hook Fatigue
 
 More hooks is not better. Each hook that fires on every action adds noise and latency.

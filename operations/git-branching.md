@@ -101,6 +101,28 @@ content is identical. Delete them with `-D`, not `-d`:
 git branch -D feat/old-branch
 ```
 
+## git restore: discarding unstaged changes
+
+`git restore <file>` discards all unstaged changes in a file and restores it to the last committed state.
+
+```bash
+git restore docker/jellyfin/docker-compose.yml
+```
+
+- Only affects **unstaged** changes (not staged, not committed)
+- Irreversible — no undo
+- Does not affect commits already in the log; those are pushed separately
+
+Contrast with:
+
+| Command | What it touches |
+|---|---|
+| `git restore <file>` | Unstaged changes in working tree |
+| `git restore --staged <file>` | Staged (index) → back to unstaged |
+| `git reset --hard` | Everything — staged + unstaged (destructive) |
+
+Use `git status` to verify the working tree is clean afterwards.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
