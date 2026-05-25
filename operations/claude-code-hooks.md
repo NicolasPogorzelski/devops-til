@@ -115,11 +115,14 @@ Neither alone is sufficient:
 - Local hook can be bypassed with `--no-verify`.
 - GitHub protection only catches it at push time, not commit time.
 
-## Stop Hook: Two Output Patterns
+## Stop Hook: systemMessage Pattern
 
-`Stop` fires when Claude's turn ends. Two output patterns exist for different audiences:
+`Stop` fires when Claude's turn ends. The only supported output is `systemMessage` —
+a visible banner shown to the user.
 
-### systemMessage — visible to the user
+**`additionalContext` via `hookSpecificOutput` is NOT valid for Stop.** It is only
+supported for `UserPromptSubmit`, `PostToolUse`, and `PostToolBatch`. Outputting it
+from a Stop hook causes a JSON validation error and the hook is silently skipped.
 
 ```json
 {
@@ -139,36 +142,6 @@ Neither alone is sufficient:
 - `\n` inside the printf string — produces newlines in the rendered message.
 - `statusMessage` — text shown in the spinner while the hook command is running.
 - `Stop` has **no matcher** — there is no tool to match against.
-
-### additionalContext — injected into Claude's context only
-
-```json
-{
-  "hooks": {
-    "Stop": [{
-      "hooks": [{
-        "type": "command",
-        "command": "printf '{\"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": \"Reminder: run quiz before switching topics.\"}}'",
-        "statusMessage": "Context injected"
-      }]
-    }]
-  }
-}
-```
-
-- `hookSpecificOutput` wrapper with `hookEventName` — required envelope for context injection.
-- `additionalContext` — injected into Claude's system context. **Not visible to the user.**
-
-### When to use which
-
-| Pattern | Audience | Use case |
-|---|---|---|
-| `systemMessage` | User | Checklists the user must act on |
-| `additionalContext` | Claude | Behavioral reminders Claude should follow |
-
-Both can run simultaneously from different settings files (e.g. project `settings.local.json` uses
-`systemMessage` for the user checklist; global `settings.json` uses `additionalContext` to remind
-Claude of session-end procedures). Both Stop hooks fire; outputs are independent.
 
 ## Hook Fatigue
 
