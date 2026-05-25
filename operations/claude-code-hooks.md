@@ -26,10 +26,21 @@ Every hook receives a JSON payload on stdin:
 }
 ```
 
-Extract values with `jq`:
+Extract values with `jq` (if installed):
 ```bash
 jq -r '.tool_input.command'
 ```
+
+Or with `python3` (always available):
+```bash
+python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))"
+```
+
+- `json.load(sys.stdin)` — parses the full JSON payload from stdin into a dict.
+- `.get('tool_input', {})` — safe key access: returns `{}` instead of crashing on a missing key.
+- `.get('command', '')` — extracts the command string; falls back to empty string if absent.
+- Prefer python3 over raw `grep` on stdin: raw grep reads unstructured JSON text and breaks
+  if the runtime unicode-escapes the string (e.g. `Co-Authored-By`).
 
 ## Hook Output
 
