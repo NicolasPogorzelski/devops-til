@@ -120,7 +120,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
 | [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
 | [Backup Strategy](operations/backup-strategy.md) | 3-2-1 rule, threat coverage matrix, restic with append-only credentials, retention policies, restore verification |
-| [Claude Code Hooks](operations/claude-code-hooks.md) | Hook events, stdin JSON, `additionalContext` injection, `continue: false` blocking, defense-in-depth with branch protection, hook fatigue |
+| [Claude Code Hooks](operations/claude-code-hooks.md) | Hook events, stdin JSON, `additionalContext` vs `systemMessage`, `if` conditional field, SessionStart context injection, dual-Stop pattern, defense-in-depth with branch protection, hook fatigue |
 | [Dotfiles Management](operations/dotfiles-management.md) | Template + render pattern, `--dry-run` flag, `pipx ensurepath` PATH fix, validate.sh, bootstrap/install split |
 
 ---
