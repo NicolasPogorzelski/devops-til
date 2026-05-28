@@ -37,6 +37,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Roles](ansible/roles.md) | Why roles exist, directory structure, `defaults/` vs `vars/`, `files/` vs `templates/`, binary deployment pattern, handlers |
 | [Jinja2 Templates](ansible/jinja2-templates.md) | Generating config files from inventory: `groups[]`, `hostvars[]`, for loops, if conditions, mixing static and dynamic sections, `template` module |
 | [Ansible Vault](ansible/ansible-vault.md) | AES-256 secrets encryption in Ansible: why plaintext in Git is permanent, breach window concept, `group_vars` split pattern, key commands, vault password file |
+| [SSH Hardening](ansible/ssh-hardening.md) | `lineinfile` module pattern, regexp workflow for sshd_config directives, `--check --diff` dry-run habit, handler reload vs restart, idempotency signals |
 
 ## Proxmox
 
