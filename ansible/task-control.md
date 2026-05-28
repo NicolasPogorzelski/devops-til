@@ -146,6 +146,31 @@ upgrade, the daemon can start with a stale packet filter, blocking all incoming
 TCP connections despite correct ACL configuration. A forced restart ensures a
 clean netmap fetch. See [Tailscale Debugging](../networking/tailscale-debugging.md).
 
+## Jinja2 collision with Go template syntax in ad-hoc commands
+
+`docker ps --format '{{.Names}}'` uses Go template syntax. Ansible's `-a` argument
+is processed by Jinja2 before the command runs. Jinja2 interprets `{{.Names}}` as
+a template expression and throws a syntax error:
+
+```
+Error while resolving value for '_raw_params': Syntax error in template: unexpected '.'
+```
+
+**Fix:** Avoid `--format '{{...}}'` in ad-hoc commands. Use `docker ps` without
+format and pipe through `awk` instead:
+
+```bash
+ansible all -m shell -a "docker ps --no-trunc | awk '{print \$NF, \$2}'" --become
+```
+
+Note the `\$NF` and `\$2` — the `\` escapes the `$` from the outer shell before
+Ansible sees the string. Without the backslash, the shell expands `$NF` to empty
+before passing the argument to Ansible.
+
+**Why `command` module doesn't help here:** Even without Jinja2 collision, `command`
+doesn't support pipes. Use `shell` for any command that needs `|`, `&&`, `>`, or
+variable escaping.
+
 ## Related
 
 - [Playbook Structure](playbook-structure.md)

@@ -29,7 +29,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Playbook Structure](ansible/playbook-structure.md) | Minimum required fields, plays vs tasks, YAML indentation rules |
-| [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command` |
+| [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command`, Go template collision in ad-hoc commands |
 | [Privilege Escalation](ansible/privilege-escalation.md) | `become`, `become_user`, and how to configure NOPASSWD sudo for Ansible |
 | [Inventory Groups](ansible/inventory-groups.md) | Group structure, per-host overrides, `host_vars`/`group_vars`, sanitized inventory pattern |
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
@@ -46,6 +46,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Thin-Pool Recovery](proxmox/thin-pool-recovery.md) | How to diagnose and recover from a full LVM thin-pool on a Proxmox host |
 | [LXC & VM Management](proxmox/lxc-vm-management.md) | `pct` and `qm`, LXC vs VM, mount points, boot order, `nesting=1`, `/dev/disk/by-id`, bind-mount propagation |
 | [Tailscale TUN in Unprivileged LXCs](proxmox/lxc-tailscale-tun.md) | CT210-pattern: `cgroup2.devices.allow` + `mount.entry` for kernel WireGuard, userspace-networking pitfall |
+| [Hard Shutdown Recovery](proxmox/hard-shutdown-recovery.md) | LXC boot failures after forced power-off: SMB mount dependency (exit 19), SSH/Tailscale race condition, access hierarchy, recovery order |
 
 ## Networking
 
@@ -117,7 +118,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Runbook Methodology](operations/runbook-methodology.md) | Root-cause process, failure-modes table, layer-by-layer health checks, verification log, doku-first workflow, fail-forward visibility |
-| [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy, `-d` vs `-D`, filter-repo replacement side effects |
+| [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy, `-d` vs `-D`, filter-repo replacement side effects, `filter-branch --msg-filter`, cherry-pick conflict resolution |
 | [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
 | [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
 | [Backup Strategy](operations/backup-strategy.md) | 3-2-1 rule, threat coverage matrix, restic with append-only credentials, retention policies, restore verification |

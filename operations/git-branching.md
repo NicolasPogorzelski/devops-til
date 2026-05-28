@@ -123,6 +123,53 @@ Contrast with:
 
 Use `git status` to verify the working tree is clean afterwards.
 
+## Rewriting commit messages with filter-branch
+
+To transform every commit message in a range using a shell command:
+
+```bash
+git filter-branch -f --msg-filter '<command>' HEAD~3..HEAD
+```
+
+- `--msg-filter '<cmd>'` — runs the command for each commit; stdin = old message,
+  stdout = new message; any shell command that reads stdin and writes stdout works
+- `-f` — force-overwrites any existing `refs/original/` backup from a prior run
+- `HEAD~3..HEAD` — applies only to the last 3 commits; use `--all` for the full history
+
+Example — remove all lines matching a pattern:
+
+```bash
+git filter-branch -f --msg-filter 'grep -v "^Signed-off-by:"' HEAD~5..HEAD
+```
+
+After rewriting, hashes change. Push requires `--force-with-lease`:
+
+```bash
+git push --force-with-lease origin <branch>
+```
+
+`--force-with-lease` aborts if someone else pushed since your last fetch.
+
+## Cherry-pick with conflict resolution
+
+When cherry-picking a commit onto a branch whose context lines differ:
+
+```bash
+git cherry-pick <hash>
+# → CONFLICT in some-file.md
+
+# Resolve conflict manually in the file, then:
+git add some-file.md
+git cherry-pick --continue --no-edit
+```
+
+- `--continue` — resumes after conflicts are resolved and staged
+- `--no-edit` — keeps the original commit message without opening an editor
+
+**Common cause:** the commit was made on a branch that diverged from the target.
+The patch context (surrounding lines) no longer matches. Resolution: keep the
+correct content from both sides, remove the conflict markers.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
