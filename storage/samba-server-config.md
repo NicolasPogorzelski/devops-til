@@ -221,6 +221,84 @@ smbclient //localhost/<username> -U <username>      # interactive client session
 `testparm` is mandatory after any edit. It catches typos that would otherwise
 cause silent fallback to defaults.
 
+## `access based share enum` vs `browseable = no`
+
+`browseable = no` is an absolute switch — the share disappears from listings for
+*everyone*, regardless of whether they have access. It is blunt and breaks
+legitimate workflows (e.g. file manager navigation).
+
+`access based share enum = yes` (set in `[global]`) filters the share listing
+*per user*: a share only appears if the connecting user would actually be allowed
+in. Real access protection remains with `valid users`.
+
+```ini
+[global]
+   access based share enum = yes
+```
+
+| | `browseable = no` (global) | `access based share enum` |
+|---|---|---|
+| User with access sees share | No | Yes |
+| User without access sees share | No | No |
+| File manager navigation works | Broken | Works |
+| Protection mechanism | Obscurity | Identity |
+
+Use `browseable = no` *per share* only for shares that should never appear in any
+listing (e.g. service-to-service shares that clients connect to by known path).
+Use `access based share enum` for the global default.
+
+## Mixed read-write share: `read only` + `write list`
+
+When one share needs RO for most users and RW for specific users:
+
+```ini
+[roms]
+   path = /mnt/mergerfs/roms
+   valid users = roms, storage
+   read only = yes
+   write list = storage
+   force group = roms
+   create mask = 0664
+   directory mask = 0775
+```
+
+`write list` overrides `read only = yes` for named users. Users in `valid users`
+but NOT in `write list` get read-only access. Users in `write list` get full
+write access regardless of `read only`.
+
+`testparm` will not show `read only = Yes` — it is Samba's compiled-in default
+and is omitted from the output. Absence of `read only = No` means it is active.
+
+## Shared-group share with Setgid
+
+When multiple users need to write to a share and all files must be readable by a
+group:
+
+```bash
+groupadd roms
+useradd --no-create-home --shell /usr/sbin/nologin --gid roms roms
+useradd --no-create-home --shell /usr/sbin/nologin --gid roms roms-admin
+```
+
+```bash
+chown -R roms-admin:roms /mnt/mergerfs/roms
+find /mnt/mergerfs/roms -type d -exec chmod 2775 {} \;
+```
+
+The `2` in `2775` sets the **Setgid bit** on directories. New files and
+subdirectories inherit the group `roms` automatically, regardless of which user
+created them. Without Setgid, new files inherit the creator's primary group —
+breaking read access for other group members.
+
+```ini
+[roms]
+   force group = roms
+   create mask = 0664
+   directory mask = 0775
+```
+
+`force group` enforces the group at the Samba layer as a second guarantee.
+
 ## Related
 
 - [SnapRAID + MergerFS](snapraid-mergerfs.md)
