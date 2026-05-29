@@ -150,6 +150,61 @@ systemctl status mnt-smb-foo.automount # detailed state of a specific automount
 mount-point hierarchy and unit naming, and `--json` makes scripted health
 checks straightforward.
 
+## Desktop fstab (no automount)
+
+On a desktop/gaming PC, the server-side automount complexity is not needed.
+A simple fstab entry with `_netdev,nofail` is sufficient.
+
+### KIO/GVfs is not a real mount
+
+KDE Dolphin mounts network shares on-demand via KIO/GVfs. These are not real
+filesystem mounts — they live under `/run/user/1000/gvfs/smb-share:...` and
+are invisible to applications. ES-DE, RetroArch, and any other app that needs
+a stable path cannot use them.
+
+Verify: `gio mount -l` (GVfs mounts) vs `mount | grep cifs` (real CIFS mounts).
+If only GVfs shows it, applications cannot use it.
+
+### Credentials file
+
+Never put passwords in fstab (world-readable). Use a credentials file:
+
+```
+/etc/samba/credentials/<name>
+---
+username=<user>
+password=<password>
+```
+
+```bash
+sudo chmod 600 /etc/samba/credentials/<name>
+sudo chown root:root /etc/samba/credentials/<name>
+```
+
+### fstab entry
+
+```
+//<server>/<share>  /mnt/<name>  cifs  credentials=/etc/samba/credentials/<name>,uid=1000,gid=1000,iocharset=utf8,_netdev,nofail  0  0
+```
+
+| Option | Purpose |
+|---|---|
+| `credentials=` | Path to credentials file (chmod 600) |
+| `uid=1000,gid=1000` | Map share to local user — required for apps to read/write |
+| `iocharset=utf8` | Unicode filenames (game titles with special characters) |
+| `_netdev` | Tell systemd this mount needs the network — delays it until network is up |
+| `nofail` | Boot succeeds even if the share is unreachable |
+
+Test without reboot: `sudo mount -a`
+
+Verify: `findmnt /mnt/<name>`
+
+### Arch/CachyOS: install cifs-utils
+
+```bash
+paru -S cifs-utils
+```
+
 ## Related
 
 - [Linux: systemd Basics](../linux/systemd-basics.md)
