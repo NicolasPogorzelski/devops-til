@@ -83,6 +83,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [SnapRAID + MergerFS](storage/snapraid-mergerfs.md) | Storage stack architecture, sync/scrub discipline, `noatime`, excludes, multiple content files, `category.create=mfs`, hash-mismatch recovery, live disk expansion via xattr, empty-disk sync (XOR neutral), status output interpretation |
 | [CIFS via systemd Automount](storage/cifs-automount.md) | Reboot-safe network mounts, `x-systemd.automount` options, boot-trigger oneshot, app-state vs uploads split |
 | [Samba Server Config](storage/samba-server-config.md) | `smb.conf` structure, SMB3-only, mandatory signing, bind interfaces, share types (RW/RO/Ingest) |
+| [Samba Access Control & SMB Clients](storage/samba-access-control.md) | SMB 3.1.1 vs mandatory signing (two gates), `hosts allow` default-deny (app-layer, not firewall), discovery (nmbd) vs connection (smbd), diagnosing with `smbstatus`/`ss`/`testparm`/`%m.log`/`smbcontrol debug`, app vs OS SMB client (Android SAF `content://` vs real path), same-host bridge vs Tailscale |
 
 ## Database
 
