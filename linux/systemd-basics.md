@@ -64,6 +64,61 @@ journalctl --vacuum-size=200M    # keep only 200 MB of logs
 journalctl --vacuum-time=7d      # keep only last 7 days
 ```
 
+## Persistent journald storage (or: where did my logs go?)
+
+A nasty discovery during the KE-8 incident investigation: the journal for the days
+around the incident was **simply gone**. `journalctl --list-boots` jumped straight from
+an old boot to the current one — the boots in between had no logs at all. Forensics
+fell back to `wtmp`, `apt`/`dpkg` text logs, Docker JSON logs, and Prometheus instead.
+
+Root cause to check: journald's storage mode.
+
+```bash
+journalctl --list-boots          # do past boots even exist in the journal?
+cat /etc/systemd/journald.conf   # what is Storage= set to?
+journalctl --disk-usage          # how much is the journal actually keeping?
+```
+
+The `Storage=` directive in `/etc/systemd/journald.conf` decides where logs live:
+
+| `Storage=` | Behavior |
+|---|---|
+| `volatile` | Logs only in `/run/log/journal` (RAM) — **wiped on every reboot** |
+| `persistent` | Logs in `/var/log/journal` (disk) — survive reboots |
+| `auto` (default) | Persistent **only if** `/var/log/journal/` already exists; otherwise volatile |
+
+The trap is `auto`: people assume "auto = it figures it out and keeps my logs." It does
+**not** — if the `/var/log/journal` directory is missing, `auto` silently behaves like
+`volatile` and every reboot throws the logs away. The directory's mere existence is the
+switch.
+
+Make it persistent explicitly:
+
+```bash
+mkdir -p /var/log/journal                 # the directory IS the trigger under auto
+# or be explicit and unambiguous:
+# set Storage=persistent in /etc/systemd/journald.conf
+systemd-tmpfiles --create --prefix /var/log/journal   # apply correct ownership/perms
+systemctl restart systemd-journald
+```
+
+- `mkdir -p /var/log/journal` — creating the directory flips `auto` into persistent
+  mode; `-p` is harmless if it already exists.
+- `systemd-tmpfiles --create --prefix /var/log/journal` — sets the
+  systemd-mandated ownership (`root:systemd-journal`) and permissions; doing it by hand
+  risks journald refusing to use a wrongly-owned directory.
+- `systemctl restart systemd-journald` — reloads the daemon so it picks up the new
+  storage location.
+
+Also relevant to "logs vanished": even with persistent storage, retention is bounded by
+`SystemMaxUse=` (default ~10% of the filesystem) and `MaxRetentionSec=`. Logs can be
+persistent yet still rotated out faster than you expect on a busy node — worth checking
+both `Storage=` *and* the size caps when logs are missing.
+
+> Lesson logged as tech debt: vm100/vm102 had `/var/log/journal` present yet still lost
+> boots — so the next step is to confirm `Storage=` and the `SystemMaxUse=`/retention
+> caps, not assume the directory alone is sufficient.
+
 ## systemd mount units
 
 Instead of `/etc/fstab`, mounts can be managed as `.mount` unit files.

@@ -16,10 +16,11 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Namespaces & nsenter](linux/namespaces-nsenter.md) | What Linux namespaces are, how LXC containers use them, and how to enter them from the host |
 | [ELF Binaries & Corruption](linux/elf-binary-corruption.md) | What ELF format is, how to detect a corrupt binary, and how to reinstall it |
 | [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, `dpkg --verify` with conffile filtering, dpkg audit and repair, Ansible `upgrade: dist` modes, cache hygiene |
-| [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, mount units, `Type=oneshot`, drop-in overrides |
+| [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, persistent journald (`Storage=` auto trap), mount units, `Type=oneshot`, drop-in overrides |
 | [systemd Service Hardening](linux/systemd-service-hardening.md) | `Restart=on-failure`, `RestartPreventExitStatus`, `After=` vs `Wants=`, race-condition fixes |
+| [Time Synchronization](linux/time-synchronization.md) | System clock vs RTC, NTP/chrony vs timesyncd, `timedatectl`/`chronyc`, why drift breaks SnapRAID & alert math, LXC inherits host clock vs VM needs its own |
 | [Bash Scripting Patterns](linux/bash-scripting-patterns.md) | Strict mode, pre-flight checks, `command -v`, `install -m`, HEREDOC, sub-commands, `mktemp+trap` |
-| [SSH Keys](linux/ssh-keys.md) | Ed25519 keys, agent forwarding caveats, authorized_keys hygiene, key rotation |
+| [SSH Keys](linux/ssh-keys.md) | Ed25519 keys, agent forwarding caveats, authorized_keys hygiene, break-glass fallback key, key rotation |
 | [Cron and Scheduling](linux/cron-and-scheduling.md) | crontab vs `/etc/cron.d/`, systemd timers, when to choose which, log conventions |
 | [Disk Diagnostics](linux/disk-diagnostics.md) | `smartctl`, `dmesg`, identifying drive failures, SMART attribute thresholds |
 | [Network Tools](linux/network-tools.md) | `nc -zv`, `ss`, `findmnt`, Python socket fallback, layer-by-layer reachability |
@@ -71,7 +72,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 
 | Topic | Summary |
 |---|---|
-| [Prometheus Stack](monitoring/prometheus-stack.md) | Scrape jobs, node_exporter, textfile collector pattern, alert rules, Alertmanager routing |
+| [Prometheus Stack](monitoring/prometheus-stack.md) | Scrape jobs, node_exporter, textfile collector pattern, alert rules, node-up ≠ service-up blind spot (blackbox_exporter), `up` over a window to bound an incident, Alertmanager routing |
 | [Prometheus Configuration](monitoring/prometheus-config.md) | `scrape_configs`, rule_files, alertmanagers static_configs, job-naming, retention/lifecycle flags |
 | [PromQL & Alert Rules](monitoring/promql-patterns.md) | `for:` debouncing, severity labels, fstype filters, aggregations, annotation templating, recording rules |
 | [Alertmanager Routing](monitoring/alertmanager-routing.md) | Routes, group_by/wait/interval, repeat_interval, inhibit_rules, silences, Discord webhooks |

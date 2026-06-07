@@ -178,6 +178,46 @@ In a Tailscale-only inventory, the network path is already encrypted and identit
 the Tailscale layer — making `host_key_checking = False` a defensible default. Document it
 explicitly so future-you doesn't wonder why MITM protection looks weakened.
 
+## Break-glass access (a second key as a fallback)
+
+When `PasswordAuthentication no` is set, **key presence is the only access lever** —
+there is no password path to fall back on. That makes the automation account a single
+point of failure: if the `ansible` user's key is rotated badly, the sudoers rule is
+broken, or the home directory is clobbered, you can be locked out of a node with no
+side door.
+
+The mitigation is a **break-glass key**: a second, human-owned admin public key in a
+*different* account's `authorized_keys`, kept only for emergencies.
+
+In this homelab, VM102 (`storage`) carries the admin workstation key
+(`desktop-cachyos`) in the `storage` user's `authorized_keys`, alongside the primary
+`ansible` user path:
+
+```
+# /home/storage/.ssh/authorized_keys on VM102
+ssh-ed25519 AAAA...workstation  nicolas@desktop-cachyos    # break-glass fallback
+```
+
+Why this shape:
+
+- **Different account than the automation user.** If the `ansible` account itself is
+  the thing that breaks, a key under `ansible` won't help — the fallback must live
+  elsewhere.
+- **A human's interactive key, not another robot key.** Break-glass is for a person at
+  a keyboard during an incident, so it's the workstation key you actually sit behind.
+- **Still no password.** This does not weaken the `PasswordAuthentication no` posture —
+  it's a second *key*, so the access model stays key-only.
+
+Trade-off and discipline:
+
+- A second standing key is a second thing that can leak. Keep the count small and
+  **audit `authorized_keys` for stale keys.** VM102 still had legacy keys
+  (`root@server`, `fedora-notebook`) flagged for cleanup — exactly the kind of cruft a
+  break-glass policy must not become.
+- Adding it ad-hoc by hand is fine for the emergency, but it should be **codified**
+  (managed as an Ansible var / authorized_key task) so the fallback is intentional and
+  reviewable, not a forgotten manual edit.
+
 ## Revoking access
 
 To remove a key from a server:

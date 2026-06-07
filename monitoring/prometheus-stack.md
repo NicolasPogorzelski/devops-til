@@ -83,6 +83,61 @@ for the specified duration, the alert fires.
 | `SnapRAIDScrubStale` | `time() - last_scrub > 32d` | SnapRAID hasn't scrubbed |
 | `PostgreSQLBackupStale` | `time() - last_backup > 25h` | Backup overdue |
 
+## Node-up ≠ service-up (the monitoring blind spot)
+
+`up == 0` from `NodeDown` only tells you the **node_exporter** target stopped
+answering — i.e. the host (or its exporter) is down. It says nothing about whether the
+actual application is serving traffic.
+
+This blind spot caused a real incident (KE-8). Jellyfin (8096) and Audiobookshelf
+(13378) on VM100 hung — alive as processes but not serving — while node_exporter (9100)
+answered the entire time. `up{job="node-vm100-gpu"}` stayed `1`, no alert fired, and the
+outage was only noticed by a human trying to use the service.
+
+**The general rule:** node-level metrics monitor the *box*, not the *service*. A healthy
+box can host a dead service. To close the gap you need a probe that speaks the service's
+own protocol:
+
+- **blackbox_exporter** — Prometheus probes an HTTP(S)/TCP endpoint from the outside and
+  exports whether it responded, the status code, and latency. A `ServiceDown` rule on a
+  failed HTTP probe catches "port open but app wedged" and "port dead" alike.
+
+```yaml
+# sketch of the intended remediation (not yet deployed here)
+- alert: ServiceDown
+  expr: probe_success{job="blackbox-http"} == 0
+  for: 2m
+  labels: { severity: critical }
+  annotations:
+    summary: "Service {{ $labels.instance }} failing HTTP probe"
+```
+
+`probe_success` comes from blackbox_exporter, not node_exporter — that is the whole
+point: a *second, independent* signal at the application layer.
+
+## Using `up` to bound an incident after the fact
+
+A debugging trick from the same investigation: the `up` metric is a per-scrape
+historical record, so you can prove what the node was doing during a past window even
+when application logs are gone.
+
+```promql
+# count successful scrapes in the incident window (expect ~one per scrape_interval)
+count_over_time(up{job="node-vm100-gpu"}[2h])
+
+# was the node ever actually down in the window?
+min_over_time(up{job="node-vm100-gpu"}[2h])
+```
+
+- `count_over_time(...[2h])` — number of samples in the range. 300/300 expected samples
+  present meant the node never stopped being scraped — it was reachable throughout.
+- `min_over_time(...[2h])` — if this is `1`, `up` was never `0`; the node never went
+  down. A single 60s gap lined up exactly with the recovery restart, nothing else.
+
+This is how the KE-8 investigation *excluded* "node down / network loss" as causes
+without any application log to lean on — Prometheus retained the evidence the journal
+didn't (see [systemd Basics → Persistent journald storage](../linux/systemd-basics.md)).
+
 ## Alertmanager routing
 
 Alertmanager receives fired alerts from Prometheus and routes them to receivers.
