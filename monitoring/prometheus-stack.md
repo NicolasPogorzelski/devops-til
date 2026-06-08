@@ -103,17 +103,54 @@ own protocol:
   failed HTTP probe catches "port open but app wedged" and "port dead" alike.
 
 ```yaml
-# sketch of the intended remediation (not yet deployed here)
 - alert: ServiceDown
-  expr: probe_success{job="blackbox-http"} == 0
-  for: 2m
+  expr: probe_success == 0
+  for: 3m
   labels: { severity: critical }
   annotations:
-    summary: "Service {{ $labels.instance }} failing HTTP probe"
+    summary: "Service {{ $labels.service }} failing its probe"
 ```
 
 `probe_success` comes from blackbox_exporter, not node_exporter — that is the whole
 point: a *second, independent* signal at the application layer.
+
+### The relabel dance (the part that confuses everyone)
+
+blackbox is a *proxy* scrape: Prometheus must scrape **blackbox**, but tell it *which
+URL to probe*. The target URL therefore has to be shuffled through labels:
+
+```yaml
+- job_name: "blackbox-http"
+  metrics_path: /probe            # not /metrics — blackbox's probe endpoint
+  params:
+    module: [http_2xx]            # which prober profile from blackbox.yml
+  static_configs:
+    - targets: ["http://host:8096"]   # the URL to PROBE, not to scrape
+      labels: { service: jellyfin }
+  relabel_configs:
+    - source_labels: [__address__]      # 1) the URL starts in __address__
+      target_label: __param_target      #    -> move it into ?target=
+    - source_labels: [__param_target]   # 2) copy it to the instance label
+      target_label: instance            #    (so graphs/alerts are readable)
+    - target_label: __address__         # 3) overwrite the scrape address
+      replacement: 127.0.0.1:9115       #    -> actually scrape blackbox
+```
+
+Mental model: `__address__` is "who Prometheus connects to". For blackbox you flip it
+to the exporter and pass the real target as a query param. `module:` picks the probe
+profile (e.g. `http_2xx`; a lenient `valid_status_codes: [200,301,302,401,403]` variant
+is useful so an auth redirect/deny still counts as "alive").
+
+### Why this matters — a real catch (KE-9)
+
+On first deploy the HTTPS probes returned `probe_success=0` with `probe_http_status_code=502`.
+A 502 from `tailscale serve` means serve is up but its **backend is dead**. Root cause: the
+central PostgreSQL had bound loopback-only after a boot (the Tailscale-IP bind race — see
+[systemd-service-hardening](../linux/systemd-service-hardening.md)), so DB-backed services
+(OpenWebUI, Paperless) failed. `pg_up` was **green the whole time** because postgres_exporter
+connects locally — it can't see a missing *remote* bind. Only the service-level probe exposed
+it. That is the entire argument for blackbox in one incident: node-up and exporter-up are not
+service-up.
 
 ## Using `up` to bound an incident after the fact
 
