@@ -69,6 +69,72 @@ The empty value is the subtle part. Distros often ship `RestartPreventExitStatus
 For a race condition, *every* failure is the same code — so the upstream policy
 defeats `Restart=on-failure`. Setting it to empty re-enables retries.
 
+## Reactive vs proactive: ExecStartPre gates
+
+The SSH fix above is **reactive**: let the service fail, then `Restart=on-failure`
+retries until the dependency is ready. That works only if the failure actually
+produces a non-zero exit systemd can see. Sometimes it doesn't — then you need a
+**proactive** gate that blocks startup until the prerequisite is *really* true.
+
+**Case study — PostgreSQL bound to a Tailscale IP.** Same race as sshd
+(`listen_addresses` includes the Tailscale IP, which isn't assigned yet at boot),
+but the reactive fix is useless here, for two reasons:
+
+1. Debian's `postgresql@.service` has `ExecStart=-/usr/bin/pg_ctlcluster …`. The
+   **leading `-`** tells systemd to ignore a non-zero exit, so the unit never
+   enters `failed` → `Restart=on-failure` never fires.
+2. A *partial* bind is treated as success anyway. PostgreSQL binds loopback, logs
+   the Tailscale-IP failure as a mere `WARNING: could not create listen socket`,
+   and keeps running. The process is up (a local health check is green) — it's
+   just missing the remote bind. **There is no failure to react to.**
+
+So you gate it proactively with `ExecStartPre`, which runs *before* `ExecStart`:
+
+```ini
+[Unit]
+After=tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+ExecStartPre=/usr/local/bin/wait-for-tailscale-ip.sh 90
+```
+
+If `ExecStartPre` exits non-zero, the unit fails and `ExecStart` never runs — so
+the gate script's exit code is a deliberate policy lever:
+
+| Exit on timeout | Behaviour | Use when |
+|---|---|---|
+| non-zero (**fail-closed**) | service refuses to start without the prerequisite | the service is useless/unsafe without it |
+| `0` (**fail-open**) | service starts anyway after the wait | "up, but degraded" beats "totally down" — e.g. a central DB still usable on loopback |
+
+**The gate must verify the real condition, not a proxy.** "tailscaled is up" ≠
+"the IP is assigned" — so poll the actual interface, not the daemon:
+
+```bash
+ts_ip="$(tailscale ip -4)"                  # this node's Tailscale IPv4
+ip -4 -o addr show | grep -qFw "$ts_ip"     # true only once it's on an interface
+```
+
+`grep -F` (fixed string, the dots aren't regex wildcards) + `-w` (word boundary,
+so `…78.79` doesn't match `…78.790`). Loop with a `sleep` until it's true or a
+timeout elapses.
+
+This pairs with `Type=forking` + `TimeoutStartSec=0` on the postgres unit: the
+wait can take as long as it needs without tripping a start timeout.
+
+**Reactive vs proactive — which to reach for:**
+
+| | Reactive (`Restart=on-failure`) | Proactive (`ExecStartPre` gate) |
+|---|---|---|
+| Mechanism | fail, then retry | block until ready, then start |
+| Needs | a visible non-zero exit | a checkable readiness condition |
+| Fails when | the error is swallowed (`ExecStart=-`) or a partial start counts as success | the readiness condition is hard to express as a command |
+| Cost | restart churn / journal noise during the window | startup is delayed by the poll |
+
+For a clean failure that systemd can see, reactive is simpler. When the failure
+is silent or "successful-but-wrong" (the PostgreSQL case), only the proactive
+gate works.
+
 ## Drop-ins vs editing the upstream unit
 
 Never edit `/lib/systemd/system/<unit>.service` directly. The next package upgrade
