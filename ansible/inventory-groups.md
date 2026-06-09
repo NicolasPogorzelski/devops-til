@@ -106,6 +106,39 @@ Resolution order (highest priority first):
 4. Group-specific YAML files in `group_vars/<groupname>.yml`
 5. Inventory-wide `all` vars
 
+**Mental model — collect-and-rank, not fallback-search.** Ansible does *not*
+look in one place, find it empty, then search the next. It loads *all* sources
+up front and applies a fixed precedence ranking when the same variable name is
+defined in more than one place: more-specific wins (host > group > all). So a
+`group_vars/all` default of `[]` and a real `host_vars/<node>.yml` list coexist;
+the host_vars value simply *overrides* the default on that node. On a node with
+no host_vars entry, only the `all` default applies. The full (notorious) 22-level
+table: <https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html#understanding-variable-precedence>
+
+### Safe no-op defaults (`[]`)
+
+Because referencing an *undefined* variable is a **fatal error**
+(`'foo' is undefined` aborts the play on that host), a reusable role or a
+fleet-wide playbook should define a safe default for any list it loops over:
+
+```yaml
+# roles/<role>/defaults/main.yml   (lowest precedence — overridden by anything)
+compose_projects: []
+```
+
+An empty list makes `loop: "{{ compose_projects }}"` run **0 iterations** —
+harmlessly skipped — instead of crashing on hosts that never set the variable.
+This is exactly the `breakglass_pubkeys: []` pattern in
+`roles/breakglass/defaults/main.yml`.
+
+This is distinct from, and complementary to, **group targeting** (`hosts: docker`):
+the group decides *who* the play touches (intent, visible in the inventory), the
+empty default decides *what happens if a var is missing* (robustness). The default
+belongs in `defaults/main.yml` rather than `group_vars/all` so the role stays
+self-contained and can't crash when reused in another project that lacks that
+group_var. See [Docker Compose Updates](docker-compose-updates.md) for a worked
+example.
+
 Common per-host overrides:
 
 | Variable                   | When to override                                                  |
