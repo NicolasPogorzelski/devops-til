@@ -56,6 +56,43 @@ Use `127.0.0.1` or the host's Tailscale IP to reach other services.
 Use case: services that need to bind to specific host interfaces (e.g. Prometheus
 scraping via Tailscale IP, Jellyfin with NVIDIA Container Toolkit).
 
+## Default bridge network: reach siblings by service name, not localhost
+
+The inverse of host mode, and a common config trap. On the **default Compose
+network** (what you get without `network_mode`), each service runs in its own
+network namespace. Inside a container, `localhost` (`127.0.0.1`) is **that
+container itself** — not the host, not a sibling container. Compose provides a
+DNS resolver that maps **service names** (and `container_name` aliases) to the
+right container.
+
+```yaml
+services:
+  app:
+    environment:
+      REDIS_URL: redis://redis:6379      # ✅ service name -> resolves to the redis container
+      # REDIS_URL: redis://localhost:6379  # ❌ resolves to app's OWN container; nothing listens -> connection refused
+  redis:
+    image: redis:7-alpine
+```
+
+**Real failure (Paperless, KE-9):** `PAPERLESS_REDIS=redis://localhost:6379`
+produced `Error 111 connecting to localhost:6379. Connection refused.` in an
+endless init crash-loop (`RestartCount` in the thousands). The Redis container
+was healthy the whole time — `localhost` simply pointed at Paperless' own
+container. Fix: use the service name (`redis://redis:6379`), the same way the
+stack already addressed `http://gotenberg:3000` and `http://tika:9998`.
+
+**Rule of thumb:**
+
+| Network setup | How a container reaches another service |
+|---|---|
+| Default Compose network (bridge) | the other service's **name** (`redis`, `db`, `gotenberg`) |
+| `network_mode: host` | `127.0.0.1` / the host's Tailscale IP (no Docker DNS) |
+
+A useful tell: if a config says `localhost` for a *dependency* (DB, cache,
+broker), it's only correct under host mode or when both share a network
+namespace. On a normal bridge network it's almost always a bug.
+
 ## Restart policies
 
 | Policy | Behavior |
