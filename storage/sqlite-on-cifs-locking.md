@@ -101,6 +101,61 @@ Key points:
   against `/tmp/work` resolves correctly once it sits at `/books` — as long as the
   book directories were copied to the matching relative paths.
 
+## Durability ordering: delete the source *last*
+
+A subtle data-loss bug in the local-copy workflow — independent of CIFS, it
+applies to any "ingest then delete the source" job, especially when no second
+copy is kept (here the storage pool was near full, so the source was deleted
+after a successful import).
+
+The naive ordering deletes the source as soon as the tool reports success:
+
+```bash
+for f in "${files[@]}"; do
+    if calibredb add --with-library "$WORK" "$f"; then
+        rm -f "$f"          # WRONG: $WORK is a volatile /tmp copy, discarded on exit
+    fi
+done
+# ... only here: tar the new files back to the share + swap metadata.db in
+```
+
+The trap: `calibredb add` succeeding means the book is in the **local working
+copy** (`/tmp`, removed by the EXIT trap) — *not* on the durable share. The
+write-back happens later. If the run dies in between (network drop, server down,
+`pipefail` on the `tar`, OOM kill), the source is already gone, the working copy
+is wiped, and the book never reached the share. Silent, unrecoverable loss.
+
+Fix — delete only after the data is **durable** (written back *and* referenced):
+
+```bash
+imported=()                              # collect, don't delete yet
+for f in "${files[@]}"; do
+    if calibredb add --with-library "$WORK" "$f"; then
+        imported+=("$f")
+    else
+        mv -f "$f" "$FAILED_DIR/"        # quarantine: not a loss, keep the file
+    fi
+done
+
+if [ "${#imported[@]}" -gt 0 ]; then
+    tar -C "$WORK" --exclude='metadata.db*' -cf - . | tar -C "$LIBRARY" -xf -
+    cp "$WORK/metadata.db" "$LIBRARY/.metadata.db.new"
+    mv -f "$LIBRARY/.metadata.db.new" "$LIBRARY/metadata.db"
+    for f in "${imported[@]}"; do rm -f "$f"; done   # NOW it's safe
+fi
+```
+
+Why this is safe:
+- With `set -e`, a failure before the write-back aborts the script *before* the
+  `rm` loop — the sources stay in place and the next run retries them.
+- Idempotent retry: `calibredb add --automerge ignore` skips a book already in
+  the library, so re-processing a source that *did* make it back is a no-op.
+- The general rule: **commit, then acknowledge.** Delete/ack the input only after
+  the output is durably persisted — the same invariant as message-queue "ack after
+  processing" or "fsync before reporting success". Reordering it from
+  *report-success* to *durably-persisted* turns a possible data loss into, at
+  worst, a harmless reprocess.
+
 ## Takeaways
 
 - SQLite (and anything using `fcntl` byte-range locks) is unreliable on CIFS/NFS;
@@ -109,6 +164,10 @@ Key points:
 - `nobrl` is the root fix when you own the mount and access is single-writer.
 - Otherwise keep the DB off the network path: operate on a local copy and write
   results back with lock-free file ops + an atomic rename.
+- In an ingest-then-delete job, delete the source **only after** the result is
+  durably persisted — never just because the tool reported success into a
+  volatile working copy. Combine with `set -e` + an idempotent retry so a crash
+  reprocesses instead of losing data.
 
 ## See also
 
