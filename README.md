@@ -18,6 +18,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [apt & dpkg](linux/apt-dpkg.md) | `apt update` vs `apt upgrade`, `dpkg --verify` with conffile filtering, dpkg audit and repair, Ansible `upgrade: dist` modes, cache hygiene |
 | [systemd Basics](linux/systemd-basics.md) | Unit types, systemctl commands, journalctl filtering, persistent journald (`Storage=` auto trap), mount units, `Type=oneshot`, drop-in overrides |
 | [systemd Service Hardening](linux/systemd-service-hardening.md) | `Restart=on-failure`, `RestartPreventExitStatus`, `After=` vs `Wants=`, race-condition fixes, reactive vs proactive `ExecStartPre` readiness gates |
+| [systemd Mount Units & the Network-Mount Boot-Race](linux/systemd-mount-units.md) | fstab→`.mount` unit escaping, `_netdev`/`nofail` (no retry!), why a CIFS share ends up `failed` after a boot-race, LXC bind-mount propagation needs a container restart, CIFS POSIX-mode is cosmetic |
 | [Time Synchronization](linux/time-synchronization.md) | System clock vs RTC, NTP/chrony vs timesyncd, `timedatectl`/`chronyc`, why drift breaks SnapRAID & alert math, LXC inherits host clock vs VM needs its own |
 | [Bash Scripting Patterns](linux/bash-scripting-patterns.md) | Strict mode, pre-flight checks, `command -v`, `install -m`, HEREDOC, sub-commands, `mktemp+trap` |
 | [SSH Keys](linux/ssh-keys.md) | Ed25519 keys, agent forwarding caveats, authorized_keys hygiene, break-glass fallback key, key rotation |
