@@ -129,6 +129,40 @@ The professional norm: a reusable role ships safe no-op defaults in
 *playbook* picks *where* it runs via `hosts:`. Default = "can't break", group =
 "runs in the right place".
 
+## Implementation notes (verified on the homelab)
+
+Built and run against 6 nodes (2026-06-11). What the design doc above could not
+predict until it actually ran:
+
+- **`become: true` is mandatory.** The discovery command above
+  (`docker compose ls 2>/dev/null || echo NO-DOCKER`) reported `NO-DOCKER` on
+  *every* node — including ones known to run Compose. The `2>/dev/null` masked the
+  real error: the `ansible` user is not in the host `docker` group, so it cannot
+  read `/var/run/docker.sock`. Re-running with `-b` (sudo) and without swallowing
+  stderr surfaced the truth. **Lesson:** when a sweep reports the same negative on
+  hosts you *know* are positive, suspect a masked permission error — drop the
+  `2>/dev/null`, add `-b`. The playbook needs `become: true` for the same reason.
+
+- **Idempotency proof needs two real runs, not `--check`.** `docker_compose_v2`
+  in check mode cannot inspect or pull, so it conservatively reports `changed` for
+  *every* stack — a false positive, same limitation class as an apt
+  install→service dependency in check mode. The meaningful test is: run for real
+  (run 1 = `changed`, pulls + first-run convergence), then run again — run 2 must
+  be `changed=0`. That second run is what proves `pull: always` is "always look",
+  not "always change".
+
+- **Go-template collision via `ansible -a`.** A health check with
+  `docker ps --format '{{.Names}}'` returns nothing: Ansible runs the `-a` string
+  through Jinja2 first, and `{{ }}` is *also* Jinja syntax, so Jinja tries to
+  resolve `.Names` and yields empty. Avoid Go `--format '{{...}}'` templates in
+  ad-hoc `-a`; use `--filter` / `--format table` or query a different way.
+
+- **Project name vs dir basename.** `project_src` derives the Compose project name
+  from the directory basename *unless* the compose file pins a top-level `name:`.
+  A stack living in `/opt/vaultwarden/compose` would become project `compose`
+  without the pinned `name: vaultwarden` — the module honours the pin because it
+  shells out to `docker compose`.
+
 ## Related
 
 - [Inventory Groups](inventory-groups.md) — host_vars/group_vars, variable precedence
