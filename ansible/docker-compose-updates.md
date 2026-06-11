@@ -151,10 +151,10 @@ predict until it actually ran:
   be `changed=0`. That second run is what proves `pull: always` is "always look",
   not "always change".
 
-- **Go-template collision via `ansible -a`.** A health check with
+- **`docker --format` collides with Jinja2 via `ansible -a`.** A health check with
   `docker ps --format '{{.Names}}'` returns nothing: Ansible runs the `-a` string
   through Jinja2 first, and `{{ }}` is *also* Jinja syntax, so Jinja tries to
-  resolve `.Names` and yields empty. Avoid Go `--format '{{...}}'` templates in
+  resolve `.Names` and yields empty. Avoid `--format '{{...}}'` in
   ad-hoc `-a`; use `--filter` / `--format table` or query a different way.
 
 - **Project name vs dir basename.** `project_src` derives the Compose project name

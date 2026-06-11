@@ -31,7 +31,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Playbook Structure](ansible/playbook-structure.md) | Minimum required fields, plays vs tasks, YAML indentation rules |
-| [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command`, Go template collision in ad-hoc commands |
+| [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command`, `docker --format`/Jinja2 collision in ad-hoc commands |
 | [Privilege Escalation](ansible/privilege-escalation.md) | `become`, `become_user`, and how to configure NOPASSWD sudo for Ansible |
 | [Inventory Groups](ansible/inventory-groups.md) | Group structure, per-host overrides, `host_vars`/`group_vars`, sanitized inventory pattern |
 | [Serial Execution](ansible/serial-execution.md) | Why parallel upgrades are dangerous and how `serial` prevents resource spikes |
@@ -41,6 +41,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Ansible Vault](ansible/ansible-vault.md) | AES-256 secrets encryption in Ansible: why plaintext in Git is permanent, breach window concept, `group_vars` split pattern, key commands, vault password file |
 | [SSH Hardening](ansible/ssh-hardening.md) | `lineinfile` module pattern, regexp workflow for sshd_config directives, `--check --diff` dry-run habit, handler reload vs restart, idempotency signals |
 | [Docker Compose Updates](ansible/docker-compose-updates.md) | `docker_compose_v2` for fleet updates: `pull`/`recreate` idempotency, per-host `compose_projects` list + `loop`/`item`, group targeting vs safe no-op default scoping |
+| [Walkthrough: Fleet Docker Updates & Postgres Provisioning](ansible/walkthrough-items-9-10.md) | Two roles end to end on the shared group→host_vars→role→playbook skeleton: the `become`/`docker.sock` root-cause story, `pull` vs `recreate`, the verification ladder, and Postgres' four access layers, peer auth, and Vault-backed tenant provisioning |
 
 ## Proxmox
 

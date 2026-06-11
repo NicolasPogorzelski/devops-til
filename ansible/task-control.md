@@ -146,9 +146,9 @@ upgrade, the daemon can start with a stale packet filter, blocking all incoming
 TCP connections despite correct ACL configuration. A forced restart ensures a
 clean netmap fetch. See [Tailscale Debugging](../networking/tailscale-debugging.md).
 
-## Jinja2 collision with Go template syntax in ad-hoc commands
+## Jinja2 collision with `docker --format` syntax in ad-hoc commands
 
-`docker ps --format '{{.Names}}'` uses Go template syntax. Ansible's `-a` argument
+`docker ps --format '{{.Names}}'` uses `{{ }}` placeholder syntax. Ansible's `-a` argument
 is processed by Jinja2 before the command runs. Jinja2 interprets `{{.Names}}` as
 a template expression and throws a syntax error:
 
