@@ -104,6 +104,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Ollama Deployment](ai/ollama-deployment.md) | Modelfile syntax, quantization tags, context-window trade-offs, OLLAMA_HOST, ROCm vs CUDA |
+| [Local LLM Coding Fallback (aider + Ollama)](ai/local-llm-coding-fallback.md) | Self-hosted Claude Code fallback: native Anthropic API vs aider, the KV-cache `q8_0` lever, "optimal = largest fully-resident context", `size` vs `size_vram` spill check, aider config |
 
 ## Applications
 
