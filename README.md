@@ -41,6 +41,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Ansible Vault](ansible/ansible-vault.md) | AES-256 secrets encryption in Ansible: why plaintext in Git is permanent, breach window concept, `group_vars` split pattern, key commands, vault password file |
 | [SSH Hardening](ansible/ssh-hardening.md) | `lineinfile` module pattern, regexp workflow for sshd_config directives, `--check --diff` dry-run habit, handler reload vs restart, idempotency signals |
 | [Docker Compose Updates](ansible/docker-compose-updates.md) | `docker_compose_v2` for fleet updates: `pull`/`recreate` idempotency, per-host `compose_projects` list + `loop`/`item`, group targeting vs safe no-op default scoping |
+| [PostgreSQL Provisioning](ansible/postgresql-provisioning.md) | Declarative DB-tenant onboarding via `community.postgresql`: peer auth (`become_user: postgres`), module-per-step mapping, plus two transferable traps — `acl` needed for unprivileged become, and never co-locating a secret with the loop `item` (Ansible dumps it on failure) |
 | [Walkthrough: Fleet Docker Updates & Postgres Provisioning](ansible/walkthrough-items-9-10.md) | Two roles end to end on the shared group→host_vars→role→playbook skeleton: the `become`/`docker.sock` root-cause story, `pull` vs `recreate`, the verification ladder, and Postgres' four access layers, peer auth, and Vault-backed tenant provisioning |
 
 ## Proxmox

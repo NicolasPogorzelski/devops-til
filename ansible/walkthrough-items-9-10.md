@@ -293,16 +293,30 @@ handler runs as root, since systemd needs it. The pg_hba path is pinned from a
 verified fact rather than a guess — the node runs PostgreSQL 15.16, so
 `/etc/postgresql/15/main/pg_hba.conf`.
 
-### Where it stands
+### What the build surfaced
 
-Groundwork done: collection confirmed present, the onboarding pattern read from
-the service doc, and the live facts checked on LXC260 — version, pg_hba path,
-peer auth, service state. Scope and rollout decided, and `vault_test_dbpass`
-created and verified. Next is the role itself (`defaults`/`tasks`/`handlers`), the
-playbook (`hosts: database`, `become: true`), and the test tenant in
-`host_vars/lxc260.yml`, followed by the same verification ladder used for #9 and a
-check that the test database, role, grants, and pg_hba line all exist before the
-throwaway is cleaned up.
+The role works — real run `failed=0`, rerun `changed=0`, and the test database,
+role, and `pg_hba` line all verified present before teardown. The interesting part
+was two bugs the dry run caught, both worth carrying forward:
+
+- **Becoming an unprivileged user needs `acl`.** `become: true` then
+  `become_user: postgres` made Ansible fail to hand its temp files to postgres
+  (`chmod: invalid mode 'A+user:postgres:rx:allow'`). Root cause, verified:
+  `setfacl` was missing, so Ansible's POSIX-ACL handoff fell back to a method that
+  doesn't work on Linux. Fix: install `acl` as a prerequisite task before the
+  `become_user` block. This recurs with any role that becomes a service account.
+- **Don't put a secret in the loop variable.** The first cut carried the password
+  inside each tenant dict, with `no_log` on only the user task. When an *earlier*
+  task failed, Ansible dumped the failed `item` — password in clear. The loop item
+  reaches every task; `no_log` on one doesn't protect the rest. Fix: keep only
+  non-secret fields in `postgres_tenants` and look the password up from a separate
+  dict, read solely by the `no_log` user task — and rotate the burned password.
+
+These are written up in full in
+[Provisioning PostgreSQL Tenants](postgresql-provisioning.md). The test tenant was
+then torn down (`state: absent` plus reload), and the committed `host_vars` ends at
+`postgres_tenants: []` with a commented example, so live tenants get adopted as a
+deliberate later step rather than swept in by accident.
 
 ## Related
 
