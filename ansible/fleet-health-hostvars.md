@@ -84,6 +84,19 @@ Queries the Docker daemon directly (not systemd).
 `ansible_date_time.date` gives `YYYY-MM-DD` — requires `gather_facts: true` on the play.
 `| default('N/A')` prevents errors if a host was unreachable and has no facts.
 
+## gather_facts: true vs false vs omitted
+
+`gather_facts: true` (or omitted — it's the default) runs the `setup` module on
+connection: collects ~200 facts (CPU, RAM, mounts, network, OS, `ansible_date_time`,
+...) and stores them in `hostvars`. Without it, those variables are empty.
+
+`gather_facts: false` skips the `setup` module — saves time when you don't need
+system facts (e.g. a play that only queries Docker).
+
+Convention: if any play in the same playbook uses `gather_facts: false`, make the
+others explicitly `gather_facts: true` — otherwise a reader must know the default
+to understand the intent.
+
 ## When to use a role vs. inline in the playbook
 
 | Use a role | Keep inline |
