@@ -170,6 +170,79 @@ git cherry-pick --continue --no-edit
 The patch context (surrounding lines) no longer matches. Resolution: keep the
 correct content from both sides, remove the conflict markers.
 
+## Merge conflict resolution workflow
+
+When two branches have diverged (e.g. a long-running feature branch and `main` both
+received commits), `git merge` may produce conflicts that must be resolved manually.
+
+### Full workflow
+
+```bash
+# 1 — bring main's changes into the feature branch
+git merge origin/main
+
+# 2 — identify all conflicted files
+git status   # shows "Unmerged paths"
+
+# 3 — find every remaining conflict marker in one pass
+grep -rn "<<<<<<\|=======\|>>>>>>>" . --include="*.md" --include="*.yml" 2>/dev/null | grep -v ".git/"
+
+# 4 — resolve each file manually (edit out the markers, keep the right content)
+
+# 5 — stage each resolved file explicitly (not git add -A)
+git add <file1> <file2> ...
+
+# 6 — commit the merge (Git auto-generates a merge commit message)
+git commit
+```
+
+### Anatomy of a conflict marker
+
+```
+<<<<<<< HEAD           ← start of YOUR branch's version
+content from HEAD
+=======                ← separator
+content from incoming branch
+>>>>>>> origin/main    ← end of incoming branch's version
+```
+
+Remove all three marker lines. Keep whichever content is correct, or
+write a merged version that combines both sides.
+
+### Common merge strategies
+
+| Situation | Strategy |
+|---|---|
+| Both sides added different content | Keep both — additive merge |
+| HEAD has more detail than incoming | Keep HEAD, integrate additive extras from incoming |
+| Incoming has a newer port number / flag | Keep incoming value, discard HEAD's stale one |
+| Changelog entries on both sides | Keep both in chronological order |
+
+### Why explicit `git add` per file (not `git add .`)
+
+Staging specific files prevents accidentally committing `.env` files,
+build artifacts, or other sensitive files that happen to be in the workdir.
+After a merge with many conflicts, the working directory can contain
+unexpected state — explicit staging is safer.
+
+### Stray conflict markers
+
+If `<<<<<<< HEAD` and `>>>>>>> origin/main` were removed but `=======` was
+left behind, `grep` may miss it depending on the pattern. Always verify by
+running `git diff --check` before committing:
+
+```bash
+git diff --check
+```
+
+This catches leftover conflict markers and trailing whitespace in staged files.
+
+### Merge commit message
+
+A merge commit should explain the resolution strategy, not just list "resolved
+conflicts". Useful content: which branch was authoritative for which section,
+what was additive, what validation fixes were needed.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
