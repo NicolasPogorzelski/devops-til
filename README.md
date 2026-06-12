@@ -52,6 +52,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [LXC & VM Management](proxmox/lxc-vm-management.md) | `pct` and `qm`, LXC vs VM, mount points, boot order, `nesting=1`, `/dev/disk/by-id`, bind-mount propagation |
 | [Tailscale TUN in Unprivileged LXCs](proxmox/lxc-tailscale-tun.md) | CT210-pattern: `cgroup2.devices.allow` + `mount.entry` for kernel WireGuard, userspace-networking pitfall |
 | [Hard Shutdown Recovery](proxmox/hard-shutdown-recovery.md) | LXC boot failures after forced power-off: SMB mount dependency (exit 19), SSH/Tailscale race condition, access hierarchy, recovery order |
+| [LXC Bindmount: CIFS via Host](proxmox/lxc-bindmount-cifs.md) | CIFS mounts live on the Proxmox host and are bindmounted into LXCs via `mp` config; systemd automount behavior, stacked mount pitfall, Samba tooling (`pdbedit`, `testparm`) |
 
 ## Networking
 
