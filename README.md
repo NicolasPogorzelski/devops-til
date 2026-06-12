@@ -43,6 +43,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Docker Compose Updates](ansible/docker-compose-updates.md) | `docker_compose_v2` for fleet updates: `pull`/`recreate` idempotency, per-host `compose_projects` list + `loop`/`item`, group targeting vs safe no-op default scoping |
 | [PostgreSQL Provisioning](ansible/postgresql-provisioning.md) | Declarative DB-tenant onboarding via `community.postgresql`: peer auth (`become_user: postgres`), module-per-step mapping, plus two transferable traps — `acl` needed for unprivileged become, and never co-locating a secret with the loop `item` (Ansible dumps it on failure) |
 | [Walkthrough: Fleet Docker Updates & Postgres Provisioning](ansible/walkthrough-items-9-10.md) | Two roles end to end on the shared group→host_vars→role→playbook skeleton: the `become`/`docker.sock` root-cause story, `pull` vs `recreate`, the verification ladder, and Postgres' four access layers, peer auth, and Vault-backed tenant provisioning |
+| [Fleet Health Checks & hostvars](ansible/fleet-health-hostvars.md) | `hostvars` magic variable for cross-host data aggregation, multi-play reporting pattern, `service_facts`, `docker_host_info`, `find`+`file` cleanup loop, `copy` with Jinja2 content, role-vs-inline decision rule |
 
 ## Proxmox
 
