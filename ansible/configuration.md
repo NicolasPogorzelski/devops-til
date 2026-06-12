@@ -131,6 +131,12 @@ When to run `setup` (gather facts about the remote host).
 `smart` is almost universally correct. Only use `explicit` for performance-critical
 plays where you've audited that no role uses facts.
 
+**How the cache works in a multi-play playbook:** the first play that runs `setup`
+on a host populates `hostvars` for that host. Subsequent plays in the same run skip
+`setup` entirely for that host — they read from the already-populated `hostvars`.
+This means a play with `gather_facts: false` later in the run can still access
+facts collected by an earlier play. The cache is per-host, per-playbook-run.
+
 ### `pipelining = True`
 
 In `[ssh_connection]`. Reduces SSH operations per task: instead of `scp` then

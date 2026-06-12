@@ -196,6 +196,12 @@ Common use: restart a service only when its config changed.
 Without handlers, you would restart the service every run regardless of whether
 the config changed.
 
+**Critical implicit behavior:** a handler only fires if the notifying task reports
+`changed: true`. If the task was already in the desired state (`ok`, `changed=0`),
+the handler is silently skipped — no notification is sent. This is correct behavior
+for idempotency (don't restart if nothing changed), but it means you cannot rely on
+a handler to "always run at the end of the play".
+
 ## Related
 
 - [Playbook Structure](playbook-structure.md)
