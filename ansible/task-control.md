@@ -171,6 +171,56 @@ before passing the argument to Ansible.
 doesn't support pipes. Use `shell` for any command that needs `|`, `&&`, `>`, or
 variable escaping.
 
+## `ansible.builtin.cron` — idempotent cron entries
+
+The `cron` module writes cron entries into a user's crontab. The `name` parameter
+is the idempotency key: Ansible writes it as a comment above the entry
+(`#Ansible: <name>`) and uses it to find and update the same entry on subsequent
+runs. Without `name`, Ansible cannot identify the entry and will duplicate it.
+
+```yaml
+- name: Schedule pg_dumpall cron job
+  ansible.builtin.cron:
+    name: pg-backup          # idempotency key → written as "#Ansible: pg-backup"
+    user: postgres           # whose crontab to write into (crontab -u postgres)
+    minute: "0"
+    hour: "3"
+    job: /usr/local/sbin/pg-backup.sh
+```
+
+If a manual cron entry already exists with the same job string, Ansible adds the
+`#Ansible: <name>` comment above it (taking ownership) without duplicating the entry.
+
+`user` writes into that user's personal crontab — equivalent to `crontab -u postgres -e`.
+Omit `cron_file` unless you want a file under `/etc/cron.d/` (system-wide, owned by root).
+
+## `ansible.builtin.copy` — `remote_src` gotcha
+
+By default, `copy` expects `src` to be a path on the **Ansible controller**.
+Set `remote_src: yes` when the source file is already on the **target host**
+(e.g. after `unarchive` extracted it there).
+
+```yaml
+- name: unarchive binary
+  ansible.builtin.unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /tmp/
+    remote_src: yes          # tarball is on the remote, not the controller
+
+- name: install binary
+  ansible.builtin.copy:
+    src: /tmp/node_exporter-1.11.1.linux-amd64/node_exporter
+    dest: /usr/local/bin/node_exporter
+    remote_src: yes          # extracted file is on the remote — REQUIRED
+    owner: root
+    mode: '0755'
+```
+
+**Latent bug pattern:** if `remote_src` is missing but the destination file already
+exists at `dest`, Ansible checks the destination and reports `changed=0` (already
+in place) — the missing flag is never hit. The bug only surfaces when the tarball
+is re-downloaded and the copy task actually needs to run.
+
 ## Related
 
 - [Playbook Structure](playbook-structure.md)

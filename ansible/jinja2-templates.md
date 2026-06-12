@@ -158,6 +158,36 @@ this causes inconsistent indentation that may confuse parsers or produce invalid
 Do not use `{%-` / `-%}` whitespace control as a substitute — it strips newlines
 from adjacent content lines, causing entries to run together.
 
+### `trim_blocks` pitfall: inline `{% %}` at end of a content line
+
+`trim_blocks` applies whenever a `{% %}` tag is the **last thing on a line** —
+including when it is appended to a content line (not on its own line).
+
+**Broken template:**
+
+```jinja2
+ExecStart=/usr/local/bin/node_exporter --web.listen-address={{ host }}:9100{% if textfile_dir %} --collector.textfile.directory={{ textfile_dir }}{% endif %}
+Restart=on-failure
+```
+
+When `textfile_dir` is empty: the `{% endif %}` is the last tag on the line →
+`trim_blocks` eats the newline → `Restart=on-failure` is appended directly to
+`ExecStart` with no newline. Result: a broken systemd unit where two directives
+are merged onto one line.
+
+**Fix: compute the value with `{% set %}` on a separate line, use `{{ }}` in the content line:**
+
+```jinja2
+{% set textfile_flag = '' %}{% if textfile_dir %}{% set textfile_flag = ' --collector.textfile.directory=' + textfile_dir %}{% endif %}
+ExecStart=/usr/local/bin/node_exporter --web.listen-address={{ host }}:9100{{ textfile_flag }}
+Restart=on-failure
+```
+
+- The `{% set %}...{% endif %}` line has no visible output; `trim_blocks` eating its
+  newline is harmless.
+- `ExecStart` now ends with `{{ textfile_flag }}` — a **variable tag**, not a block tag.
+  `trim_blocks` only applies to `{% %}` block tags, so the newline is preserved.
+
 ## References
 
 - [Ansible Templating](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_templating.html)
