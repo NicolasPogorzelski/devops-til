@@ -243,6 +243,31 @@ A merge commit should explain the resolution strategy, not just list "resolved
 conflicts". Useful content: which branch was authoritative for which section,
 what was additive, what validation fixes were needed.
 
+## `origin/main` is a local cache — always fetch first
+
+`git log origin/main` does **not** contact GitHub. It reads a local ref
+(`refs/remotes/origin/main`) that was last updated the last time you ran
+`git fetch` or `git pull`. If someone merged a PR on GitHub in the meantime,
+your local `origin/main` is stale and shows the old state.
+
+Consequence: `git log main..feat/my-branch` can show dozens of commits as
+"not yet in main" even though they were already merged remotely.
+
+**Rule:** before comparing branches or opening a PR, always fetch first:
+
+```bash
+git fetch origin
+git log --oneline origin/main | head -5   # now reflects current remote state
+```
+
+`git fetch origin` downloads all updated refs from the remote without touching
+your working tree or local branches — safe to run any time.
+
+Diagnostic: the fetch output line `c4be8da..e02cf47 main -> origin/main`
+tells you exactly how far your local cache was behind:
+- left hash = what you had locally
+- right hash = what the remote now is
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
