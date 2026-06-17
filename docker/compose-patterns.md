@@ -15,6 +15,52 @@ services:
       - "127.0.0.1:8080:8080"  # bind to loopback only
 ```
 
+## Pinning images safely (don't guess the version)
+
+"Pin, never `:latest`" is the principle — but pinning to a *wrong* tag breaks the
+next `compose up`. When retrofitting pins onto running stacks, derive the tag from
+reality and verify it exists before committing:
+
+1. **Read the version that is actually running** — don't pick "latest stable" from
+   memory (that risks a silent upgrade on next deploy, and is a guess):
+
+   ```bash
+   # version label (works for most app images)
+   docker inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' <container>
+   # images that don't carry the label: ask the binary
+   docker exec <container> prometheus --version    # prom stack, grafana 'server -v', etc.
+   ```
+
+2. **Verify the tag exists in the registry _before_ writing it** — no pull, just a
+   manifest lookup. This is the step that catches a bad guess:
+
+   ```bash
+   docker manifest inspect prom/prometheus:v3.12.0 >/dev/null 2>&1 && echo OK || echo MISSING
+   ```
+
+   Mind registry tag conventions: the prometheus org prefixes with `v`
+   (`v3.12.0`), grafana/jellyfin/paperless do not (`13.0.2`).
+
+3. **Watch for a version label inherited from the base image.** `apache/tika`
+   reported `org.opencontainers.image.version=26.04` — but that label's sibling
+   fields said `image.title=ubuntu`: it was the **Ubuntu base** version, not Tika's.
+   `apache/tika:26.04` does not exist. When the human-readable version is unreliable,
+   **pin by digest** — immutable, guaranteed-pullable, exactly what is running:
+
+   ```yaml
+   image: apache/tika@sha256:90b7fa1dc018...   # digest pin
+   ```
+
+   Get the digest with `docker images --digests` (the `RepoDigests` column).
+
+4. **Rolling tags can't be semver-pinned.** An image deliberately tracking `:main`
+   (e.g. open-webui dev) has no version tag; either accept the rolling tag or pin by
+   digest if you need reproducibility.
+
+A digest pin satisfies the *intent* of "no `:latest`" (reproducible, no surprise
+upgrades) even more strictly than a version tag — it's the honest fallback whenever
+a clean version tag isn't available or verifiable.
+
 ## Volume mounts
 
 ```yaml

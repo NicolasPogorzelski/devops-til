@@ -28,6 +28,17 @@ local pre-commit habit     ← runs the script before pushing
 - Empty markdown files (a `*.md` with zero bytes is almost always a mistake)
 - Broken internal links (`./foo.md` referenced but file does not exist)
 - Files outside the allowed top-level directory list
+- Leftover git merge conflict markers (`^<<<<<<< `, `^=======$`, `^>>>>>>> `) —
+  a botched merge resolution can commit these into tracked files. Match the divider
+  as a whole line (`=======$`) so markdown rules and setext underlines don't false-positive,
+  and require the trailing space on `<<<<<<< ` / `>>>>>>> ` so shell redirects don't match.
+
+> **The gap is the check you don't have yet.** A stray `<<<<<<< HEAD` sat in a
+> committed `CLAUDE.md` for weeks — `validate-repo.sh` was green the whole time because
+> no check looked for it. It surfaced only in a manual pre-milestone audit. The fix is
+> two-part: remove the marker *and* add the check, so the same class can never slip
+> through silently again. Every "how did this get committed?" finding should leave
+> behind a new automated check, not just a fix.
 
 ### Required sections
 

@@ -205,6 +205,27 @@ Verify: `findmnt /mnt/<name>`
 paru -S cifs-utils
 ```
 
+### Immutable OS (Bazzite / Fedora Atomic): rpm-ostree layering
+
+On an `rpm-ostree`-based desktop (Bazzite, Silverblue, Kinoite) the root filesystem
+is immutable — there is no live `dnf install`. The kernel CIFS code is built in, but
+the userspace helper (`mount.cifs` from `cifs-utils`) may need layering:
+
+```bash
+mount.cifs --version || rpm-ostree install cifs-utils   # often already in the base image
+```
+
+| Step | Why |
+|---|---|
+| `mount.cifs --version` | Check first — Bazzite ships `cifs-utils` in the base image, so layering is frequently a no-op |
+| `rpm-ostree install` | Layers the package into a **new deployment**; the running system is untouched |
+| `systemctl reboot` | The layered package only becomes active in the next boot's deployment |
+
+The `/etc/fstab` + credentials-file steps above are identical — `/etc` is writable
+and persists across `rpm-ostree` updates. Only the package-install mechanism differs
+from a traditional distro. `sudo mount -a` still works immediately once `mount.cifs`
+is present (no reboot needed for the mount itself, only for the layering).
+
 ## Related
 
 - [Linux: systemd Basics](../linux/systemd-basics.md)
