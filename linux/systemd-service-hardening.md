@@ -135,6 +135,43 @@ For a clean failure that systemd can see, reactive is simpler. When the failure
 is silent or "successful-but-wrong" (the PostgreSQL case), only the proactive
 gate works.
 
+## The start-limit trap: when the reactive retry gives up
+
+There is a third case where the failure *is* a clean non-zero exit — but reactive
+restart still doesn't save you. systemd rate-limits restarts:
+
+- `StartLimitIntervalSec` (default 10s) and `StartLimitBurst` (default 5) — if a
+  unit restarts more than `Burst` times within the interval, systemd stops trying
+  and parks it in `failed` with `start request repeated too quickly`.
+
+On a *fast* boot race this is exactly what happens. **Case study — pveproxy bound
+to a Tailscale IP** (`/etc/default/pveproxy` `LISTEN_IP=<tailscale-ip>`): it starts
+before `tailscaled` assigns the IP, exits non-zero with `Cannot assign requested
+address`, retries five times within ~4 seconds — all before the IP appears — and
+systemd gives up. The interface comes up a second later, but nothing is retrying
+anymore. The service stays dead until a human intervenes.
+
+Recovering a start-limited unit needs an extra step — the failed state **and** the
+counter must be cleared:
+
+```bash
+systemctl reset-failed pveproxy    # clears failed state AND the start-limit counter
+systemctl restart pveproxy         # plain restart is refused until reset-failed runs
+```
+
+The lesson: a service that fails cleanly is *not* automatically saved by
+`Restart=on-failure` — if the race resolves slower than `Burst` retries take, the
+rate-limiter wins. The fix is the same proactive `ExecStartPre` gate as PostgreSQL,
+so the first start already waits for the IP and never burns the retry budget.
+
+**Fail-open vs fail-closed, decided by role.** pveproxy gates **fail-closed** (the
+`ExecStartPre` exits non-zero on timeout, so the unit refuses to start without its
+IP) — opposite of the PostgreSQL gate's fail-open. The rule: match the gate's
+timeout behaviour to what the service *is*. A central **data** service stays
+locally useful on loopback, so fail-open ("up but degraded") beats "totally down".
+A **management plane** (a web UI bound to one IP) has no useful degraded mode and a
+hard, visible failure is preferable to a half-broken listener — so fail-closed.
+
 ## Drop-ins vs editing the upstream unit
 
 Never edit `/lib/systemd/system/<unit>.service` directly. The next package upgrade
