@@ -26,6 +26,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Disk Diagnostics](linux/disk-diagnostics.md) | `smartctl`, `dmesg`, identifying drive failures, SMART attribute thresholds |
 | [Failing-Disk Data Rescue](linux/failing-disk-data-rescue.md) | Rescue before repair: read-only `ro,noload` mount, ownership-preserving `tar` stream (vs rsync), `socket ignored` vs real I/O errors, `ddrescue` for damaged metadata, sparse allocated-vs-live |
 | [Network Tools](linux/network-tools.md) | `nc -zv`, `ss`, `findmnt`, Python socket fallback, layer-by-layer reachability |
+| [Input-Device Reconnects](linux/input-device-reconnect.md) | Why a BT controller reuses its `eventX` path while `inputN`-derived nodes (LEDs) renumber; key identity on a stable id, detect reconnect by presence not path, re-assert device state after settle; D-Bus bisection + sysfs-authority debugging |
 
 ## Ansible
 
