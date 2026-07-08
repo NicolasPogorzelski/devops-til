@@ -92,6 +92,33 @@ Files in `/etc/sudoers.d/` must:
 
 sudo ignores or rejects files that don't meet these requirements.
 
+## NOPASSWD helpers — the binary is the boundary
+
+When NOPASSWD can't be scoped to fixed arguments (the argument is dynamic — a
+device id, a path resolved at runtime), the sudoers line necessarily allows the
+binary with *any* arguments:
+
+```
+user ALL=(root) NOPASSWD: /usr/local/bin/my-helper
+```
+
+The sudoers rule then protects almost nothing on its own — the **helper binary
+becomes the actual security boundary**. That shifts the requirements onto it:
+
+- **Not user-writable.** Root-owned, mode `0755`, in a root-owned directory. If
+  the caller can edit the binary (or its dir), NOPASSWD = instant root.
+- **Validate every input against an allowlist**, not a denylist. Refuse anything
+  that isn't a known-good target (e.g. a device-vendor allowlist).
+- **No path traversal.** Reject `/` in identifiers used to build paths, and
+  reject `.` / `..`; build paths only from validated components.
+- **Match literally, not as a pattern.** Use fixed-string compares (`grep -F`) —
+  a value with regex metacharacters (`.`, `*`) must not be interpreted.
+- **Fail closed.** On any doubt, exit non-zero and touch nothing.
+
+Rule of thumb: assume the caller is hostile and passes arbitrary arguments,
+because the NOPASSWD grant lets them. The binary must be safe under that
+assumption — not just under the arguments your own code happens to send.
+
 ## Secret generation
 
 When a service needs a random secret (signing key, admin token, encryption key),

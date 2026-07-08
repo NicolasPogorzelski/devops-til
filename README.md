@@ -27,6 +27,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Failing-Disk Data Rescue](linux/failing-disk-data-rescue.md) | Rescue before repair: read-only `ro,noload` mount, ownership-preserving `tar` stream (vs rsync), `socket ignored` vs real I/O errors, `ddrescue` for damaged metadata, sparse allocated-vs-live |
 | [Network Tools](linux/network-tools.md) | `nc -zv`, `ss`, `findmnt`, Python socket fallback, layer-by-layer reachability |
 | [Input-Device Reconnects](linux/input-device-reconnect.md) | Why a BT controller reuses its `eventX` path while `inputN`-derived nodes (LEDs) renumber; key identity on a stable id, detect reconnect by presence not path, re-assert device state after settle; D-Bus bisection + sysfs-authority debugging |
+| [Atomic File Writes](linux/atomic-file-writes.md) | Crash-safe state files: temp in the same filesystem + `fsync` + `rename`/`os.replace`; why truncate-in-place silently loses data; Ansible/Terraform/etcd parallels |
 
 ## Ansible
 
@@ -126,7 +127,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 
 | Topic | Summary |
 |---|---|
-| [Least-Privilege Patterns](security/least-privilege-patterns.md) | SMB perms, credentials files, `.env` hygiene, service isolation, sudoers.d, secret generation, defense in depth |
+| [Least-Privilege Patterns](security/least-privilege-patterns.md) | SMB perms, credentials files, `.env` hygiene, service isolation, sudoers.d, NOPASSWD helper hardening (the binary is the boundary), secret generation, defense in depth |
 
 ## Operations
 
@@ -136,6 +137,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy, `-d` vs `-D`, filter-repo replacement side effects, `filter-branch --msg-filter`, cherry-pick conflict resolution |
 | [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
 | [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
+| [CI Quality Gates](operations/ci-quality-gates.md) | Why a green pipeline can be an untested one (tests self-skip on missing deps), fixing it, the `setup-python` vs `apt` interpreter trap |
 | [Backup Strategy](operations/backup-strategy.md) | 3-2-1 rule, threat coverage matrix, restic with append-only credentials, retention policies, restore verification |
 | [Claude Code Hooks](operations/claude-code-hooks.md) | Hook events, stdin JSON, `additionalContext` vs `systemMessage`, `if` conditional field, SessionStart context injection, dual-Stop pattern, defense-in-depth with branch protection, hook fatigue |
 | [Git Commit Hooks](operations/git-commit-hooks.md) | What git hooks are, why `.git/hooks/` is not committed, symlink pattern for versioned hooks, `commit-msg` validation script, local hooks vs CI enforcement, pre-commit/husky overview |
