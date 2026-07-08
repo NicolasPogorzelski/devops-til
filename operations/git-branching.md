@@ -243,6 +243,44 @@ A merge commit should explain the resolution strategy, not just list "resolved
 conflicts". Useful content: which branch was authoritative for which section,
 what was additive, what validation fixes were needed.
 
+### Rename + modify: Git follows renames across a merge
+
+If one branch **renames** a file (`git mv A B`) and the other branch **modifies** the
+old path `A`, a merge does not lose the modification and does not conflict on the path.
+Git's rename detection maps `A → B` and **replays the other side's edits onto `B`** —
+silently (it may not even appear in the "Auto-merging" list). A textual conflict only
+arises if both sides changed the *same lines*.
+
+Real example: `main` renamed `roles/ssh-hardening/` → `roles/ssh_hardening/` and
+touched the tasks file; a feature branch had added a new task to
+`roles/ssh-hardening/tasks/main.yml`. The merge landed that new task in
+`roles/ssh_hardening/tasks/main.yml` with no conflict and no mention.
+
+Because it is silent, **verify explicitly** — don't assume a fix survived just because
+there was no conflict:
+
+```bash
+# confirm the feature-branch change is present at the NEW path
+grep -n 'the-thing-i-added' ansible/roles/ssh_hardening/tasks/main.yml
+```
+
+This is also why **merge is safer than rebase when the other side did invasive
+renames**: a merge resolves the rename-vs-modify interaction once; a rebase replays
+each commit and can re-hit it repeatedly across the series.
+
+### Merge vs rebase: decide from the actual overlap
+
+Before integrating a long-running branch, measure how many files both sides touched:
+
+```bash
+comm -12 <(git diff --name-only <base> feature | sort) \
+         <(git diff --name-only <base> main | sort)
+```
+
+`comm -12` prints only lines common to both sorted lists (`-1`/`-2` suppress the
+lines unique to each). Many overlapping files → prefer a **merge** (resolve once);
+little overlap and you want linear history → **rebase**.
+
 ## `origin/main` is a local cache — always fetch first
 
 `git log origin/main` does **not** contact GitHub. It reads a local ref

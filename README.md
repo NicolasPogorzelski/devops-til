@@ -48,7 +48,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [Walkthrough: Fleet Docker Updates & Postgres Provisioning](ansible/walkthrough-items-9-10.md) | Two roles end to end on the shared group→host_vars→role→playbook skeleton: the `become`/`docker.sock` root-cause story, `pull` vs `recreate`, the verification ladder, and Postgres' four access layers, peer auth, and Vault-backed tenant provisioning |
 | [Ad-Hoc Commands](ansible/ad-hoc-commands.md) | `ansible <host> -m <module> -a "<args>"` syntax, `command` vs `shell`, `ping` (not ICMP), `--become` trap, and the live-state verification pattern (verify before trusting docs) |
 | [Fleet Health Checks & hostvars](ansible/fleet-health-hostvars.md) | `hostvars` magic variable for cross-host data aggregation, multi-play reporting pattern, `service_facts`, `docker_host_info`, `find`+`file` cleanup loop, `copy` with Jinja2 content, role-vs-inline decision rule |
-| [GitHub Actions: CI/CD for Ansible](ansible/github-actions-ansible-lint.md) | Minimal `ansible-lint` pipeline on push + PR; why `cd ansible && ansible-lint .` (CWD-relative `ansible.cfg`); `requirements.yml` for collections; common lint rules + fixes; handler name matching gotcha; `pipefail` explained |
+| [GitHub Actions: CI/CD for Ansible](ansible/github-actions-ansible-lint.md) | Minimal `ansible-lint` pipeline on push + PR; why `cd ansible && ansible-lint .` (CWD-relative `ansible.cfg`); `requirements.yml` for collections; common lint rules + fixes; handler name matching gotcha; `pipefail` explained; **pinning the version** vs default-profile drift; the **profile ladder** (min→production) + `.ansible-lint` config; **vault in CI** (dummy password; syntax-check parses but never decrypts; internal-error masking); **role-name → var-naming cascade** + waiver; `--fix` reformat scope + excluding the vault file |
 
 ## Proxmox
 
@@ -134,7 +134,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | Topic | Summary |
 |---|---|
 | [Runbook Methodology](operations/runbook-methodology.md) | Root-cause process, failure-modes table, layer-by-layer health checks, verification log, doku-first workflow, fail-forward visibility |
-| [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy, `-d` vs `-D`, filter-repo replacement side effects, `filter-branch --msg-filter`, cherry-pick conflict resolution |
+| [Git Branching Patterns](operations/git-branching.md) | Cherry-pick workflow, CI dependency trap, feature branch strategy, `-d` vs `-D`, filter-repo replacement side effects, `filter-branch --msg-filter`, cherry-pick conflict resolution; merge-conflict resolution workflow; **rename + modify merges** (rename detection replays edits onto the new path — silently, verify it); **merge vs rebase** decided from file overlap (`comm -12`) |
 | [Conventional Commits](operations/conventional-commits.md) | Commit message format with required scope, per-node and thematic scope conventions |
 | [Repo Validation](operations/repo-validation.md) | Self-validating documentation repos, structural checks, sanitization rules, CI integration |
 | [CI Quality Gates](operations/ci-quality-gates.md) | Why a green pipeline can be an untested one (tests self-skip on missing deps), fixing it, the `setup-python` vs `apt` interpreter trap |
