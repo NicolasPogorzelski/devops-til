@@ -73,3 +73,65 @@ Only apply after reviewing the diff output.
 - Second run: `ok=3` (Facts + 2 tasks, handler not triggered because no task was `changed`)
 
 `notify` only fires when the task reports `changed`. On a second run with no changes, the handler is skipped — this is expected and correct.
+
+## The drop-in that wins: sshd_config.d ordering (2026-07-08)
+
+Editing `PasswordAuthentication no` into `/etc/ssh/sshd_config` (the `lineinfile`
+task above) is **not enough** on a host that also has a `sshd_config.d/` drop-in
+setting it back. On one node the role reported `changed=0` — looked hardened —
+while the host still accepted password logins.
+
+Two sshd facts explain it:
+
+1. **sshd applies the *first* match for a directive**, not the last. Once
+   `PasswordAuthentication yes` is seen, every later occurrence is ignored.
+2. **`Include /etc/ssh/sshd_config.d/*.conf` sits near the *top*** of the main
+   `sshd_config` on Debian/Ubuntu, and expands its files in **filename-sort
+   order**. So `sshd_config.d/50-cloud-init.conf` (written by cloud-init with
+   `PasswordAuthentication yes`) is parsed *before* the line the role edited lower
+   in the main file — and wins.
+
+Only the cloud-init'd node was affected (it's a VM; the LXCs have no such
+drop-in). The `changed=0` was true and misleading at once: the line the role
+manages *was* already `no`; it just wasn't the line sshd obeys.
+
+### Root-cause discipline: verify effective config, not the file you wrote
+
+The line you edited is not the effective config. `sshd -T` prints the fully
+resolved configuration after all Includes and first-match resolution — that is
+ground truth:
+
+```bash
+sshd -T | grep -i passwordauthentication      # -T: dump effective config, then exit
+```
+
+If that says `yes` while your file says `no`, an earlier-sorted drop-in is
+overriding you. This is the verification step that turns "I set it" into "it is
+set".
+
+### The fix: sort a drop-in *before* the offender, don't edit the offender
+
+```yaml
+- name: Deploy sshd_config.d drop-in that wins over distro-provided defaults
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-hardening.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+  notify: reload sshd
+```
+
+- `00-` sorts before `50-cloud-init.conf`, so with first-match-wins **it wins**.
+- We do **not** edit or delete `50-cloud-init.conf`: cloud-init owns it and can
+  regenerate it on a future boot, silently undoing an in-place edit. Adding an
+  earlier-winning file is durable against that; editing the owned file is not.
+- Same `notify: reload sshd` handler — the drop-in only takes effect after sshd
+  re-reads its config.
+
+Generalised lesson: when a value is assembled from an ordered set of fragments
+(sshd Includes, `conf.d/` dirs, systemd drop-ins, `sysctl.d/`), **change the
+resolution order in your favour instead of fighting the fragment you don't own** —
+and always verify the *resolved* value, not the fragment you wrote.

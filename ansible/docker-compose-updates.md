@@ -163,6 +163,85 @@ predict until it actually ran:
   without the pinned `name: vaultwarden` — the module honours the pin because it
   shells out to `docker compose`.
 
+## The sync gap: a role that updated nothing (2026-07-08)
+
+The role above worked for a month and was still silently broken. It ran
+`docker_compose_v2` against whatever `docker-compose.yml` was **already on the
+node** — it never pushed `docker/<service>/docker-compose.yml` from the repo. So
+pinning an image tag in the repo (e.g. paperless `:latest` → a fixed version,
+committed 2026-06-17) changed nothing live: the node's own compose file still
+said `:latest`, and `pull: always` faithfully pulled *latest*. paperless-ngx and
+tika ran the rolling tag for three weeks despite the repo showing them pinned.
+
+The trap is that every symptom pointed the wrong way:
+
+- The repo *looked* correct — the pin was right there in Git.
+- The role *looked* correct — `pull: always` + `recreate: auto`, idempotent,
+  `changed=0` on the second run. It was faithfully converging the node to the
+  node's own stale file.
+- The generic learning above ("data lives in the inventory, logic lives in the
+  task") quietly assumed the on-node file *was* the repo file. Nothing enforced
+  that.
+
+**Root cause, stated generally:** a config-management role must own the delivery
+of its **source of truth**, not just act on remote state. "Idempotent against the
+node" is not "converged to the repo" when the repo artifact is never shipped.
+The audit question that catches this: *does the role read anything from the repo
+tree, or does every task operate on files that must already exist on the target?*
+If it's the latter, the repo is documentation, not control.
+
+### The fix
+
+Add a `copy` task that ships the repo compose file to the node **before**
+recreate:
+
+```yaml
+- name: Sync compose file from repo to node
+  ansible.builtin.copy:
+    src: "{{ role_path }}/../../../docker/{{ item.src }}/docker-compose.yml"
+    dest: "{{ item.dest }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ compose_projects }}"
+  loop_control:
+    label: "{{ item.dest }}"
+```
+
+- `src` uses `{{ role_path }}/../../../docker/...` — `role_path` is the role's own
+  directory; three `../` climb back to the repo root, so the source resolves
+  regardless of where `ansible-playbook` is invoked from. (`copy` also searches a
+  role's `files/`, but here the source of truth is the shared `docker/` tree, not
+  a role-local copy — duplicating it into `files/` would reintroduce a drift
+  surface.)
+- The `recreate` task must run *after* this, so `recreate: auto` sees the newly
+  written file, detects the image change, and restarts.
+
+### Why `compose_projects` had to change shape
+
+A flat path list (`- /opt/paperless`) only encodes the **node** path. To also
+copy *from* the repo, each entry needs the **repo** subdir too — and the two
+basenames don't always match:
+
+```yaml
+compose_projects:
+  - { dest: /opt/paperless, src: paperless }
+  - { dest: /srv/calibreweb, src: calibre-web }        # basenames differ
+  - { dest: /opt/vaultwarden/compose, src: vaultwarden }
+```
+
+`dest` = `project_src` on the node (what the old list held); `src` = subdir under
+repo `docker/`. `item` becomes a dict, so every reference is now `item.dest` /
+`item.src` instead of bare `item`. The lesson generalises: the moment a loop
+element needs a second, independent attribute, promote it from a scalar to a
+`{k: v}` dict — don't try to derive one path from the other with string surgery
+when they're genuinely unrelated names.
+
+**Verify before trusting:** dry-run with `--check --diff` first — the `copy`
+diffs show exactly which nodes had a stale compose file. Then confirm the live
+tag afterwards (`docker inspect <container> | grep Image`, not `--format` — see
+the Jinja2 collision above).
+
 ## Related
 
 - [Inventory Groups](inventory-groups.md) — host_vars/group_vars, variable precedence
