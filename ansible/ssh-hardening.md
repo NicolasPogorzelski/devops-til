@@ -135,3 +135,25 @@ Generalised lesson: when a value is assembled from an ordered set of fragments
 (sshd Includes, `conf.d/` dirs, systemd drop-ins, `sysctl.d/`), **change the
 resolution order in your favour instead of fighting the fragment you don't own** —
 and always verify the *resolved* value, not the fragment you wrote.
+
+### Verifying the applied change: a reused socket proves nothing (2026-07-09)
+
+After applying the drop-in, the obvious check is "can I still get in?". If your SSH client has
+connection multiplexing enabled (`ControlMaster`/`ControlPath` — Ansible's `ansible.cfg` turns it
+on by default), a new `ssh host …` may travel over the **existing** socket and never
+re-authenticate. The test passes whether or not the change is sane.
+
+```bash
+ssh -o ControlMaster=no -o ControlPath=none user@host 'sudo sshd -T | grep -i passwordauth'
+```
+
+Both options force a genuinely new connection, and therefore a real authentication.
+
+Three more habits that make an sshd change safe to apply remotely:
+
+- The handler must `reload`, not `restart`: existing sessions survive while you verify.
+- Check what you are about to remove. `PermitRootLogin no` is a no-op if `/root/.ssh/authorized_keys`
+  is empty — but if break-glass runs as root, it is a lockout. `wc -l < /root/.ssh/authorized_keys`
+  before, not after.
+- Know the out-of-band path before you need it: `pct exec <ctid> -- bash` for LXCs, the hypervisor
+  console for VMs. SSH cannot rescue a broken sshd.

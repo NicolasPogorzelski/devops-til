@@ -243,8 +243,89 @@ pct exec <ctid> -- systemctl mask run-rpc_pipefs.mount
 Document the mask in the container's runbook so future-you doesn't unmask it
 out of curiosity and bring back the noise.
 
+## Disk passthrough safety: one filesystem, one kernel
+
+A raw disk passed into a VM (`scsiN: /dev/disk/by-id/…`) and simultaneously mounted on the
+Proxmox host is a loaded gun. Both kernels can write; neither knows about the other. **ext4, xfs
+and btrfs are not cluster filesystems — there is no locking across hosts.** The result of a
+concurrent mount is metadata corruption, not a race you might win.
+
+This survives reboots silently, because the danger only materialises when *something* mounts it in
+the guest — an uncommented fstab line, a manual `mount`, a rebuild from an old fstab.
+
+### Check what the running process actually has open
+
+`qm config` shows the config file. It does not show what QEMU opened.
+
+```bash
+qm config 102 | grep -E '^(scsi|sata|virtio|ide)[0-9]'
+
+# What the LIVE process holds — config and runtime can diverge
+ps -o args= -C kvm | tr ',' '\n' | grep -i '<disk-serial>'
+```
+
+- `-o args=` — print only the command line; the `=` suppresses the column header.
+- `-C kvm` — select processes named `kvm` (the running QEMU).
+- `tr ',' '\n'` — QEMU's command line is one enormous comma-separated string; without splitting it,
+  `grep` returns the whole thing and you see nothing.
+
+Then correlate host and guest by **filesystem UUID**, not by device name (`sdX` is not stable):
+
+```bash
+# on the host
+findmnt /mnt/<mountpoint>                 # source device + mount options (is it rw?)
+dmesg -T | grep 'EXT4-fs.*mounted filesystem'   # prints the UUID
+
+# in the guest
+blkid -s UUID -o value /dev/sdX
+```
+
+Same UUID on both sides = same filesystem = one of them must go.
+
+### Detaching safely
+
+```bash
+# 1. Prove the guest is not using it
+findmnt /dev/sdX ; grep -c sdX /proc/mounts ; pvs | grep -c sdX ; grep -c sdX /proc/mdstat
+
+# 2. Detach (hot-unplug with virtio-scsi-single)
+qm set <vmid> --delete scsi8
+
+# 3. Reversal — write the exact line down BEFORE you delete it
+qm set <vmid> --scsi8 /dev/disk/by-id/<id>,size=<size>
+```
+
+`qm set --delete scsiN` on a **raw device path** simply removes the config line: no `unusedN` entry
+appears and no data is touched, because a device path is not a storage-managed volume. (Data
+destruction requires `qm disk unlink --force` / `destroy-unreferenced-disks`.)
+
+The guest will log `Synchronize Cache(10) failed … hostbyte=DID_BAD_TARGET` — expected. The kernel
+tried to flush the device's write cache after QEMU already removed it. Harmless if nothing was
+mounted.
+
+Afterwards, replace the guest's commented fstab line with an explicit warning. A bare `#`
+documents nothing; the next person tidying up will uncomment it.
+
+### `is_mountpoint 1` for directory storages
+
+```
+dir: appdata_aux1tb
+	path /mnt/aux1TB
+	content images
+	mkdir 0
+	is_mountpoint 1
+```
+
+- `mkdir 0` — do not *create* the path. It does **not** stop Proxmox from *writing into* an
+  existing empty mountpoint.
+- `is_mountpoint 1` — treat the storage as offline unless something is actually mounted there.
+
+Without it, a disk that fails to mount at boot leaves an empty directory behind, Proxmox considers
+the storage active, and VM disks get written into the host's **root filesystem** until it fills.
+
 ## Related
 
 - [Thin-Pool Recovery](thin-pool-recovery.md)
 - [Linux: Namespaces & nsenter](../linux/namespaces-nsenter.md)
 - [Tailscale TUN in Unprivileged LXCs](lxc-tailscale-tun.md)
+- [Linux: Disk Diagnostics](../linux/disk-diagnostics.md)

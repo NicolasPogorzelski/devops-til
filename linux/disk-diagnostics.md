@@ -37,6 +37,87 @@ dmesg | grep -iE 'i/o error|sector|ata[0-9]|scsi|sd[a-z]'
 Note the device name (`sdX`) and the timestamps. A burst of errors at one moment is different
 from a slow drip over weeks.
 
+Use `dmesg -T` (`-T` = human-readable timestamps). Without it you get "seconds since boot" and
+cannot tell whether the errors are from this morning or from a boot three weeks ago.
+
+### Who reported the error? `hostbyte`, `driverbyte`, sense key
+
+**An `I/O error` line alone does not tell you the disk is bad.** It tells you *some layer*
+returned an error to the block layer. Which layer matters enormously: a bad sector means replace
+the disk; a transport fault means check the cable, the controller, or the power supply.
+
+The `I/O error` line is preceded by the SCSI result, and that is where the answer is. Always read
+with `grep -B4` — the cause sits *above* the symptom:
+
+```bash
+dmesg -T | grep -B4 -A1 "I/O error, dev sdc"
+```
+
+Two very different results:
+
+```
+# Real media failure — the DRIVE says it cannot read the sector
+sd 0:0:0:0: [sdc] tag#12 FAILED Result: hostbyte=DID_OK driverbyte=DRIVER_SENSE
+sd 0:0:0:0: [sdc] tag#12 Sense Key : Medium Error [current]
+sd 0:0:0:0: [sdc] tag#12 Add. Sense: Unrecovered read error
+```
+
+```
+# Transport fault — the HOST ADAPTER gave up; the drive never complained
+sd 9:0:0:0: [sdc] tag#628 FAILED Result: hostbyte=DID_SOFT_ERROR driverbyte=DRIVER_OK cmd_age=19s
+sd 9:0:0:0: [sdc] tag#628 CDB: Read(10) 28 00 07 7c 0e 60 00 00 18 00
+```
+
+| Field | Who sets it | Reading |
+|---|---|---|
+| `hostbyte=DID_OK` | host adapter | adapter is fine; look further down |
+| `hostbyte=DID_SOFT_ERROR` | host adapter | transient adapter/link fault — retryable, **not** the media |
+| `hostbyte=DID_BAD_TARGET` | host adapter | device is gone (expected right after a hot-unplug) |
+| `driverbyte=DRIVER_SENSE` | driver | the drive returned sense data — read the sense key |
+| `driverbyte=DRIVER_OK` | driver | **no sense data at all** — the drive said nothing |
+| `Sense Key: Medium Error` | **the drive** | the authoritative "I cannot read this sector" |
+| `cmd_age=19s` | kernel | the command sat 19 s before failing → **timeout**, not a read failure |
+
+Three tells that an error is *not* the media:
+
+1. **No sense key.** A drive that cannot read a sector reports so explicitly. Silence means it
+   was never asked, or never answered.
+2. **`cmd_age` in whole seconds.** A failed read is reported in milliseconds. Seconds means a
+   command timed out somewhere on the path.
+3. **SMART counters do not move.** Cross-check immediately (Step 2). If the kernel logs errors and
+   the drive's own counters and error log stay at zero, the fault is *between* them.
+
+Also check which controller the disk is actually on before blaming the disk:
+
+```bash
+# ATA enumeration — every AHCI/SATA device shows up here
+dmesg -T | grep -E "^\[.*\] ata[0-9]+(\.[0-9]+)?: "
+
+# A SAS/SCSI HBA looks completely different: sas_address, phy(), enclosure, mpt3sas/mpt2sas
+dmesg -T | grep -iE "mpt3sas|mpt2sas|sas_address"
+
+# HBA identity
+lspci -nn | grep -iE "sas|raid"
+```
+
+A disk that never appears in the `ata` enumeration is not on the SATA controller — it hangs off an
+HBA, and the HBA's firmware, cabling and cooling are now suspects. For LSI SAS2008-class cards,
+`FWVersion(20.00.07.00)` is the known-good P20 phase; 20.00.00.00–20.00.04.00 are the buggy ones.
+
+### Is it every boot, or just this one?
+
+`dmesg` only shows the *current* boot. To distinguish "one-off" from "every time", you need the
+persistent journal:
+
+```bash
+journalctl --list-boots            # 0 = current, -1 = previous, …
+journalctl -k -b -2 | grep -ci "dev sdc"
+```
+
+`-k` restricts to kernel messages. Intermittent errors that appear on some boots and not others,
+always in the same window, point at load-dependent behaviour (peak current draw during spin-up,
+thermal ramp) rather than at a fixed bad sector.
+
 ## Step 2 — SMART (Self-Monitoring, Analysis and Reporting Technology)
 
 Modern HDDs and SSDs continuously self-monitor and expose the data via SMART.
@@ -75,6 +156,46 @@ smartctl -A /dev/sdX
 
 Key insight: **a single bad sector isn't a death sentence; a growing count is.** Run smartctl
 periodically and watch the trend, not the absolute value.
+
+### `SMART overall-health: PASSED` means almost nothing
+
+`smartctl -H` asks the firmware whether any attribute has crossed its own failure threshold. A
+drive can report `PASSED` while 7680 sectors are unreadable, because the vendor's thresholds are
+set for warranty purposes, not for your data. Seen in the field:
+
+```
+SMART overall-health self-assessment test result: PASSED
+197 Current_Pending_Sector   ...  -  7680
+198 Offline_Uncorrectable    ...  -  7680
+  5 Reallocated_Sector_Ct    ...  -  0
+187 Reported_Uncorrect       ...  -  21
+```
+
+Never quote `-H` as evidence of health. Read `-A`.
+
+### `Pending` high while `Reallocated` stays 0
+
+Counter-intuitive, and it is the worse case, not the better one:
+
+- A pending sector is one the drive **cannot read**.
+- The spare pool is consumed on **write**, not on read. The drive only remaps a sector when
+  something writes to it, because only then does it have valid data to put in the spare.
+- So `Reallocated = 0` with `Pending = 7680` does not mean "the drive is coping". It means
+  7680 sectors hold data that can never be read back, and nothing has overwritten them.
+
+A pending count that *drops* without reallocations rising means those sectors were rewritten and
+turned out fine. `Reported_Uncorrect` (attribute 187) is the honest counter: it only goes up, and
+it counts errors the drive actually surfaced to the OS.
+
+### The drive's own error log is the tiebreaker
+
+```bash
+smartctl -l error /dev/sdX      # errors the DRIVE recorded
+smartctl -l selftest /dev/sdX   # self-test history
+```
+
+If the kernel logs I/O errors and this reads `No Errors Logged`, the drive never saw a problem.
+The fault is on the path to it — cable, backplane, HBA, or power. Do not replace the disk.
 
 ### Run a self-test
 
@@ -196,17 +317,35 @@ moving the disk to a different controller. Prefer UUID for filesystems, by-id fo
 ```
 I/O error symptom
    │
-   ├── dmesg shows hardware errors? ────yes─→ Step 2 (SMART), then plan replacement
+   ├── Read the SCSI result ABOVE the I/O error line (dmesg -T | grep -B4)
+   │       │
+   │       ├── driverbyte=DRIVER_SENSE + Sense Key: Medium Error
+   │       │      └─→ the DRIVE says the sector is unreadable. Continue to SMART.
+   │       │
+   │       └── hostbyte=DID_SOFT_ERROR, no sense data, cmd_age in seconds
+   │              └─→ TRANSPORT fault, not media. Do NOT buy a disk.
+   │                  Check: which controller (ata* vs mpt3sas)? HBA firmware?
+   │                  cable/backplane? HBA cooling? PSU rail under load?
+   │                  Cross-check: smartctl -l error must read "No Errors Logged"
+   │                  and every media counter must be zero.
    │
-   ├── SMART shows reallocated/pending sectors increasing?
+   ├── SMART (-A, never -H): reallocated/pending/Reported_Uncorrect increasing?
    │       │
    │       ├── yes ─→ replace disk; restore from parity (SnapRAID fix) or backup
-   │       └── no  ─→ Step 3 (badblocks read-only) to confirm
+   │       └── no  ─→ the drive disagrees with the kernel → look at the path, not the disk
+   │
+   ├── Errors only in a specific window (e.g. boot)?
+   │       └─→ load-dependent. Compare boots via journalctl -k -b -N.
+   │           Peak current draw, thermal ramp, controller init — not a fixed bad sector.
    │
    ├── SnapRAID hash mismatch? ────yes─→ snapraid fix, then investigate the offending disk
    │
    └── Performance regression only? ────→ iostat, check %util and await
 ```
+
+**The trap this tree exists to prevent:** "dmesg shows I/O errors on the disk holding everything"
+reads like an emergency and invites an immediate replacement. Indication is not diagnosis. Read
+the line above the symptom first.
 
 ## Related
 
