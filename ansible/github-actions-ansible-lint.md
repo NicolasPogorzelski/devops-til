@@ -225,3 +225,58 @@ Two cautions:
   (casing, indentation, blank lines) — no changed values or logic.
 - Not everything is auto-fixable: `role-name` (rename) and `var-naming` (rename) need
   manual work or a waiver.
+
+## A lint finding is not proof of a defect — read the rule's source
+
+`command-instead-of-module` flagged `systemctl is-failed` in a role and told me to
+use `ansible.builtin.systemd_service`. Taking that at face value would have produced
+**worse** code, because no module can do what the task does. The lesson is general:
+before satisfying a rule, confirm the rule's premise actually holds for your case.
+
+The concrete asymmetry that gave it away: the *next* task in the same role ran
+`systemctl reset-failed` and was **not** flagged. Two near-identical `command` calls,
+one flagged and one not, is a signal to read the rule, not the code. The rule ships a
+per-executable allow-list of subcommands it considers module-less:
+
+```python
+# ansiblelint/rules/command_instead_of_module.py
+_executable_options = {
+    "systemctl": ["--version", "get-default", "kill", "set-default",
+                  "set-property", "set-environment", "unset-environment",
+                  "show-environment", "status", "reset-failed"],
+}
+```
+
+`reset-failed` is in the list; `is-failed` is not — an upstream omission, not a
+statement about my code. Find the source fast:
+
+```bash
+python -c "import ansiblelint.rules.command_instead_of_module as m; print(m.__file__)"
+```
+
+Why no module fit here (the part that justifies the waiver):
+
+- `ansible.builtin.systemd_service` has **no query-only mode** — it acts (start/stop/
+  mask) and reports changed/ok. It cannot answer "is this unit failed?", and it
+  **errors on a unit whose file no longer exists** — which is exactly the state after
+  a preceding `remove` task deleted it.
+- `ansible.builtin.service_facts` enumerates `.service` units **only**; half the units
+  in scope were `.mount` units, so it would silently miss them.
+
+## Three levels of suppression — pick the narrowest
+
+| Mechanism | Scope | Use when |
+|---|---|---|
+| `# noqa: rule-id` (on the task's `- name:` line) | that one task, that one rule | a rule is genuinely wrong *here* |
+| `# noqa` (bare, no id) | that one task, **every** rule | almost never — hides future unrelated findings on the same task |
+| `skip_list: [rule-id]` in `.ansible-lint` | the whole repo | the rule has negligible value for this repo (e.g. `var-naming[no-role-prefix]`) |
+
+Always name the rule id. A bare `# noqa` on a task means a later `risky-file-permissions`
+or `no-changed-when` on that same task is silently swallowed. And prefer inline `# noqa`
+over `skip_list` when the waiver is situational — `skip_list` disarms the rule everywhere,
+inline keeps it armed for the next author. Write the *why* next to the waiver; a suppressed
+rule with no rationale is indistinguishable from a bug someone hid.
+
+A subtlety: `# noqa` is only meaningful on a line ansible-lint can attribute a finding to.
+On a standalone comment line it does nothing — so don't start an explanatory comment with
+the literal token `# noqa …`, or a reader will mistake prose for a directive.

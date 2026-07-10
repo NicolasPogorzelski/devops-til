@@ -132,7 +132,53 @@ Exit code from the script is the build status. Non-zero = red ❌, zero = green 
 
 For these, the answer is human review (PRs, periodic doc sweeps), not more checks.
 
+## A local check that shells out to an external tool can be silently inert
+
+Structural checks (empty files, bad links, forbidden IPs) are self-contained: the
+validator's own `grep`/`find` always run. But a check that invokes an **external
+linter** inherits that tool's absence. Three commits once passed the local pre-commit
+hook and turned CI red, because the hook ran `validate-repo.sh` — which had no
+Ansible-aware check at all — while CI ran `ansible-lint` separately. Adding an
+`ansible-lint` check to the validator closes that gap, but introduces a subtler one:
+if `ansible-lint` isn't installed, the check can't run.
+
+The guard, and the honesty it forces:
+
+```bash
+if ! command -v ansible-lint >/dev/null 2>&1; then
+    echo "  SKIP: ansible-lint not in PATH"          # visible, not silent
+elif ! grep -q '^ansible/' <<< "${changed}"; then
+    echo "  SKIP: no changes under ansible/"
+else
+    out="$(cd ansible && ansible-lint --nocolor . 2>&1)" && rc=0 || rc=$?
+    [[ "${rc}" -ne 0 ]] && { echo "${out}" | sed 's/^/  /'; ERRORS=$((ERRORS+1)); }
+fi
+```
+
+Design decisions worth keeping:
+
+- **Print `SKIP` loudly.** A skipped check that says nothing is the
+  [inert-gate failure class](ci-quality-gates.md) — it looks like coverage. A visible
+  `SKIP:` line tells the reader the check *chose* not to run and why.
+- **The install is a documented prerequisite.** A pre-commit lint gate is only real if
+  the tool is present; note it in the repo's setup docs and pin it to CI's version
+  (`pipx install 'ansible-lint==26.6.0'`). A divergent local version gates commits
+  against a different rule set than CI enforces.
+- **It's a pre-commit net, not a second CI stage.** Scope it to the diff
+  (`git diff --cached` with a `git diff HEAD` fallback for `commit -a`). Under CI it
+  self-skips — `actions/checkout` leaves a clean tree, so there's no diff — which is
+  correct, because the dedicated CI workflow already lints every push.
+- **`--nocolor` when capturing output.** The tool writes to a captured variable, not a
+  TTY; without it, ANSI colour and OSC-8 hyperlink escapes end up as garbage in the
+  hook log.
+
+Test all three branches deliberately: strip the binary from `PATH` (SKIP), run clean
+(PASS), and **re-inject a real violation** to confirm FAIL actually returns non-zero. A
+gate you've only seen pass is a gate you haven't tested.
+
 ## Related
+
+- [CI Quality Gates That Actually Gate](ci-quality-gates.md)
 
 - [Operations: Conventional Commits](conventional-commits.md)
 - [Operations: Runbook Methodology](runbook-methodology.md)

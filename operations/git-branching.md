@@ -306,6 +306,62 @@ tells you exactly how far your local cache was behind:
 - left hash = what you had locally
 - right hash = what the remote now is
 
+## Measure ahead/behind before a push or pull — `rev-list --left-right --count`
+
+Before pushing or pulling, know exactly how the two sides diverge. One command
+answers it as two numbers:
+
+```bash
+git rev-list --left-right --count main...origin/main
+# → "0    11"   (left = only local, right = only remote)
+```
+
+- **`...` (three dots)** = symmetric difference: commits in exactly one side. This is
+  a *different operator* from two-dot `A..B` (commits in B but not A). Mixing them up
+  is a classic mistake — `A..B` answers "what would I push", `A...B` answers "how have
+  we diverged".
+- `--left-right` — tag each commit as left (`<`, only in the first ref) or right (`>`,
+  only in the second).
+- `--count` — collapse to two integers instead of listing hashes.
+
+Reading the result drives the decision:
+
+| Output | Meaning | Safe action |
+|---|---|---|
+| `0  N` | local behind by N, no local-only commits | `git pull --ff-only` (fast-forward) |
+| `N  0` | local ahead by N | `git push` (fast-forward) |
+| `N  M` | **diverged** — both have unique commits | merge or rebase; never `--force` blindly |
+
+## `--ff-only` for a mirror-only branch
+
+A node that is only ever supposed to *mirror* `main` (e.g. an automation control node
+that must run committed code, never local edits) should integrate with:
+
+```bash
+git pull --ff-only
+```
+
+`--ff-only` advances local `main` to the remote **only if** it can be done without a
+merge commit — i.e. only when the left count above is `0`. If local has diverged, it
+**aborts** instead of silently creating a merge commit. That refusal is the feature:
+on a mirror node, a divergence is a bug to investigate, not something to auto-merge.
+Verify the precondition first (`0` on the left of the `rev-list` count), then pull.
+
+## `fetch --prune` after a remote branch is deleted
+
+When a PR is merged and its branch deleted on the host, your local
+`refs/remotes/origin/<branch>` still lingers — a dead ref pointing at nothing.
+
+```bash
+git fetch --prune origin
+# → " - [deleted]    (none) -> origin/chore/my-branch"
+```
+
+`--prune` removes any remote-tracking ref whose upstream no longer exists. Without it,
+stale `origin/*` refs accumulate and `git branch -r` lists branches that are gone.
+The local branch (`chore/my-branch`, not `origin/chore/my-branch`) is untouched — delete
+that separately with `git branch -d` once its commits are confirmed in `main`.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)

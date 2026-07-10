@@ -208,6 +208,61 @@ some_command 2>/dev/null || true
 Use case: a per-user loop where some users don't have the resource being processed.
 The check would be more code than just trying and ignoring failure.
 
+## `$?` lies inside a pipe — use `PIPESTATUS`
+
+`$?` holds the exit code of the **last** command in a pipeline, not the one you
+usually care about. When you pipe a real command into a formatter, the formatter's
+success masks the command's failure:
+
+```bash
+./validate-repo.sh | tail -8
+echo "$?"        # ← tail's exit code (~always 0), NOT the script's
+```
+
+Bash records every pipe member's code in the `PIPESTATUS` array. Index 0 is the
+first command:
+
+```bash
+./validate-repo.sh | tail -8
+echo "${PIPESTATUS[0]}"   # the script's real exit code
+```
+
+Two ways to get the leftmost code reliably:
+
+| Approach | Effect |
+|---|---|
+| `${PIPESTATUS[0]}` | Read the specific member's code. Must be used on the **very next line** — any other command overwrites the array. |
+| `set -o pipefail` | Make the pipeline itself return the first non-zero code, so plain `$?` works. Changes behaviour for the whole script. |
+
+`pipefail` is the right default in a script header. `PIPESTATUS` is what you reach
+for in an ad-hoc one-liner where you piped through `tail`/`grep`/`sed` purely to
+shorten output and still need the producer's status.
+
+## Capture a non-zero exit under `set -e` instead of swallowing it
+
+`cmd || true` (above) *discards* a failure so `set -e` won't abort. Sometimes you
+need the opposite: keep running, but **inspect** the code and branch on it. A bare
+assignment from a failing command still trips `set -e`; the `&& … || …` idiom
+neutralises it:
+
+```bash
+out="$(some-linter . 2>&1)" && rc=0 || rc=$?
+if [[ "${rc}" -ne 0 ]]; then
+    echo "${out}" | sed 's/^/  /'   # show what it said
+    ERRORS=$((ERRORS + 1))          # …and act on it
+fi
+```
+
+Why it works: `set -e` does not trigger on a command that is the left side of `&&`
+or `||` — the failure is considered "handled". `&& rc=0` runs on success, `|| rc=$?`
+captures the code on failure. Without this wrapper, `out="$(some-linter .)"` under
+`set -e` would abort the whole script the moment the linter found something —
+before you could print its output.
+
+`ansible-lint` (exit 2 on findings) and any test runner (non-zero on failure) need
+this when you call them from a larger orchestration script that must survive their
+failure to report it.
+
 ## Function pattern for cross-host deployment
 
 ```bash
