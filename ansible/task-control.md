@@ -194,6 +194,120 @@ If a manual cron entry already exists with the same job string, Ansible adds the
 `user` writes into that user's personal crontab — equivalent to `crontab -u postgres -e`.
 Omit `cron_file` unless you want a file under `/etc/cron.d/` (system-wide, owned by root).
 
+### The module cannot remove an entry it did not write
+
+`state: absent` locates the entry to delete by its `#Ansible: <name>` marker. An entry that a
+human added with `crontab -e` has no marker, so the module finds nothing and reports `ok`. This
+is the shape of an adoption task: a script that was hand-deployed with a hand-written crontab
+line, now being taken over by a role.
+
+Two cases, two tools:
+
+**A file in `/etc/cron.d/`** — just delete the file. It is a file:
+
+```yaml
+- name: Remove the legacy snapraid cron file
+  ansible.builtin.file:
+    path: /etc/cron.d/snapraid
+    state: absent
+```
+
+**A line in a user crontab** — filter the crontab and pipe it back through `crontab -`, which
+validates the syntax and fixes ownership and mode, rather than editing the spool file directly:
+
+```yaml
+- name: Read the root crontab
+  ansible.builtin.command:
+    cmd: crontab -l -u root
+  register: root_crontab
+  changed_when: false     # a read never changes anything
+  failed_when: false      # an empty crontab exits 1; that is not an error
+  check_mode: false       # must run under --check, or .stdout is undefined below
+
+- name: Remove the legacy watchdog cron entry
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      crontab -l -u root | sed -E '/jellyfin-cuda-watchdog/d' | crontab -u root -
+    executable: /bin/bash
+  when: root_crontab.stdout is search('jellyfin-cuda-watchdog')
+  changed_when: true      # guarded by `when`, so reaching this task *is* a change
+```
+
+Three details that each cost a debugging round:
+
+- **`sed -E '/pat/d'`, not `grep -vE pat`.** `grep` exits 1 when it prints no lines. On a crontab
+  whose only entry is the one being removed, printing nothing is success — and `set -o pipefail`
+  turns that into a task failure. `sed` exits 0 either way.
+- **`check_mode: false` on the read.** `command`/`shell` are skipped under `--check`. Without the
+  override, `root_crontab.stdout` never gets registered and the `when:` on the next task raises
+  an undefined-variable error instead of showing a clean dry run.
+- **`when:` doubles as the idempotency guard.** On the second run the pattern is gone, the task
+  skips, and the play reports `changed=0`. A `changed_when: true` without the `when:` would
+  report a change forever.
+
+## Making a role dry-runnable
+
+`--check --diff` is only a useful review tool if the role can survive it. Two constructs routinely
+break check mode, and both have a one-line fix.
+
+**Read-only probes must still run.** A `command` that measures state (an installed version, a
+filesystem type, an existing crontab) is skipped under `--check`, so anything `register`ed from it
+is undefined and every `when:` downstream explodes:
+
+```yaml
+- name: Probe the filesystem type of the rw library mount
+  ansible.builtin.command:
+    cmd: findmnt -no FSTYPE /books-rw
+  register: library_fstype
+  changed_when: false
+  failed_when: false
+  check_mode: false     # it reads. Let it read, even in a dry run.
+```
+
+**`systemctl enable` on a unit that was never written must be skipped.** Under `--check` the
+`template` task did not really create `/etc/systemd/system/foo.timer`, so systemd cannot find it:
+
+```
+Could not find the requested service foo.timer: host
+```
+
+That is not a node problem, it is a role problem — the role simply cannot be dry-run:
+
+```yaml
+- name: Enable and start the timer
+  ansible.builtin.systemd_service:
+    name: foo.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+```
+
+`ansible_check_mode` is a magic variable, true exactly when `--check` is active.
+
+The target to aim for: on a converged system, `--check` prints `failed=0, changed=0`. Then a
+non-empty diff means a real pending change, and the dry run is evidence rather than noise.
+
+## `assert` as a precondition, not a comment
+
+When a role depends on state it does not manage — a mount, a hand-installed binary, an env file —
+assert it and let the play fail with a sentence that tells the next person what to do:
+
+```yaml
+- name: Assert the rw library is the CIFS share and not the directory beneath it
+  ansible.builtin.assert:
+    that: library_fstype.stdout | trim == "cifs"
+    fail_msg: >-
+      /books-rw has fstype '{{ library_fstype.stdout | trim }}', expected 'cifs'.
+      The Proxmox host has not mounted the rw share; the bind mount is exposing the
+      empty directory underneath it. Mount it on the host, then `pct reboot 220`.
+```
+
+Order the role so the artefacts deploy *before* the assert. Then a run against a broken node still
+ships the fixed script and units, and fails afterwards with the diagnosis — rather than refusing to
+do the part it could have done.
+
 ## `ansible.builtin.copy` — `remote_src` gotcha
 
 By default, `copy` expects `src` to be a path on the **Ansible controller**.

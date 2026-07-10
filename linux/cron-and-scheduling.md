@@ -4,11 +4,42 @@
 
 | Tool | Strengths | Weaknesses |
 |---|---|---|
-| `cron` | Universally available, simple, well-known | No structured logging, no dependency handling, missed runs are lost |
-| `systemd timer` | Structured logs via journalctl, can depend on units, handles missed runs (`Persistent=true`) | More verbose to set up, two unit files per job |
+| `cron` | Universally available, simple, well-known | No structured logging, no dependency handling, missed runs are lost, **a failing job is invisible** |
+| `systemd timer` | Structured logs via journalctl, can depend on units, handles missed runs (`Persistent=true`), a failed run leaves the unit in `failed` where monitoring can see it | More verbose to set up, two unit files per job |
 
-For homelab maintenance: cron is fine for simple periodic jobs. Switch to systemd timers when
-you need missed-run catchup or dependency on other units.
+### The decision rule (learned the expensive way)
+
+The naive rule is "cron is fine for simple periodic jobs". That rule has a hidden premise:
+**the machine is always on at the scheduled time.**
+
+On a host with a scheduled overnight shutdown, a daily `0 3 * * *` cron job runs on exactly the
+nights the machine happens to stay up. It is not skipped loudly — cron has no concept of a missed
+run, so there is nothing to log, nothing to alert on, and nothing to retry. On the platform this
+repo documents, that silently killed PostgreSQL backups for 26 days and cost SnapRAID an unknown
+number of syncs. The four dumps that existed were the accidents, not the schedule.
+
+There is a second, independent reason. A cron job that exits non-zero produces an email nobody
+reads (no MTA in a homelab) and leaves no state behind. A systemd service that exits non-zero
+sits in `failed`, where `node_exporter --collector.systemd` exports it as
+`node_systemd_unit_state{state="failed"}` and an alert rule can find it. The same platform ran a
+2-minute cron-scheduled import that failed roughly 20,000 times over a month behind a green
+dashboard.
+
+So the rule becomes:
+
+> **If the job matters and the machine is not guaranteed to be up at its scheduled time, it is a
+> systemd timer with `Persistent=true`. Cron is for jobs whose misses genuinely do not matter.**
+
+Legitimate remaining cron users on that platform, after migrating everything else:
+
+| Job | Why cron is still correct |
+|---|---|
+| The scheduled-shutdown job itself | It *is* what powers the host down. It cannot depend on the host being up, and `Persistent=true` catch-up would mean "shut down again at the next boot" |
+| `nextcloud`'s `cron.php` every 5 min | At a 5-minute cadence there is nothing meaningful to catch up on |
+| `e2scrub_all`, `sysstat`, `php` sessionclean | Distro-owned, and `sessionclean` self-disables under systemd |
+
+The signal is not "is this job simple" but "**what does a missed run cost, and would I ever find
+out?**"
 
 ## Crontab format
 
@@ -205,6 +236,129 @@ journalctl -u pg-backup.service    # see job output
 
 The `Persistent=true` behavior is the killer feature: a laptop that was off at 03:00 will run
 the missed backup when it boots back up. Cron has no equivalent — missed runs are lost.
+
+### Calendar timers vs monotonic timers
+
+`Persistent=` applies **only to `OnCalendar=` timers**. systemd silently ignores it on a monotonic
+timer, so writing it there is not harmless — it is a false claim in the config that the next reader
+has to disprove.
+
+| | Calendar timer | Monotonic timer |
+|---|---|---|
+| Directive | `OnCalendar=*-*-* 03:00:00` | `OnBootSec=5min`, `OnUnitActiveSec=30min` |
+| Reference point | Wall clock | Boot, and the previous run |
+| Question it answers | "at 03:00" | "every 30 minutes of uptime" |
+| `Persistent=` | Meaningful | **Ignored** |
+
+Use monotonic for pollers and watchdogs. A health check missed while the machine was off has
+nothing to catch up on — the thing it watches was not running either. `OnBootSec=` additionally
+buys the dependency graph time to settle: a watchdog that restarts a container should not fire
+into a half-started Docker daemon.
+
+### `Persistent=true` does not fire on first start — measured, not assumed
+
+Enabling a `Persistent=true` calendar timer for the first time does **not** immediately trigger
+its service. systemd keeps the last-trigger time in a stamp file under `/var/lib/systemd/timers/`.
+When the timer starts and no stamp exists, systemd writes one (zero bytes, mtime = now) and
+schedules the next regular elapse.
+
+```bash
+systemctl show foo.timer -p LastTriggerUSec -p NextElapseUSecRealtime -p Persistent
+systemctl show foo.service -p ActiveEnterTimestamp -p Result
+ls -l --time-style=full-iso /var/lib/systemd/timers/
+```
+
+Right after a first `systemctl enable --now foo.timer`: `LastTriggerUSec=` is empty and the
+service's `ActiveEnterTimestamp=` is empty — it never ran. Catch-up only applies to slots missed
+*after* the first stamp exists.
+
+This matters when the job is expensive. Deploying a `Persistent=true` SnapRAID sync timer and a
+scrub timer in the same Ansible run would, if first-start fired, launch a multi-hour sync and a
+concurrent scrub against the same parity files. It does not. But that is a fact to verify on a
+scratch unit before rolling out, not to assume from the man page's wording.
+
+### One template unit for N schedules
+
+When two timers run the same script with different arguments, use a **template unit** — a unit
+file whose name ends in `@`. The instance name after the `@` is available as `%i`.
+
+```ini
+# /etc/systemd/system/snapraid-maintenance@.service
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/snapraid-maintenance.sh %i
+TimeoutStartSec=infinity
+```
+
+```ini
+# /etc/systemd/system/snapraid-sync.timer
+[Timer]
+OnCalendar=*-*-* 23:00:00
+Persistent=true
+Unit=snapraid-maintenance@sync.service
+```
+
+`snapraid-scrub.timer` points at `snapraid-maintenance@scrub.service` with a different
+`OnCalendar=`. One service file, two schedules, no duplication. Verify the instantiation actually
+happened rather than trusting the `%i`:
+
+```bash
+systemctl show snapraid-maintenance@sync.service -p ExecStart
+# ... argv[]=/usr/local/sbin/snapraid-maintenance.sh sync ...
+```
+
+`Unit=` in the `[Timer]` section is what breaks the default naming convention (timer `foo.timer`
+→ service `foo.service`). Without it, `snapraid-sync.timer` would look for a nonexistent
+`snapraid-sync.service`.
+
+### Escape sequences in `ExecStart=`
+
+systemd applies C-style escape processing to `ExecStart=` arguments. A backslash that is not part
+of a sequence it recognises is passed through **and a warning is logged** — the value works, but
+by way of an unspecified fallback:
+
+```
+node_exporter.service:8: Ignoring unknown escape sequences:
+  "--collector.systemd.unit-exclude=.+\.(automount|device|scope|slice)"
+```
+
+That warning is invisible in `systemctl status`. It surfaces in:
+
+```bash
+systemd-analyze verify /etc/systemd/system/node_exporter.service
+```
+
+The documented way to emit a literal backslash is to double it (`\\.`). To confirm what the
+process actually received — not what the unit file says — read its argv directly:
+
+```bash
+tr '\0' ' ' < /proc/$(pgrep -x node_exporter)/cmdline; echo
+```
+
+`/proc/<pid>/cmdline` separates arguments with NUL bytes; `tr '\0' ' '` makes them printable.
+This is the only measurement that answers "what flags is this process running with", independent
+of the unit file, drop-ins, and systemd's own escaping.
+
+### Retiring a hand-written cron entry
+
+Deleting a crontab line from a script or config-management tool is not `crontab -e`. The crontab
+is edited by piping a full replacement through `crontab -u <user> -`, which validates the syntax
+and sets the file's ownership and mode correctly:
+
+```bash
+crontab -l -u root | sed -E '/jellyfin-cuda-watchdog/d' | crontab -u root -
+```
+
+**Use `sed -E '/pat/d'`, not `grep -vE pat`.** `grep` exits 1 when it prints no lines. On a
+crontab whose only entry is the one being removed, printing nothing is exactly what success looks
+like — and under `set -o pipefail` (or Ansible's `shell` with `pipefail`) that correct run is
+reported as a failure. `sed` exits 0 regardless of how many lines it emitted.
+
+Make the filter match the comment above the entry as well, or a stale comment survives its command:
+
+```bash
+sed -E '/scan-paperless-inbox|Paperless Inbox External Storage/d'
+```
 
 ## Scheduled wakeup via RTC (`rtcwake`)
 

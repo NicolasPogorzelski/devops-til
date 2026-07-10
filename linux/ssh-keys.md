@@ -233,6 +233,54 @@ For repo-managed access, regenerate keys when:
 - You suspect compromise
 - Annually as hygiene
 
+### Additive management never revokes anything
+
+A config-management task that *adds* keys leaves `authorized_keys` a growing union of every key
+anyone ever added. Nobody notices, because access keeps working. Years later the file holds keys
+belonging to machines that no longer exist, and no one can say which.
+
+Making the inventory the single source of truth means declaring the file **exclusive**:
+
+```yaml
+- name: Back up the pre-existing authorized_keys once
+  ansible.builtin.command:
+    cmd: cp -a ~/.ssh/authorized_keys ~/.ssh/authorized_keys.pre-ansible
+    creates: ~/.ssh/authorized_keys.pre-ansible   # runs once, never again
+
+- name: Enforce the break-glass SSH public keys
+  ansible.posix.authorized_key:
+    user: "{{ breakglass_user }}"
+    state: present
+    exclusive: true
+    key: "{{ breakglass_pubkeys | join(breakglass_key_separator) }}"
+  vars:
+    breakglass_key_separator: "\n"
+  when: breakglass_pubkeys | length > 0   # an empty list must never wipe the file
+```
+
+Three traps, each of which locks you out of a remote machine:
+
+- **`exclusive: true` is per invocation, not per key.** Inside a `loop:`, every iteration wipes the
+  previous one and only the *last* key survives. Pass all keys to a single task, newline-separated.
+- **`join("\n")` written inline in a Jinja expression yields a literal backslash-n, not a newline.**
+  Ansible's YAML parser hands `\n` to Jinja as two characters. The result is both keys on one line,
+  which `sshd` reads as one malformed key. Define the separator in a **double-quoted YAML scalar**
+  (`breakglass_key_separator: "\n"`), where YAML performs the escape, then reference the variable.
+- **An empty `breakglass_pubkeys` with `exclusive: true` truncates the file.** Guard with `when:`.
+
+Verify with `--check --diff` **and read the diff**, before the real run. The literal-`\n` bug is
+plainly visible there — both keys on one line — and is invisible in a `changed=1` summary. Keep a
+one-time `.pre-ansible` backup so the original file survives the first enforcing run.
+
+Reading back which keys a host trusts, without printing key material into a terminal or a log:
+
+```bash
+sed -E 's/^[^ ]+ [^ ]+ //' ~/.ssh/authorized_keys
+```
+
+This drops the first two whitespace-separated fields (the key type and the base64 blob) and prints
+only the trailing comment, which is where the machine name lives.
+
 ## Related
 
 - [Security: Least-Privilege Patterns](../security/least-privilege-patterns.md)
