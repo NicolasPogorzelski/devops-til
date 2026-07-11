@@ -362,6 +362,103 @@ stale `origin/*` refs accumulate and `git branch -r` lists branches that are gon
 The local branch (`chore/my-branch`, not `origin/chore/my-branch`) is untouched — delete
 that separately with `git branch -d` once its commits are confirmed in `main`.
 
+## Sanitizing an already-public history: what a rewrite reaches
+
+Removing sensitive strings from a repo that is **already public** is not a forward
+commit — it is a history rewrite plus cleanup of surfaces git does not own.
+
+**A forward "sanitization commit" removes nothing.** Editing the working tree and
+committing the clean version leaves every old value in place: prior commits still
+hold it, and the sanitization commit's *own diff* shows the old (`-`) and new (`+`)
+line side by side. The diff is the leak.
+
+```bash
+git log --all -S'5.8 TB' --oneline   # pickaxe: the value still lives in old commits
+```
+
+**`--replace-text` only rewrites blob *content*.** Two other surfaces need their own
+flags in the same `filter-repo` run:
+
+```bash
+git filter-repo \
+  --replace-text    repl.txt \
+  --replace-message msg.txt \
+  --path-rename old/aux1tb-name.md:new/aux-disk-name.md \
+  --force
+```
+
+- `--replace-message` — commit *messages* (a message like "rename the size-revealing
+  disk label" re-leaks the strategy; `--replace-text` never touches messages)
+- `--path-rename` — *filenames* (a size-encoding name like `aux1tb-failure.md` stays
+  in history; content replacement cannot rename a path)
+- `--force` — required when the repo was **already** filter-repo'd once
+
+Replacement format is `literal==>replacement`, applied **sequentially** — put specific
+rules before general ones (`aux 1 TB disk` before `1 TB disk`, or the second clobbers
+the first into `aux aux disk`).
+
+**Enumerate from the sanitization commit's own diff, then validate against history.**
+Its `-` lines are the strings to purge, its `+` lines the replacements. Count each
+rule across all history to catch dead rules and collateral:
+
+```bash
+git grep -hF "$lhs" $(git rev-list --all) | wc -l
+```
+
+The trap is generic tokens: `5.8 TB` is a distinctive leak, but `8 GB` (RAM) and
+`~5GB` (a model size) are legitimate and must survive. Scope by phrase, never by a
+bare `[0-9]+ ?GB` pattern. Verify the rewritten tip still passes repo validation and
+diff it against the pre-rewrite tip — the only changes should be the intended ones.
+
+## A history rewrite does NOT reach GitHub PR metadata
+
+The load-bearing lesson. `git push --force` rewrites the git objects, but **merged
+pull-request pages live in GitHub's database, not in git**, and survive untouched:
+
+- PR **titles** and **branch names** (`fix/retro-gaming-samba`) still show
+- the PR **"Files changed" / "Commits"** tabs still serve the old diffs
+- old commit **SHAs** stay reachable by direct URL until GitHub garbage-collects
+
+Force-push cleans the browsable repo, all clones, blame, and future history — not
+those. Fully removing them needs **GitHub Support** or **deleting the repo**; nothing
+git-side does it. What you *can* do from the CLI:
+
+```bash
+# neutralize a PR title — via REST, because `gh pr edit` can fail on the
+# GraphQL "Projects (classic)" deprecation
+gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -f title="neutral title"
+```
+
+Deleting the head branch does **not** remove its name from the merged-PR page.
+
+**Decision rule for an already-public repo:** a credential leak means a rewrite is
+necessary but *not sufficient* — rotate, because it was already public. Non-credential
+fingerprint data (capacities, device paths, disk labels) → rewrite + PR-title cleanup
+is proportionate, and the closed-PR-diff residual is acceptable. `forkCount == 0`
+closes the worst vector — a fork is an independent public copy no rewrite can reach.
+
+## Keep a private legend, and a guard so it stays private
+
+Sanitizing replaces real values with placeholders; operating the system still needs
+the mapping. Keep it in a gitignored file (same pattern as a real inventory or vault
+password) — `.gitignore` prevents commits, not disk access, so treat it as a secret:
+
+```gitignore
+SANITIZATION-LEGEND.local.md
+*.local.md
+```
+
+Add repo-validation guards so a stray `git add -f` cannot slip it in, and so the
+sanitized-out labels cannot be **reintroduced** later:
+
+```bash
+git ls-files --error-unmatch "$rel"        # fail if a *.local.md is tracked
+git check-ignore -q "$rel" || grep -niE 'aux[0-9]+tb' "$file"  # skip the legend, flag labels
+```
+
+A guard that scans files for a forbidden pattern will match **its own comment** if the
+comment spells out an example (`aux01tb`) — word the comment without a literal.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
