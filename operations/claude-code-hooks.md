@@ -209,3 +209,35 @@ sed "s|<repo-path>|$REPO_PATH|g" templates/homelab-settings.local.json \
 For single-machine personal setups, hardcoding the absolute path directly in
 `settings.local.json` is acceptable — the placeholder pattern matters when sharing
 across team members or machines where the repo path differs.
+
+## Hooks Do Not Hot-Reload
+
+A running session reads its hooks **at startup** and holds them in memory. Editing
+`settings.local.json` mid-session does **not** take effect until you reload — open `/hooks`
+(the menu reloads config) or restart. The confusing symptom is that a hook you just "fixed"
+keeps firing with its old behaviour; the fix is correct on disk, it is simply not live yet.
+Always reload and re-verify before concluding a hook change didn't work.
+
+## Anti-Pattern: git push (or any non-JSON) in a Stop hook
+
+`Stop` fires at the end of **every** assistant turn, not at session end. Two consequences bit a
+real setup:
+
+- A `git push origin HEAD` placed in a `Stop` hook ran on every turn — auto-pushing WIP commits
+  nobody asked to push.
+- A hook's stdout is parsed as JSON control output. `git push` emits human text ("Everything
+  up-to-date", "[new branch]", GitHub's PR hint) — **not** JSON — so the harness reported it as a
+  hook error *while the push still succeeded*. That is the exact "it errors but goes through
+  anyway" symptom.
+
+Fixes: put run-once session-end logic on `SessionEnd`, not `Stop`; never emit non-JSON from a
+hook; and make `git push` a **deliberate** action, not an automatic one. A reminder to push
+(a `systemMessage` in the checklist) is the professional substitute for auto-push.
+
+## Scope commit gates with `if:`, not a substring
+
+A `PreToolUse`/`Bash` gate that decides with `case "$CMD" in *"git commit"*)` fires on **any**
+command that merely contains the string — a `grep`, an `echo`, a `git log` showing a commit
+message. Use the harness filter `"if": "Bash(git commit *)"` on the hook instead: it does
+shell-aware matching (including sub-commands of `a && git commit …`) and only runs on real commit
+invocations. See *Conditional Execution: the if Field* above.
