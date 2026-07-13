@@ -459,7 +459,48 @@ git check-ignore -q "$rel" || grep -niE 'aux[0-9]+tb' "$file"  # skip the legend
 A guard that scans files for a forbidden pattern will match **its own comment** if the
 comment spells out an example (`aux01tb`) — word the comment without a literal.
 
+## Ship-then-soak: merge a verified fix now, refactor later
+
+When a bug fix is done on a branch, the instinct is "let it sit on the branch a few
+days before merging." Usually wrong. Decide with a checklist, not a feeling:
+
+**Merge to `main` now if** — the fix is verified (ideally on the real target), the
+change is isolated, a revert is cheap, and `main` currently holds the *broken* state.
+All true → merging replaces "confirmed broken" with "verified better." That **lowers**
+risk; it doesn't add it. Sitting on the branch only lets it drift from `main` and grow
+a harder merge later (trunk-based development: small verified changes land fast).
+
+**Sit on a branch first only if** — there is no CI, many real users, and expensive
+reverts (the "release branch + QA gate" style). A solo/homelab repo rarely qualifies.
+
+**The soak still matters — but on the code you ship, not the branch you're deciding
+about.** In a solo repo *you are the CI*: merge, then dogfood `main` for a few days on
+the things one session can't cover — cold boot + autostart (not just `systemctl
+restart`), suspend/resume, device power-cycle/reconnect, long real sessions. A glitch
+→ fix-forward or revert (cheap, because the diff was small).
+
+Footgun that forces the issue: if your **deployed** artifact already runs the branch
+code but `git main` doesn't, an innocent reinstall from a `main` checkout silently
+rolls back the fix. Keep **git = the running reality**.
+
+**Refactor is a separate branch, after the soak, tests first.** Never bundle a
+risky cleanup with a fix you want to ship fast — different risk profiles, keep them
+independently revertable. A refactor claims to be *behaviour-preserving*; you can only
+claim that if tests pin the behaviour **before** the code moves. So: harden tests →
+green → remove the now-dead complexity → green. Leave a WIP plan note on the refactor
+branch so the "later" version of you knows exactly where to resume.
+
+```bash
+git checkout main
+git merge --ff-only fix/whatever      # ff when main hasn't moved since branching
+git branch -d fix/whatever            # -d refuses if not merged (safety)
+# …soak main a few days…
+git checkout -b refactor/whatever     # separate branch, tests-first, when calm
+```
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)
 - [Repo Validation](repo-validation.md)
+- [DualSense Lightbar: LED Class vs. Raw HID](../linux/dualsense-lightbar-hid.md) — the
+  fix whose ship-then-soak-then-refactor rollout this pattern came from
