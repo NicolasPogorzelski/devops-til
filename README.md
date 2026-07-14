@@ -70,6 +70,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 |---|---|
 | [Tailscale](networking/tailscale.md) | Tailscale IPs, MagicDNS, Tailscale-managed certs, app-layer security boundary, vendor-lock-in considerations |
 | [Loopback + Tailscale Serve](networking/loopback-tailscale-serve.md) | The `127.0.0.1` + Serve binding pattern, alternatives evaluated, HTTPS/HTTP mismatch |
+| [nftables alongside Tailscale](networking/nftables-with-tailscale.md) | Enforcing a boundary the service cannot: own table (never `nftables.service` — its stock config `flush ruleset`s Tailscale's chains), `table inet`, counters as audit trail, `RemainAfterExit` |
 | [Tailscale ACL Design](networking/tailscale-acl-design.md) | Tier-based design, hosts aliases, access matrix, ACL changelog, pre-existing tunnel pitfall |
 | [Tailscale Debugging](networking/tailscale-debugging.md) | How Tailscale's userspace packet filter works, `tailscale ping` bypasses ACL, duplicate node key problem, tcpdump as layer-separator, fix via daemon restart |
 
@@ -89,6 +90,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 |---|---|
 | [Prometheus Stack](monitoring/prometheus-stack.md) | Scrape jobs, node_exporter, textfile collector pattern, alert rules, node-up ≠ service-up blind spot (blackbox_exporter), `up` over a window to bound an incident, Alertmanager routing |
 | [Prometheus Configuration](monitoring/prometheus-config.md) | `scrape_configs`, rule_files, alertmanagers static_configs, job-naming, retention/lifecycle flags |
+| [systemd Unit Alerting](monitoring/systemd-unit-alerting.md) | The `failed` unit no alert category covered (20k failures, green dashboard); `--collector.systemd` + the stock exclude that drops `.mount` units; why the first alert after enabling it is proof, not a regression; test the negative case |
 | [PromQL & Alert Rules](monitoring/promql-patterns.md) | `for:` debouncing, severity labels, fstype filters, aggregations, annotation templating, recording rules |
 | [Alertmanager Routing](monitoring/alertmanager-routing.md) | Routes, group_by/wait/interval, repeat_interval, inhibit_rules, silences, Discord webhooks |
 

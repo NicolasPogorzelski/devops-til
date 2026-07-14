@@ -88,6 +88,56 @@ Then ensure the service is enabled: `systemctl enable tailscaled`.
 
 LAN IPs are untrusted and may change. Tailscale IPs are stable and identity-backed.
 
+Two caveats learned the hard way:
+
+- **Some services cannot bind to `tailscale0` at all.** Samba skips point-to-point TUN
+  interfaces for IPv4 (see [Samba server config](../storage/samba-server-config.md)). When the
+  service cannot enforce the boundary, the kernel must —
+  [nftables alongside Tailscale](nftables-with-tailscale.md).
+- **Binding to a Tailscale IP couples the service's startup to `tailscaled`.** The address does
+  not exist until the tunnel is up, so the unit needs `After=tailscaled.service` — and ideally
+  `Restart=on-failure`, so a lost race self-heals instead of leaving the service dead until
+  someone notices.
+
+## Performance: same-subnet peers go direct — measure before you believe otherwise
+
+The intuition "traffic through the VPN is capped by my internet upload" is **wrong for peers on
+the same LAN**. Tailscale negotiates a **direct** WireGuard path using the local endpoints; the
+DERP relay is only a fallback when no direct path can be established. Same-subnet peers therefore
+talk over the LAN cable, encrypted, and never touch the uplink.
+
+Check which path is in use — do not guess:
+
+```bash
+tailscale ping storage
+# pong from storage (100.75.x.y) via 192.168.0.154:41641 in 2ms
+#                                    ^^^^^^^^^^^^^^^^^^^^ the LAN address = direct
+```
+
+```bash
+tailscale status --json | jq '.Peer[] | select(.HostName=="storage") | .CurAddr'
+# a LAN address  → direct
+# empty ("")     → relayed via DERP (this is the slow case)
+```
+
+`Relay: fra` in the status output only names the *assigned* DERP region. It does **not** mean the
+relay is in use — if `CurAddr` is set, the path is direct.
+
+Measured cost of the encryption, workstation → storage node, 1500 MiB into a discarding sink
+(network + crypto only, no disk):
+
+| Path | Throughput |
+|---|---|
+| LAN address, plain TCP | 809 Mbit/s |
+| Tailscale address, WireGuard | 741 Mbit/s |
+
+**~8 %, not an order of magnitude.** On a gigabit link this is noise. It only becomes a real
+bottleneck on 2.5G/10G, where userspace WireGuard's CPU cost starts to matter — measure there,
+do not extrapolate.
+
+The practical lesson: "we keep this on the LAN for speed" is a claim, and claims of that shape
+are cheap to test. A wrong one costs you a Zero-Trust boundary for nothing.
+
 ## MagicDNS — name resolution inside the tailnet
 
 Tailscale assigns each node a hostname like `nextcloud.<tailnet-id>.ts.net`.

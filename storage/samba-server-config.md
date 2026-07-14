@@ -73,13 +73,59 @@ bind interfaces only = yes
 interfaces = lo eth0
 ```
 
-Without these two together, `smbd` listens on every interface including any
-Tailscale or Docker network. With them, only the named interfaces. Listing
-interfaces lets you keep SMB on the LAN while Tailscale runs separately on
-`tailscale0`.
+Without these two together, `smbd` listens on every interface. With them, only the
+named ones. Both must be set — `bind interfaces only` alone does nothing.
 
-The convention "bind interfaces only without an interfaces list does nothing"
-is a common gotcha — both must be set.
+#### The trap: Samba cannot bind IPv4 on a TUN interface (measured 2026-07-14)
+
+**`interfaces = … tailscale0` does not work.** Samba's IPv4 interface selection skips
+interfaces without the `BROADCAST` flag, and a WireGuard/Tailscale TUN device is
+point-to-point:
+
+```
+tailscale0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP>   # no BROADCAST
+ens18:      <BROADCAST,MULTICAST,UP,LOWER_UP>
+```
+
+Three notations, all tried against a live node with a restart and `ss -tlnp` after each:
+
+| `interfaces =` | Result |
+|---|---|
+| `lo 192.168.x.y/24 100.x.y.z/32` | LAN + loopback + the Tailscale **IPv6 ULA** bound; Tailscale **IPv4 not bound** |
+| `lo 192.168.x.y/24 tailscale0` | `tailscale0` ignored entirely — nothing bound on it |
+| `lo 192.168.x.y/24 100.x.y.z` (bare IP) | same — nothing bound on it |
+
+IPv6 succeeds where IPv4 fails because IPv6 has no broadcast concept, so the check that
+rejects the interface never applies.
+
+Consequence: on a node that serves SMB over Tailscale, an explicit `interfaces` list
+**removes the Tailscale path instead of securing it**. `bind interfaces only = no` is the
+correct setting there, and the boundary has to be enforced elsewhere.
+
+#### `hosts allow` is a filter, not a bind
+
+```ini
+hosts allow = 127.0.0.1 100.64.0.0/10 192.168.0.34
+hosts deny  = 0.0.0.0/0
+```
+
+Samba evaluates this **after** accepting the TCP connection, inside the application. The
+socket is open to anyone who can route a packet to it; the rule set only decides whether to
+answer. That matters when the host has a **globally routable IPv6 address**: `smbd` on the
+wildcard address then listens on `[::]:445` on a world-routable address, and the only thing
+preventing reachability may be the router's default inbound-IPv6 block — not the service.
+
+The fix that actually works: enforce in the kernel (nftables), see
+[nftables alongside Tailscale](../networking/nftables-with-tailscale.md). `hosts allow` stays
+underneath as redundancy.
+
+**Check what is bound, never assume it:**
+
+```bash
+ss -tlnp | grep 445      # the truth
+testparm -s              # the effective config, including defaults the file omits
+smbstatus -b             # who is actually connected — answers "who needs this rule?"
+```
 
 ### Disable printing
 

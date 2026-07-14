@@ -178,8 +178,56 @@ apt list --upgradable 2>/dev/null | grep -E "(security|stable-security)"
 For automated security-only upgrades, `unattended-upgrades` is the standard
 Debian package — configures dpkg to auto-apply security updates only.
 
+## Package residue: `Recommends` you never chose, and the `rc` state
+
+A unit failing at every boot on the hypervisor turned out to be `openipmi.service` — a package
+nobody had ever asked for. The paper trail:
+
+```bash
+zgrep -h "openipmi" /var/log/dpkg.log*        # when did this arrive?
+zgrep -h -B1 -A3 "$date" /var/log/apt/history.log*   # what command pulled it in?
+```
+
+```
+2025-12-31  Commandline: apt install -y prometheus-node-exporter
+            → also installed: openipmi, ipmitool, freeipmi-common, jq, …
+```
+
+**`apt install` pulls `Recommends` by default.** The node-exporter package recommends IPMI tools so
+its optional IPMI collector *could* work — on a machine with no BMC, that is an init script that
+fails at every boot forever. `apt` does not know your hardware.
+
+- `apt install --no-install-recommends <pkg>` when you know you only want the binary.
+- Then the package itself was later replaced by a hand-installed binary in `/usr/local/bin`, and
+  removed — but its dependencies stayed. **Nothing removes them for you**; `apt autoremove` only
+  touches packages marked auto-installed and no longer required, which stale conffile residue and
+  manually-kept deps survive.
+
+**The `rc` state — removed, but not purged:**
+
+```bash
+dpkg -l | grep '^rc'
+# rc  prometheus-node-exporter  1.9.0-1+b4  Prometheus exporter for machine metrics
+```
+
+`rc` = **r**emoved, **c**onfig files remain. Left behind here: `/etc/init.d/<name>` and seven
+`rc*.d` symlinks from an old SysV install. Harmless *in this case* only because the init script was
+not executable, so `systemd-sysv-generator` produced no unit from it. Had it been executable, it
+would have tried to start a binary that no longer exists — a failed unit at every boot, from a
+package that "isn't installed".
+
+```bash
+apt purge <pkg>          # removes the config residue too
+apt-get -s purge <pkg>   # ALWAYS dry-run first on a hypervisor: what else goes with it?
+```
+
+**Mask or purge?** If a unit can never succeed on this hardware, remove the *package* — masking
+suppresses the symptom and leaves the next person wondering why a useless package is installed.
+Mask only when the package is genuinely needed for something else it also provides.
+
 ## Related
 
 - [ELF Binary Corruption](elf-binary-corruption.md)
 - [LVM Thin Provisioning](lvm-thin-provisioning.md)
 - [Ansible Configuration](../ansible/configuration.md)
+- [systemd Unit Alerting](../monitoring/systemd-unit-alerting.md)

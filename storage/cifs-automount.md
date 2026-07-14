@@ -59,53 +59,122 @@ systemctl list-units --type=mount  # all currently active mount units
 systemctl list-units --type=automount  # active automount triggers
 ```
 
-## The boot-trigger pattern
+## The boot-trigger pattern — and why my version of it was theatre
 
-Some services access bind-mounted CIFS paths during their own startup —
-*before* anything else triggers the automount. The result is a service starting
-against an empty directory.
+The idea: services access bind-mounted CIFS paths during their own startup, before anything
+triggers the automount, and start against an empty directory. So add a oneshot unit that touches
+every `/mnt/smb/*` early and forces the mounts up.
 
-Solution: a oneshot systemd unit that touches every `/mnt/smb/*` after
-`network-online.target`, forcing early activation.
+I ran this for months:
 
-`/usr/local/sbin/trigger-smb-automounts.sh`:
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-shopt -s nullglob
-
+# /usr/local/sbin/trigger-smb-automounts.sh — DON'T. Kept here as a specimen.
 for d in /mnt/smb/*; do
-  [[ -d "$d" ]] || continue
   timeout 3s ls -la "$d"/. >/dev/null 2>&1 || true
 done
 ```
 
-`/etc/systemd/system/trigger-smb.mounts.service`:
+```ini
+# After=network-online.target
+```
+
+**Two independent reasons it could never work** (found 2026-07-14, by reading the boot journal
+instead of the unit):
+
+1. **Ordering.** On a Proxmox host, `network-online.target` is reached *before*
+   `pve-guests.service` starts the storage VM. Measured on one boot: trigger at `12:16:15`,
+   VM started at `12:16:23`. It poked automounts whose SMB server did not exist yet. **No boot
+   ordering can fix this class** — the server is a guest of the machine doing the mounting. Lazy,
+   on-access mounting is the *only* mechanism that works.
+2. **`|| true` swallowed every error.** The unit reported success unconditionally, forever. It
+   passed its positive test every single boot while achieving nothing.
+
+### Replace it with a check that can fail
+
+If the job cannot be "make it work", make it **"prove it worked"**. Run *after* the guests, force
+each automount to resolve, and exit non-zero if any path is not CIFS:
+
+```bash
+#!/usr/bin/env bash
+set -uo pipefail          # NOT -e: we want to collect all failures, not abort on the first
+shopt -s nullglob
+
+failed=()
+for d in /mnt/smb/*; do
+  [[ -d "$d" ]] || continue
+  timeout 30s ls -1 "$d"/. >/dev/null 2>&1 || true    # the access IS the trigger
+
+  # Identity, not existence: a bind over a failed mount reports ext4 (the dir underneath).
+  fstype="$(findmnt -no FSTYPE --target "$d" 2>/dev/null | tail -1)"
+  [[ "$fstype" == "cifs" ]] || failed+=("$d (fstype=${fstype:-none})")
+done
+
+if (( ${#failed[@]} > 0 )); then
+  printf 'SMB mount check FAILED:\n'; printf '  %s\n' "${failed[@]}" >&2
+  exit 1
+fi
+echo "SMB mount check OK"
+```
+
 ```ini
 [Unit]
-Description=Trigger all SMB automounts (boot stabilization)
-After=network-online.target
-Wants=network-online.target
-
+After=pve-guests.service network-online.target   # after the storage VM exists
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/trigger-smb-automounts.sh
-
-[Install]
-WantedBy=multi-user.target
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/check-smb-mounts.sh
 ```
 
-Enable:
+A failing unit is exported by `node_exporter --collector.systemd` and raises an alert. That turns
+a silent boot-time mount failure into a page — which is the entire difference between the old unit
+and the new one.
+
+**Test the negative case, always.** The old unit passed its positive test for months. Prove the new
+one fails when it should:
+
 ```bash
-systemctl daemon-reload
-systemctl enable --now trigger-smb.mounts.service
+mkdir /mnt/smb/zz-test                        # a path that is not a mount
+systemctl restart smb-mounts-check.service    # must fail, exit 1
+curl -s localhost:9100/metrics | grep 'smb-mounts-check.*failed'   # must show ... 1
+rmdir /mnt/smb/zz-test && systemctl reset-failed smb-mounts-check.service
 ```
 
-| Why a script + unit instead of inline ExecStart? |
-|---|
-| Avoids fragile shell quoting in unit files |
-| Script is testable standalone (`bash -x trigger-smb-automounts.sh`) |
-| Unit stays stable while logic can evolve |
+## Field report: one missing option, one month of failure (KE-15)
+
+The theory at the top of this file was written *before* the incident it describes. Knowing the
+mechanism did not prevent it — **one fstab line was missing `x-systemd.automount`**, and nothing
+ever checked:
+
+```
+//vm102/Books-service  /mnt/smb/books     cifs  _netdev,nofail,x-systemd.automount,…   # fine
+//vm102/Books          /mnt/smb/books-rw  cifs  _netdev,nofail,noatime,…               # BROKEN
+```
+
+Without the option, systemd tries the mount **once**, at boot, against a VM the host has not
+started yet. It fails (`mount error(113): could not connect`), `nofail` lets the boot continue,
+and **systemd never retries**. The unit sits in `failed` forever. Downstream: the LXC bind exposes
+the empty directory underneath (on the host's root LV), the container's service cannot write
+there, and it failed every two minutes for a month behind a green dashboard.
+
+**The audit that would have caught it in one second — run it on every host with CIFS mounts:**
+
+```bash
+grep '/mnt/smb/' /etc/fstab | grep -v x-systemd.automount   # must print nothing
+```
+
+Two more things the incident taught:
+
+- **The failure signature, seen from inside the container:** `findmnt /books-rw` reports
+  `ext4 /dev/mapper/pve-root[/mnt/smb/books-rw]` instead of `cifs`. That is the bind showing the
+  bare directory under the failed mount. `mountpoint -q` says "yes, it's a mountpoint" — because
+  the bind *is* one. Existence is not identity (see
+  [mount existence vs identity](../linux/mount-existence-vs-identity.md)).
+- **A container's bind does not heal when the host mount comes back.** The namespace was set up
+  while the mount was down. `pct reboot <ctid>` is required.
+
+**Documentation is not a control.** This file described the chicken-and-egg problem correctly and
+in detail while the fleet had a live instance of it. What closes the gap is the `grep` above, plus
+a unit that fails loudly — not prose.
 
 ## Hard rule: no databases on CIFS
 
