@@ -437,6 +437,67 @@ fingerprint data (capacities, device paths, disk labels) → rewrite + PR-title 
 is proportionate, and the closed-PR-diff residual is acceptable. `forkCount == 0`
 closes the worst vector — a fork is an independent public copy no rewrite can reach.
 
+## `refs/pull/*/head` — PR refs keep force-pushed commits *reachable*, not just linkable
+
+The section above says old SHAs "stay reachable by direct URL until GitHub garbage-collects".
+That undersells it, and the difference decides what you have to do.
+
+**GitHub keeps a real git ref per pull request.** They are not in your clone by default, but they
+are fetchable — which means the commits behind them are properly *reachable objects*, not garbage
+awaiting collection. Nothing gets GC'd while a ref points at it, and a merged or closed PR still
+holds its ref.
+
+Fetch them all and the whole pre-rewrite history reappears locally:
+
+```bash
+git fetch origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+git rev-list --all | wc -l        # now includes every PR head ever opened
+```
+
+This is the forensic move. It also means the reverse: **a force-push to `main` frees nothing** as
+long as the PRs referencing those commits exist.
+
+### Answering "which commit introduced this, and what still references it?"
+
+GitHub Support asks for the full SHA of the introducing commit, then checks whether anything else
+references it. Produce both yourself:
+
+```bash
+# 1. every commit (all refs, PR refs included) whose tree contains the string
+git grep -lIiE 'retroarch|roms?|emulator' $(git rev-list --all) -- .
+
+# 2. the commit that FIRST introduced the file
+git log --all --diff-filter=A --format='%H %ad %s' --date=short -- path/to/file.md
+
+# 3. what still holds it alive
+git for-each-ref --contains <full-sha>          # → refs/remotes/origin/pr/30 … pr/47
+
+# 4. is it reachable from main? (decides whether deleting PRs is enough)
+git merge-base --is-ancestor <full-sha> main && echo "on main" || echo "not on main"
+```
+
+Step 4 is the one people skip. Two independent copies can exist:
+
+- the **original** commits, unreachable from `main`, held only by PR refs → deleting the PRs plus
+  a GC run removes them;
+- the **rewritten** commits, reachable from `main` → no PR deletion touches them; only another
+  rewrite of `main` does.
+
+Both must be handled, or you pay for a cleanup that leaves the content in place.
+
+### Renaming is not removing
+
+The rewrite that produced my `main` lineage replaced *names* (`retro-gaming` → `storage-stack`,
+share `roms` → `media`) and left the substance — a console directory tree and a `firmware` path —
+in 74 commits still reachable from `main`. Searching commit *messages* found nothing; grepping
+commit *contents* found everything.
+
+**Verify a sanitizing rewrite against file content across all refs, never against subjects:**
+
+```bash
+git grep -lIiE '<pattern>' $(git rev-list --all) -- .   # must come back empty
+```
+
 ## Keep a private legend, and a guard so it stays private
 
 Sanitizing replaces real values with placeholders; operating the system still needs
