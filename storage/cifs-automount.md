@@ -219,10 +219,63 @@ systemctl status mnt-smb-foo.automount # detailed state of a specific automount
 mount-point hierarchy and unit naming, and `--json` makes scripted health
 checks straightforward.
 
-## Desktop fstab (no automount)
+## Desktop fstab — `_netdev` is not enough when the server is behind Tailscale
 
-On a desktop/gaming PC, the server-side automount complexity is not needed.
-A simple fstab entry with `_netdev,nofail` is sufficient.
+The tempting rule is "desktops don't need automount, `_netdev,nofail` is fine." That holds
+**only if the CIFS server is reachable the moment `network-online.target` is reached** — i.e.
+a plain-LAN NAS. It is false when the server is reached over **Tailscale** (or any WireGuard/VPN
+overlay), and that distinction is the whole lesson.
+
+`_netdev` waits for `network-online.target`. That target means "a routable interface is up" —
+it does **not** wait for `tailscaled` to finish authenticating and installing the route to the
+`100.64.0.0/10` peer. So the boot ordering is:
+
+```
+network-online.target  →  fstab CIFS mount fires  →  route to 100.x.y.z not up yet  →  FAIL
+                                                      tailscaled finishes a moment later
+```
+
+The failure is a race, so it is **intermittent and per-share**: whichever mounts lose the sprint
+against `tailscaled` land in `failed`; `nofail` lets the boot continue, and systemd never retries
+a plain `.mount`. Field instance (2026-07-23, Bazzite desktop, 5 shares off one Tailscale NAS):
+after a reboot, 4 shares were mounted and exactly one sat `failed`:
+
+```
+mount error(111): could not connect to 100.x.y.z  Unable to find suitable address.
+```
+
+Same credentials, same options, same server as the 4 that worked — the only variable was timing.
+The empty mountpoint underneath then shows as an empty folder to the file manager / Jellyfin / ES-DE.
+
+**Fix: use `x-systemd.automount` on the desktop too.** Lazy on-access mounting sidesteps the race
+entirely — by the time anything touches the folder, `tailscaled` is long up. This is the same
+mechanism as the server case above; the trigger there is a chicken-and-egg VM dependency, here it
+is VPN-route-after-`network-online`. Both are "the network isn't really ready when `_netdev` says
+it is", and automount is the answer to both.
+
+```
+//<server>/<share>  /mnt/<name>  cifs  credentials=<path>,vers=3,uid=1000,gid=1000,_netdev,nofail,noauto,x-systemd.automount  0 0
+```
+
+`noauto` frees the mountpoint for the `.automount` unit; keep `_netdev`/`nofail` (harmless). The
+generated `.automount` unit is `WantedBy=remote-fs.target` (CIFS = remote fs), so it is pulled at
+boot automatically — do **not** `systemctl enable` it (generated units refuse `enable`: "transient
+or generated"). Activate without a reboot: unmount the old direct mounts, `systemctl daemon-reload`,
+then `systemctl start <name>.automount`; the units go to `active waiting`, and the first `ls` on
+the path triggers the real CIFS mount.
+
+Audit for the desktop equivalent of the server `grep`:
+
+```bash
+grep -E '\bcifs\b' /etc/fstab | grep -v x-systemd.automount   # any Tailscale-backed share here is a latent boot-race
+```
+
+### When a plain `_netdev,nofail` desktop entry *is* fine
+
+If the NAS is on the same L2 LAN (server reachable via a normal DHCP/static route that exists at
+`network-online.target`), the plain `_netdev,nofail` entry shown under **fstab entry** below is
+sufficient — no VPN hop, no race. The credentials-file and `cifs-utils` notes that follow apply to
+both the automount and the plain variant.
 
 ### KIO/GVfs is not a real mount
 
