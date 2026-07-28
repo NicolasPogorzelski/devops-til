@@ -498,6 +498,71 @@ commit *contents* found everything.
 git grep -lIiE '<pattern>' $(git rev-list --all) -- .   # must come back empty
 ```
 
+## Retiring the pre-rewrite clone
+
+A rewrite leaves a second clone behind — the one still holding the old lineage.
+"The remote is the source of truth" is the right default, but it assumes everything
+local was pushed. A rewrite breaks that assumption from both sides: the old clone
+holds commits the remote no longer has, and the remote holds a lineage the clone has
+never seen. Triage before deleting.
+
+### An empty `merge-base` is the unrelated-histories diagnostic
+
+```bash
+git status -sb                      # ## main...origin/main [ahead 345, behind 371]
+git merge-base main origin/main     # prints nothing
+```
+
+`ahead N, behind M` on its own looks like ordinary divergence, and invites a `pull`.
+Empty `merge-base` output says there is no common ancestor at all — two unrelated
+lineages, which no merge should reconcile. Note the interface: the plain form
+communicates by *printing nothing*, only `--is-ancestor` communicates by exit code.
+Guard anything consuming it (`xargs -r`, which skips the command on empty input).
+
+### One clone, two lineages — object existence proves nothing
+
+After `git fetch`, the old clone contains **both** lineages. So this test is worthless:
+
+```bash
+git cat-file -e <sha>    # true for old AND new commits alike
+```
+
+Object existence is not lineage membership. Ask per strand instead:
+
+```bash
+git merge-base --is-ancestor <sha> main        && echo "old lineage"
+git merge-base --is-ancestor <sha> origin/main && echo "new lineage"
+```
+
+Same trap in `git branch -r --contains <sha>`: it searches `refs/remotes/*` only, so it
+silently ignores every lineage with no fetched tracking ref — an empty result reads like
+"nowhere on the remote" when it means "nowhere I have fetched".
+
+### What would actually be lost
+
+```bash
+git diff --diff-filter=D --name-only main origin/main
+```
+
+`git diff A B` describes the change *from A to B*, so `--diff-filter=D` ("deleted") lists
+files present in A and absent in B — here: present locally, gone from the remote. It finds
+whole missing files only; content dropped *inside* a file that still exists does not show up,
+so the file-count summary of the full diff stays worth a look.
+
+### Salvage by content, never by commit
+
+Extract with `git show <ref>:<path>` or a plain `git diff > patch`, then re-apply onto a
+branch cut from the new lineage. Cherry-picking or merging drags the old lineage's objects
+along.
+
+**Never push the old lineage back — not as a branch, and not as a "just in case" tag.**
+If the rewrite existed to purge secrets, a tag re-publishes exactly what was removed.
+Rotation closes the exploit window; it does not make re-publishing acceptable.
+
+Then delete the clone. It stores the pre-rewrite secrets in plaintext on disk, and a stale
+second working copy is precisely the wrong-lineage failure the control-node hygiene entry
+describes.
+
 ## Keep a private legend, and a guard so it stays private
 
 Sanitizing replaces real values with placeholders; operating the system still needs
