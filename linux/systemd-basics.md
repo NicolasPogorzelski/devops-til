@@ -248,8 +248,49 @@ The empty value overrides the upstream non-empty list. Do this only when you
 *want* restart on every failure — for race-condition-vulnerable services,
 this is correct.
 
+## When the running process does not match the unit file
+
+A diagnosis that keeps going wrong: reading a config file and concluding what is
+running. The config is a statement of *intent*. Only the process tells you what
+is actually in effect, and the two drift apart more often than expected — a unit
+edited without `daemon-reload`, a service started by hand, or a second unit
+nobody remembers enabling.
+
+Seen 2026-07-28: `/etc/default/tailscaled` read `FLAGS=""` and the packaged unit
+was untouched, yet `ps` showed a daemon running with a flag that appears in
+neither. The flag came from a second, hand-written unit file that was `enabled`
+alongside the stock one, so both started at boot.
+
+Work from the process backwards, not from the config forwards:
+
+```bash
+ps -o pid,ppid,lstart,args -C <name>   # what is REALLY running, and since when
+systemctl status <pid>                 # map a PID back to its owning unit
+systemctl show <unit> -p MainPID       # what systemd thinks it owns
+systemctl cat <unit>                   # effective unit + all drop-ins, in order
+systemctl list-unit-files | grep -i <name>   # every unit, enabled or not
+```
+
+- `ps -C <name>` selects by process name; `-o` picks the columns. `lstart` gives
+  the absolute start time, which is what lets you compare a process against the
+  mtime of the config that supposedly produced it.
+- `systemctl status <pid>` accepts a PID as well as a unit name and resolves it
+  to the owning unit — the fastest way to identify a process you did not expect.
+- `systemctl cat` is the honest view of a unit: the file plus every drop-in,
+  concatenated with `# /path` markers. Guessing which files exist is how drop-ins
+  get missed.
+- A process whose PID is *not* the unit's `MainPID` and that sits outside the
+  unit's `ControlGroup` was not started by that unit. That is the signature of a
+  stray daemon.
+
+`systemctl disable --now <unit>` stops it and removes the `WantedBy` symlink, but
+leaves the unit file in place. That is reversible on purpose — and it means a
+later `enable` brings the problem back. Delete the file when the decision is
+final.
+
 ## Related
 
 - [Proxmox: LXC & VM Management](../proxmox/lxc-vm-management.md)
 - [systemd Service Hardening](systemd-service-hardening.md)
 - [Cron and Scheduling](cron-and-scheduling.md)
+- [Proxmox: Tailscale in unprivileged LXCs](../proxmox/lxc-tailscale-tun.md) — where this bit

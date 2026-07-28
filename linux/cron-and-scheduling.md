@@ -237,6 +237,36 @@ journalctl -u pg-backup.service    # see job output
 The `Persistent=true` behavior is the killer feature: a laptop that was off at 03:00 will run
 the missed backup when it boots back up. Cron has no equivalent — missed runs are lost.
 
+### The flip side: on a machine that sleeps, `Persistent=true` makes it a boot-time job
+
+If the machine is *routinely* down at the scheduled hour — a host that shuts down
+nightly and wakes by RTC, say — then the slot is missed on **every** cycle, and
+the catch-up run fires within seconds of boot, every time. The schedule written
+in the unit becomes decorative: `OnCalendar=*-*-* 04:30:00` on a host that sleeps
+from 01:00 to 08:45 does not run at 04:30 ever. It runs at 08:45, during boot.
+
+That is usually harmless for a backup. It is not harmless for anything with a
+startup dependency, because the job has silently moved into the boot window —
+the one context where the network, an overlay VPN, or a remote mount may not be
+ready yet. Nobody made that decision; it fell out of combining a fixed hour with
+a sleeping machine.
+
+Observed 2026-07-28: a certificate-renewal timer set to 04:30 with
+`Persistent=true` ran at boot on every wake-up and failed every time, because it
+asks the VPN daemon for a value that does not exist yet that early. It had
+therefore never renewed anything. Nothing surfaced for months — the certificate
+was simply still valid.
+
+**Rule of thumb:** before setting `Persistent=true`, ask when the machine is
+actually up. If the scheduled time falls in its downtime, treat the job as a
+boot-time job and give it the readiness gates a boot-time job needs — poll for
+what it depends on rather than trusting `After=`. Checking is one command:
+
+```bash
+systemctl list-timers <name> --all --no-pager
+# compare LAST against the machine's boot time; if they match, it is a boot job
+```
+
 ### Calendar timers vs monotonic timers
 
 `Persistent=` applies **only to `OnCalendar=` timers**. systemd silently ignores it on a monotonic

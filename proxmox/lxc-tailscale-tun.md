@@ -76,6 +76,61 @@ ip addr show tailscale0   # should now show the Tailscale IP
 
 Then restart any service that binds to the Tailscale IP (e.g., node_exporter).
 
+## The same flag, delivered differently — and the symptom inverts
+
+The section above describes the case where `bind()` **fails** and the service will
+not start. There is a second shape of this fault that looks like the opposite,
+and it is far harder to spot.
+
+Encountered 2026-07-28: a container where `node_exporter` was `active`,
+`ss -tlnp` showed it listening on the Tailscale IP, and `ip addr show tailscale0`
+showed the interface with its address — everything an operator would check looked
+correct. Only the scrape from the monitoring node failed, with
+`connection refused`.
+
+Two things were going on:
+
+1. The mode did not come from `/etc/default/tailscaled` at all. That file read
+   `FLAGS=""` and the packaged unit was unmodified. A **second, hand-written
+   unit** — `/etc/systemd/system/tailscaled-userspace.service` — was `enabled`
+   alongside the stock `tailscaled.service`. Every boot started *two* daemons,
+   two seconds apart, against the same `--state` and `--socket` paths.
+2. Because a TUN daemon was also running, `tailscale0` existed and carried the
+   address. So the bind succeeded. What did not happen was **delivery**: the
+   userspace daemon terminates incoming connections in netstack and never hands
+   them to the kernel socket the service is bound to. Tailscale answers with a
+   RST, which the client reports as `connection refused` — indistinguishable at
+   a glance from an ACL denial.
+
+The tell that it was not an ACL: `tailscale serve` traffic on 443 worked the
+whole time, because serve is answered *inside* that same userspace process. The
+node therefore looked healthy in blackbox HTTPS probes while its metrics target
+was down — a service-level probe and a metrics scrape disagreeing is a strong
+hint that something is terminating traffic in userspace.
+
+**The generalisable lesson: a successful `bind()` does not prove reachability.**
+`ss` tells you a socket exists locally. It says nothing about whether packets
+from a peer ever reach it. The only honest test is a connection from the far end:
+
+```bash
+# From the monitoring node, not from the node under test
+pct exec 200 -- curl -s -o /dev/null -w '%{http_code}\n' \
+    http://<tailscale-ip>:9100/metrics
+# 200 = reachable; 000 = nothing got through
+```
+
+**Fix:** disable the stray unit, then restart the survivor so it claims the TUN
+device cleanly:
+
+```bash
+systemctl disable --now tailscaled-userspace.service   # --now = disable + stop
+systemctl restart tailscaled.service
+```
+
+Note that `disable` leaves the unit *file* in place. A later `systemctl enable`,
+or a rebuild from this machine's state, revives it — delete the file to close it
+out properly.
+
 ## Why this matters for service binding
 
 The Zero-Trust binding model requires services to bind either to loopback or
@@ -95,12 +150,25 @@ pct exec <ctid> -- ls -l /dev/net/tun
 pct exec <ctid> -- ip addr show tailscale0
 # expected: device with inet 100.x.y.z
 
-# 3. tailscaled has no userspace-networking flag
-pct exec <ctid> -- cat /etc/default/tailscaled
-# FLAGS should be empty or absent
+# 3. tailscaled runs WITHOUT the userspace flag — check the process, not the config.
+#    `cat /etc/default/tailscaled` is NOT sufficient: the flag can arrive from a
+#    second unit file while that file reads FLAGS="" (seen on lxc220, 2026-07-28).
+pct exec <ctid> -- ps -o pid,args -C tailscaled
+# expected: exactly ONE process, and no --tun=userspace-networking
+
+# 3b. No stray second unit is enabled
+pct exec <ctid> -- systemctl list-unit-files | grep -i tailscale
+# expected: exactly one enabled tailscale daemon unit
+# (`systemctl status <pid>` maps any unexpected process back to its unit)
 
 # 4. Service can bind to the Tailscale IP
 pct exec <ctid> -- ss -tlnp | grep <tailscale-ip>
+
+# 5. …and is actually REACHABLE from another node. Step 4 alone proves nothing:
+#    with userspace networking the bind succeeds and delivery still fails.
+pct exec 200 -- curl -s -o /dev/null -w '%{http_code}\n' \
+    http://<tailscale-ip>:9100/metrics
+# expected: 200
 ```
 
 ## Related
