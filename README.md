@@ -73,6 +73,7 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 | [nftables alongside Tailscale](networking/nftables-with-tailscale.md) | Enforcing a boundary the service cannot: own table (never `nftables.service` — its stock config `flush ruleset`s Tailscale's chains), `table inet`, counters as audit trail, `RemainAfterExit` |
 | [Tailscale ACL Design](networking/tailscale-acl-design.md) | Tier-based design, hosts aliases, access matrix, ACL changelog, pre-existing tunnel pitfall |
 | [Tailscale Debugging](networking/tailscale-debugging.md) | How Tailscale's userspace packet filter works, `tailscale ping` bypasses ACL, duplicate node key problem, tcpdump as layer-separator, fix via daemon restart |
+| [Tailscale Exit Nodes: the Stale Pin](networking/tailscale-exit-nodes.md) | `tailscale up` kills WAN while LAN survives: an exit node pinned by ID was decommissioned upstream, and the dangling reference still installs a default route in table 52 (rule prio 5270 outranks `main`). **A stored ID is a claim about the past — only `exit-node list` is evidence about the present**; why `grep -c <id>` over the journal counts pref echoes and answers the wrong question; `auto:any` instead of a pin; the `up` flag-preservation trap (its own suggestion is self-contradictory, and `--reset` clears `OperatorUser`); dead-man's-switch pattern for changes that can sever your own connection; `AutoUpdate` is structurally broken on ostree; "only on Wi-Fi" was a false correlate — prefs are per profile, not per interface |
 
 ## Docker
 
