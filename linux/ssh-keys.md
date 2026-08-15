@@ -4,14 +4,14 @@
 
 - Passwords can be brute-forced; modern SSH keys cannot in any practical timeframe
 - A leaked password gives full access; a leaked private key can be revoked at the server
-- Automation (Ansible, scripted deploys) cannot prompt for a password — keys are required
+- Automation (Ansible, scripted deploys) cannot prompt for a password - keys are required
 - Key fingerprints make audit trails meaningful
 
 ## Key types
 
 | Algorithm | Key size | Use it? |
 |---|---|---|
-| `rsa` 2048 | small | Avoid for new keys — outdated |
+| `rsa` 2048 | small | Avoid for new keys - outdated |
 | `rsa` 4096 | large, slow | Compatible everywhere, but ed25519 is better |
 | `ecdsa` | small | OK; some prefer to avoid due to NIST curve concerns |
 | `ed25519` | 256-bit | **Default choice.** Fast, short keys, modern crypto, supported on every current SSH server |
@@ -25,13 +25,13 @@ ssh-keygen -t ed25519 -C "<user>@<hostname>"
 | Flag | Meaning |
 |---|---|
 | `-t ed25519` | Algorithm |
-| `-C "<comment>"` | Comment appended to the public key — purely for human identification |
+| `-C "<comment>"` | Comment appended to the public key - purely for human identification |
 | `-f <path>` | Output path (default `~/.ssh/id_ed25519`) |
 | `-N "<passphrase>"` | Set passphrase non-interactively. Empty `""` = no passphrase. |
 
 The output is two files:
-- `~/.ssh/id_ed25519` — private key (NEVER share, NEVER commit)
-- `~/.ssh/id_ed25519.pub` — public key (safe to distribute)
+- `~/.ssh/id_ed25519` - private key (NEVER share, NEVER commit)
+- `~/.ssh/id_ed25519.pub` - public key (safe to distribute)
 
 ## Required file permissions
 
@@ -47,14 +47,14 @@ chmod 600 ~/.ssh/config
 
 | File | Mode | Why |
 |---|---|---|
-| `~/.ssh/` | `700` | Only owner reads/writes — protects the directory listing |
-| Private key | `600` | Read/write owner only — `ssh` errors out otherwise |
-| Public key | `644` | Readable by anyone — it's public by design |
+| `~/.ssh/` | `700` | Only owner reads/writes - protects the directory listing |
+| Private key | `600` | Read/write owner only - `ssh` errors out otherwise |
+| Public key | `644` | Readable by anyone - it's public by design |
 | `authorized_keys` | `600` | Same protection as private keys; ssh-server checks this |
 
 ## Distribute the public key
 
-### `ssh-copy-id` — the easy way
+### `ssh-copy-id` - the easy way
 
 ```bash
 ssh-copy-id -i ~/.ssh/id_ed25519.pub user@host
@@ -94,11 +94,11 @@ Host *.<tailnet-id>.ts.net
 | `HostName` | Real hostname/IP if `Host` is just an alias |
 | `User` | Default username for that host |
 | `IdentityFile` | Which key to offer |
-| `IdentitiesOnly yes` | Don't try other keys from ssh-agent — useful when you have many keys |
+| `IdentitiesOnly yes` | Don't try other keys from ssh-agent - useful when you have many keys |
 | `Port` | Non-standard SSH port |
 | `ProxyJump` | Connect through a bastion host (`ssh -J`) |
 
-After this, `ssh vm100` is enough — no flags needed.
+After this, `ssh vm100` is enough - no flags needed.
 
 ## ssh-agent
 
@@ -134,7 +134,7 @@ on intermediate hosts.
 ssh-keygen -t ed25519 -C "<user>-github" -f ~/.ssh/id_ed25519_github
 
 # 2. Add the public key to GitHub
-#    https://github.com/settings/keys → New SSH key → paste id_ed25519_github.pub
+#    https://github.com/settings/keys -> New SSH key -> paste id_ed25519_github.pub
 
 # 3. Add ~/.ssh/config entry for github.com (see above)
 
@@ -156,7 +156,7 @@ Are you sure you want to continue connecting (yes/no/[fingerprint])?
 ```
 
 Saying yes appends the host's public key to `~/.ssh/known_hosts`. Future connections verify
-against this — if the key changes, SSH refuses to connect (potential MITM).
+against this - if the key changes, SSH refuses to connect (potential MITM).
 
 | Operation | Command |
 |---|---|
@@ -175,12 +175,12 @@ The trade-off:
 - **On:** First connection requires explicit acceptance. Painful when bulk-onboarding nodes.
 
 In a Tailscale-only inventory, the network path is already encrypted and identity-verified at
-the Tailscale layer — making `host_key_checking = False` a defensible default. Document it
+the Tailscale layer - making `host_key_checking = False` a defensible default. Document it
 explicitly so future-you doesn't wonder why MITM protection looks weakened.
 
 ## Break-glass access (a second key as a fallback)
 
-When `PasswordAuthentication no` is set, **key presence is the only access lever** —
+When `PasswordAuthentication no` is set, **key presence is the only access lever** -
 there is no password path to fall back on. That makes the automation account a single
 point of failure: if the `ansible` user's key is rotated badly, the sudoers rule is
 broken, or the home directory is clobbered, you can be locked out of a node with no
@@ -201,18 +201,18 @@ ssh-ed25519 AAAA...workstation  nicolas@desktop-cachyos    # break-glass fallbac
 Why this shape:
 
 - **Different account than the automation user.** If the `ansible` account itself is
-  the thing that breaks, a key under `ansible` won't help — the fallback must live
+  the thing that breaks, a key under `ansible` won't help - the fallback must live
   elsewhere.
 - **A human's interactive key, not another robot key.** Break-glass is for a person at
   a keyboard during an incident, so it's the workstation key you actually sit behind.
-- **Still no password.** This does not weaken the `PasswordAuthentication no` posture —
+- **Still no password.** This does not weaken the `PasswordAuthentication no` posture -
   it's a second *key*, so the access model stays key-only.
 
 Trade-off and discipline:
 
 - A second standing key is a second thing that can leak. Keep the count small and
   **audit `authorized_keys` for stale keys.** VM102 still had legacy keys
-  (`root@server`, `fedora-notebook`) flagged for cleanup — exactly the kind of cruft a
+  (`root@server`, `fedora-notebook`) flagged for cleanup - exactly the kind of cruft a
   break-glass policy must not become.
 - Adding it ad-hoc by hand is fine for the emergency, but it should be **codified**
   (managed as an Ansible var / authorized_key task) so the fallback is intentional and
@@ -269,7 +269,7 @@ Three traps, each of which locks you out of a remote machine:
 - **An empty `breakglass_pubkeys` with `exclusive: true` truncates the file.** Guard with `when:`.
 
 Verify with `--check --diff` **and read the diff**, before the real run. The literal-`\n` bug is
-plainly visible there — both keys on one line — and is invisible in a `changed=1` summary. Keep a
+plainly visible there - both keys on one line - and is invisible in a `changed=1` summary. Keep a
 one-time `.pre-ansible` backup so the original file survives the first enforcing run.
 
 Reading back which keys a host trusts, without printing key material into a terminal or a log:

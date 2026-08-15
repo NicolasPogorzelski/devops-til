@@ -6,11 +6,11 @@ Docker and containerd store their engine data in two separate default locations 
 
 | Component | Default path | What's stored |
 |---|---|---|
-| containerd | `/var/lib/containerd` | Image layers, snapshots, content blobs (~5–7 GB per service stack) |
+| containerd | `/var/lib/containerd` | Image layers, snapshots, content blobs (~5-7 GB per service stack) |
 | Docker | `/var/lib/docker` | Named volumes, network metadata, container configs (~few hundred MB) |
 
 These paths are configurable. Moving them off the root disk prevents SSD thin-pool pressure
-from image accumulation — especially relevant on Proxmox LXCs where root disks are small (8–16 GB).
+from image accumulation - especially relevant on Proxmox LXCs where root disks are small (8-16 GB).
 
 ## Configuration
 
@@ -35,7 +35,7 @@ root = "/path/to/aux/containerd"
 
 `root`: the base directory for containerd's persistent state. Default is `/var/lib/containerd`.
 
-Both config files are read at daemon startup — changes require a service restart.
+Both config files are read at daemon startup - changes require a service restart.
 
 ## Migration procedure
 
@@ -52,7 +52,7 @@ docker stop <container1> <container2> ...
 # 3. Stop Docker and containerd
 systemctl stop docker docker.socket containerd
 
-# 4. Copy data — use -aH to preserve hard links (containerd uses them internally)
+# 4. Copy data - use -aH to preserve hard links (containerd uses them internally)
 rsync -aH /var/lib/containerd/ /var/lib/<service>/containerd/
 rsync -aH /var/lib/docker/     /var/lib/<service>/docker-data/
 
@@ -91,7 +91,7 @@ Symptom of missing `-H`: `du` on the destination reports significantly more than
 After migration, Docker depends on the target mount being available at startup.
 
 **In Proxmox LXCs:** mount points (`mp0`, `mp1`) are applied by the LXC runtime *before*
-the container's init process starts. The mount is always available before systemd — no
+the container's init process starts. The mount is always available before systemd - no
 additional configuration needed.
 
 **In VMs:** if the target path is on a separate disk, Docker's systemd unit needs an

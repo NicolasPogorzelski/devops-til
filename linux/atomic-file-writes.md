@@ -2,7 +2,7 @@
 
 ## The problem
 
-Writing a state file in place — open, truncate, write — has a window where the
+Writing a state file in place - open, truncate, write - has a window where the
 file is only half written. A crash, OOM-kill, or full disk in that window leaves
 a truncated or empty file. If the reader can't parse it and falls back to a
 default (the common, well-meaning `try/except: return {}`), the corruption is
@@ -21,13 +21,13 @@ os.replace(tmp, target)   # atomic rename over the target
 
 Why each step:
 
-- **Temp file in the same directory** — `rename` is only atomic *within one
+- **Temp file in the same directory** - `rename` is only atomic *within one
   filesystem*. A temp in `/tmp` may cross a filesystem boundary and silently
   degrade to a copy, which is not atomic.
-- **`flush` + `fsync`** — without fsync the rename can be persisted while the
+- **`flush` + `fsync`** - without fsync the rename can be persisted while the
   data is still in cache; a crash right after leaves the new name pointing at
   empty content. fsync forces the bytes down first.
-- **`os.replace`** — atomic rename. A concurrent reader sees *either* the old
+- **`os.replace`** - atomic rename. A concurrent reader sees *either* the old
   complete file *or* the new complete file, never a mix. There is no truncation
   window at all.
 
@@ -42,7 +42,7 @@ mv -f "$tmp" "$target"               # mv within a fs is rename(2) = atomic
 
 ## When it matters
 
-Any file another process — or a restart of the same process — reads as truth:
+Any file another process - or a restart of the same process - reads as truth:
 config, cache, lock/state, rendered templates. It matters *most* when the reader
 degrades gracefully on a parse failure, because that graceful fallback is
 exactly what hides the corruption.

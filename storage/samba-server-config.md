@@ -5,12 +5,12 @@
 `smb.conf` is the entire configuration surface for `smbd`. It has two kinds of
 sections:
 
-1. `[global]` — server-wide settings (auth, protocol versions, listening interfaces)
-2. `[<sharename>]` — per-share settings (path, who can read/write, behavior)
+1. `[global]` - server-wide settings (auth, protocol versions, listening interfaces)
+2. `[<sharename>]` - per-share settings (path, who can read/write, behavior)
 
 Edit, then `testparm` to validate, then `systemctl reload smbd` to apply.
 
-## `[global]` — minimum hardened baseline
+## `[global]` - minimum hardened baseline
 
 ```ini
 [global]
@@ -47,9 +47,9 @@ Edit, then `testparm` to validate, then `systemctl reload smbd` to apply.
 | `security = user`          | Auth via username + password (vs. `share`/`server`/`domain`)              |
 | `server min protocol = SMB3_00` | Reject SMB1/SMB2 clients. SMB1 is wormable; SMB2 lacks signing       |
 | `client min protocol = SMB3_00` | Same for outbound (when smbd acts as a client)                       |
-| `smb ports = 445`          | TCP/445 only. Drops NetBIOS over TCP/139 — legacy and unnecessary         |
+| `smb ports = 445`          | TCP/445 only. Drops NetBIOS over TCP/139 - legacy and unnecessary         |
 
-### Signing — mandatory, not optional
+### Signing - mandatory, not optional
 
 ```ini
 server signing = mandatory
@@ -59,12 +59,12 @@ client signing = mandatory
 | Value         | Meaning                                                              |
 |---------------|----------------------------------------------------------------------|
 | `disabled`    | Never sign. Vulnerable to relay attacks.                            |
-| `auto`        | Sign if the client requests it. Default — clients decide.           |
+| `auto`        | Sign if the client requests it. Default - clients decide.           |
 | `mandatory`   | Always sign. Reject unsigned connections.                           |
 
 `mandatory` is the security-correct choice. Performance cost is negligible
 on modern hardware (AES-NI). The only reason to weaken this is supporting
-ancient clients — which you shouldn't be supporting anyway.
+ancient clients - which you shouldn't be supporting anyway.
 
 ### Bind interfaces
 
@@ -74,11 +74,11 @@ interfaces = lo eth0
 ```
 
 Without these two together, `smbd` listens on every interface. With them, only the
-named ones. Both must be set — `bind interfaces only` alone does nothing.
+named ones. Both must be set - `bind interfaces only` alone does nothing.
 
 #### The trap: Samba cannot bind IPv4 on a TUN interface (measured 2026-07-14)
 
-**`interfaces = … tailscale0` does not work.** Samba's IPv4 interface selection skips
+**`interfaces = ... tailscale0` does not work.** Samba's IPv4 interface selection skips
 interfaces without the `BROADCAST` flag, and a WireGuard/Tailscale TUN device is
 point-to-point:
 
@@ -92,8 +92,8 @@ Three notations, all tried against a live node with a restart and `ss -tlnp` aft
 | `interfaces =` | Result |
 |---|---|
 | `lo 192.168.x.y/24 100.x.y.z/32` | LAN + loopback + the Tailscale **IPv6 ULA** bound; Tailscale **IPv4 not bound** |
-| `lo 192.168.x.y/24 tailscale0` | `tailscale0` ignored entirely — nothing bound on it |
-| `lo 192.168.x.y/24 100.x.y.z` (bare IP) | same — nothing bound on it |
+| `lo 192.168.x.y/24 tailscale0` | `tailscale0` ignored entirely - nothing bound on it |
+| `lo 192.168.x.y/24 100.x.y.z` (bare IP) | same - nothing bound on it |
 
 IPv6 succeeds where IPv4 fails because IPv6 has no broadcast concept, so the check that
 rejects the interface never applies.
@@ -113,7 +113,7 @@ Samba evaluates this **after** accepting the TCP connection, inside the applicat
 socket is open to anyone who can route a packet to it; the rule set only decides whether to
 answer. That matters when the host has a **globally routable IPv6 address**: `smbd` on the
 wildcard address then listens on `[::]:445` on a world-routable address, and the only thing
-preventing reachability may be the router's default inbound-IPv6 block — not the service.
+preventing reachability may be the router's default inbound-IPv6 block - not the service.
 
 The fix that actually works: enforce in the kernel (nftables), see
 [nftables alongside Tailscale](../networking/nftables-with-tailscale.md). `hosts allow` stays
@@ -124,7 +124,7 @@ underneath as redundancy.
 ```bash
 ss -tlnp | grep 445      # the truth
 testparm -s              # the effective config, including defaults the file omits
-smbstatus -b             # who is actually connected — answers "who needs this rule?"
+smbstatus -b             # who is actually connected - answers "who needs this rule?"
 ```
 
 ### Disable printing
@@ -198,7 +198,7 @@ with the right owner regardless of who uploaded it.
 `browseable = no` is mild obscurity, not security. It keeps service shares from
 showing up in user-facing browsers. Real protection is `valid users`.
 
-### Ingest shares — write path with dedicated user
+### Ingest shares - write path with dedicated user
 
 ```ini
 [paperless-inbox]
@@ -217,7 +217,7 @@ Files land owned by `paperless:paperless` (the service consuming them). The
 human credentials and the service identity are separated.
 
 If `scanner-user` is compromised, the blast radius is "can drop arbitrary files
-into Paperless inbox" — bad, but limited. The Paperless container's data
+into Paperless inbox" - bad, but limited. The Paperless container's data
 directory (`force user` = paperless) is unaffected because it's reachable only
 through Paperless itself.
 
@@ -237,7 +237,7 @@ For service-scoped shares, use the most restrictive mask compatible with the
 service's needs. `0660`/`0770` (group-writable) is right when multiple service
 users share a group; `0640`/`0750` is right when only the service writes.
 
-## User management — separate from system users
+## User management - separate from system users
 
 Samba users are separate from Linux users. A Linux user must exist before they
 can become a Samba user, but there's an additional `smbpasswd` step:
@@ -269,7 +269,7 @@ cause silent fallback to defaults.
 
 ## `access based share enum` vs `browseable = no`
 
-`browseable = no` is an absolute switch — the share disappears from listings for
+`browseable = no` is an absolute switch - the share disappears from listings for
 *everyone*, regardless of whether they have access. It is blunt and breaks
 legitimate workflows (e.g. file manager navigation).
 
@@ -312,7 +312,7 @@ When one share needs RO for most users and RW for specific users:
 but NOT in `write list` get read-only access. Users in `write list` get full
 write access regardless of `read only`.
 
-`testparm` will not show `read only = Yes` — it is Samba's compiled-in default
+`testparm` will not show `read only = Yes` - it is Samba's compiled-in default
 and is omitted from the output. Absence of `read only = No` means it is active.
 
 ## Shared-group share with Setgid
@@ -333,7 +333,7 @@ find /mnt/mergerfs/roms -type d -exec chmod 2775 {} \;
 
 The `2` in `2775` sets the **Setgid bit** on directories. New files and
 subdirectories inherit the group `roms` automatically, regardless of which user
-created them. Without Setgid, new files inherit the creator's primary group —
+created them. Without Setgid, new files inherit the creator's primary group -
 breaking read access for other group members.
 
 ```ini

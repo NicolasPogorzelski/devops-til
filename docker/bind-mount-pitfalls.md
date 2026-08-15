@@ -3,7 +3,7 @@
 ## File vs directory: the silent directory creation
 
 When a Docker bind-mount references a host path that **does not exist**, Docker
-does not fail — it silently creates an empty **directory** at that path.
+does not fail - it silently creates an empty **directory** at that path.
 
 If the container expected a *file* (e.g., a config file), the mount fails with:
 
@@ -11,8 +11,8 @@ If the container expected a *file* (e.g., a config file), the mount fails with:
 error mounting "..." to rootfs: not a directory
 ```
 
-The exit code may be misleading (e.g., 127), and the original cause —
-the missing config file — is not in the error message.
+The exit code may be misleading (e.g., 127), and the original cause -
+the missing config file - is not in the error message.
 
 ## Common triggers
 
@@ -74,7 +74,7 @@ references (`http://prometheus:9090`) become unresolvable.
 Use `127.0.0.1` (or the host's Tailscale IP) instead:
 
 ```yaml
-# datasource.yml for Grafana — host networking
+# datasource.yml for Grafana - host networking
 url: http://127.0.0.1:9090   # NOT http://prometheus:9090
 ```
 
@@ -92,7 +92,7 @@ volumes:
   - ./config:/app/config:ro
 ```
 
-`:ro` is a security practice — the container cannot modify host files even if
+`:ro` is a security practice - the container cannot modify host files even if
 compromised. Useful for:
 - Read-only consumers (media servers, document viewers)
 - Static config bind-mounts (Prometheus rules, nginx.conf)

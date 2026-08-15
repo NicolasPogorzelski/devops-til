@@ -17,12 +17,12 @@ These three live in `[Unit]` and answer different questions:
 
 | Directive   | Meaning                                                     | Failure handling                                       |
 |-------------|-------------------------------------------------------------|--------------------------------------------------------|
-| `After=`    | Order — start *after* this unit is reached                  | None — pure ordering, no dependency                    |
-| `Wants=`    | Soft dependency — try to start it, continue if it fails     | This unit starts even if the wanted unit fails         |
-| `Requires=` | Hard dependency — fail this unit if the required unit fails | This unit is stopped if the required unit goes down    |
+| `After=`    | Order - start *after* this unit is reached                  | None - pure ordering, no dependency                    |
+| `Wants=`    | Soft dependency - try to start it, continue if it fails     | This unit starts even if the wanted unit fails         |
+| `Requires=` | Hard dependency - fail this unit if the required unit fails | This unit is stopped if the required unit goes down    |
 
 **Rule of thumb:** for non-critical ordering, use `Wants=` + `After=` together.
-`Requires=` is for genuine "I cannot function at all without this" cases — overusing it
+`Requires=` is for genuine "I cannot function at all without this" cases - overusing it
 turns a single failed dependency into a cascade of stopped services.
 
 ```ini
@@ -33,12 +33,12 @@ Wants=tailscaled.service network-online.target
 ```
 
 The pair `Wants=` + `After=` says: "ask systemd to bring up `tailscaled`, and
-order me after it — but if `tailscaled` is broken, still try."
+order me after it - but if `tailscaled` is broken, still try."
 
 ## The SSH-bind-to-Tailscale race
 
 **Symptom:** SSH daemon fails on boot with `Cannot assign requested address` or
-`ListenAddress 100.x.y.z` — but starts fine after a manual restart.
+`ListenAddress 100.x.y.z` - but starts fine after a manual restart.
 
 **Cause:** `sshd.service` reaches its start point before `tailscaled` has finished
 configuring the `tailscale0` interface. The IP doesn't exist yet, so `bind()` fails.
@@ -59,33 +59,33 @@ RestartPreventExitStatus=
 | Line                            | Why                                                                                       |
 |---------------------------------|-------------------------------------------------------------------------------------------|
 | `After=tailscaled.service`      | Order: only attempt to start sshd after tailscaled has reached its start point            |
-| `Wants=tailscaled.service`      | Bring up tailscaled if it isn't running — but don't fail sshd if tailscaled is missing    |
-| `Restart=on-failure`            | If sshd exits with non-zero status, restart it — covers the residual race window          |
-| `RestartSec=15s`                | Wait 15s before retrying — gives tailscaled time to finish setting up the interface       |
-| `RestartPreventExitStatus=`     | **Empty value** — overrides Debian's default that tells systemd to stop retrying on certain exit codes (notably the bind failure) |
+| `Wants=tailscaled.service`      | Bring up tailscaled if it isn't running - but don't fail sshd if tailscaled is missing    |
+| `Restart=on-failure`            | If sshd exits with non-zero status, restart it - covers the residual race window          |
+| `RestartSec=15s`                | Wait 15s before retrying - gives tailscaled time to finish setting up the interface       |
+| `RestartPreventExitStatus=`     | **Empty value** - overrides Debian's default that tells systemd to stop retrying on certain exit codes (notably the bind failure) |
 
 The empty value is the subtle part. Distros often ship `RestartPreventExitStatus=255`
 (or similar) in the upstream unit to avoid restart loops on configuration errors.
-For a race condition, *every* failure is the same code — so the upstream policy
+For a race condition, *every* failure is the same code - so the upstream policy
 defeats `Restart=on-failure`. Setting it to empty re-enables retries.
 
 ## Reactive vs proactive: ExecStartPre gates
 
 The SSH fix above is **reactive**: let the service fail, then `Restart=on-failure`
 retries until the dependency is ready. That works only if the failure actually
-produces a non-zero exit systemd can see. Sometimes it doesn't — then you need a
+produces a non-zero exit systemd can see. Sometimes it doesn't - then you need a
 **proactive** gate that blocks startup until the prerequisite is *really* true.
 
-**Case study — PostgreSQL bound to a Tailscale IP.** Same race as sshd
+**Case study - PostgreSQL bound to a Tailscale IP.** Same race as sshd
 (`listen_addresses` includes the Tailscale IP, which isn't assigned yet at boot),
 but the reactive fix is useless here, for two reasons:
 
-1. Debian's `postgresql@.service` has `ExecStart=-/usr/bin/pg_ctlcluster …`. The
+1. Debian's `postgresql@.service` has `ExecStart=-/usr/bin/pg_ctlcluster ...`. The
    **leading `-`** tells systemd to ignore a non-zero exit, so the unit never
-   enters `failed` → `Restart=on-failure` never fires.
+   enters `failed` -> `Restart=on-failure` never fires.
 2. A *partial* bind is treated as success anyway. PostgreSQL binds loopback, logs
    the Tailscale-IP failure as a mere `WARNING: could not create listen socket`,
-   and keeps running. The process is up (a local health check is green) — it's
+   and keeps running. The process is up (a local health check is green) - it's
    just missing the remote bind. **There is no failure to react to.**
 
 So you gate it proactively with `ExecStartPre`, which runs *before* `ExecStart`:
@@ -99,16 +99,16 @@ Wants=tailscaled.service
 ExecStartPre=/usr/local/bin/wait-for-tailscale-ip.sh 90
 ```
 
-If `ExecStartPre` exits non-zero, the unit fails and `ExecStart` never runs — so
+If `ExecStartPre` exits non-zero, the unit fails and `ExecStart` never runs - so
 the gate script's exit code is a deliberate policy lever:
 
 | Exit on timeout | Behaviour | Use when |
 |---|---|---|
 | non-zero (**fail-closed**) | service refuses to start without the prerequisite | the service is useless/unsafe without it |
-| `0` (**fail-open**) | service starts anyway after the wait | "up, but degraded" beats "totally down" — e.g. a central DB still usable on loopback |
+| `0` (**fail-open**) | service starts anyway after the wait | "up, but degraded" beats "totally down" - e.g. a central DB still usable on loopback |
 
-**The gate must verify the real condition, not a proxy.** "tailscaled is up" ≠
-"the IP is assigned" — so poll the actual interface, not the daemon:
+**The gate must verify the real condition, not a proxy.** "tailscaled is up" !=
+"the IP is assigned" - so poll the actual interface, not the daemon:
 
 ```bash
 ts_ip="$(tailscale ip -4)"                  # this node's Tailscale IPv4
@@ -116,13 +116,13 @@ ip -4 -o addr show | grep -qFw "$ts_ip"     # true only once it's on an interfac
 ```
 
 `grep -F` (fixed string, the dots aren't regex wildcards) + `-w` (word boundary,
-so `…78.79` doesn't match `…78.790`). Loop with a `sleep` until it's true or a
+so `...78.79` doesn't match `...78.790`). Loop with a `sleep` until it's true or a
 timeout elapses.
 
 This pairs with `Type=forking` + `TimeoutStartSec=0` on the postgres unit: the
 wait can take as long as it needs without tripping a start timeout.
 
-**Reactive vs proactive — which to reach for:**
+**Reactive vs proactive - which to reach for:**
 
 | | Reactive (`Restart=on-failure`) | Proactive (`ExecStartPre` gate) |
 |---|---|---|
@@ -137,21 +137,21 @@ gate works.
 
 ## The start-limit trap: when the reactive retry gives up
 
-There is a third case where the failure *is* a clean non-zero exit — but reactive
+There is a third case where the failure *is* a clean non-zero exit - but reactive
 restart still doesn't save you. systemd rate-limits restarts:
 
-- `StartLimitIntervalSec` (default 10s) and `StartLimitBurst` (default 5) — if a
+- `StartLimitIntervalSec` (default 10s) and `StartLimitBurst` (default 5) - if a
   unit restarts more than `Burst` times within the interval, systemd stops trying
   and parks it in `failed` with `start request repeated too quickly`.
 
-On a *fast* boot race this is exactly what happens. **Case study — pveproxy bound
+On a *fast* boot race this is exactly what happens. **Case study - pveproxy bound
 to a Tailscale IP** (`/etc/default/pveproxy` `LISTEN_IP=<tailscale-ip>`): it starts
 before `tailscaled` assigns the IP, exits non-zero with `Cannot assign requested
-address`, retries five times within ~4 seconds — all before the IP appears — and
+address`, retries five times within ~4 seconds - all before the IP appears - and
 systemd gives up. The interface comes up a second later, but nothing is retrying
 anymore. The service stays dead until a human intervenes.
 
-Recovering a start-limited unit needs an extra step — the failed state **and** the
+Recovering a start-limited unit needs an extra step - the failed state **and** the
 counter must be cleared:
 
 ```bash
@@ -160,17 +160,17 @@ systemctl restart pveproxy         # plain restart is refused until reset-failed
 ```
 
 The lesson: a service that fails cleanly is *not* automatically saved by
-`Restart=on-failure` — if the race resolves slower than `Burst` retries take, the
+`Restart=on-failure` - if the race resolves slower than `Burst` retries take, the
 rate-limiter wins. The fix is the same proactive `ExecStartPre` gate as PostgreSQL,
 so the first start already waits for the IP and never burns the retry budget.
 
 **Fail-open vs fail-closed, decided by role.** pveproxy gates **fail-closed** (the
 `ExecStartPre` exits non-zero on timeout, so the unit refuses to start without its
-IP) — opposite of the PostgreSQL gate's fail-open. The rule: match the gate's
+IP) - opposite of the PostgreSQL gate's fail-open. The rule: match the gate's
 timeout behaviour to what the service *is*. A central **data** service stays
 locally useful on loopback, so fail-open ("up but degraded") beats "totally down".
 A **management plane** (a web UI bound to one IP) has no useful degraded mode and a
-hard, visible failure is preferable to a half-broken listener — so fail-closed.
+hard, visible failure is preferable to a half-broken listener - so fail-closed.
 
 ## Drop-ins vs editing the upstream unit
 
@@ -184,7 +184,7 @@ systemctl edit ssh.service          # creates override.conf in editor
 systemctl edit --full ssh.service   # creates a full copy under /etc (rarely correct)
 ```
 
-`systemctl edit` (without `--full`) is the canonical way — it creates an `override.conf`
+`systemctl edit` (without `--full`) is the canonical way - it creates an `override.conf`
 that systemd merges with the upstream unit at runtime. To inspect the merged result:
 
 ```bash
@@ -205,7 +205,7 @@ systemctl show ssh.service          # shows the effective resolved values
 real bugs because it restarts on *every* exit including clean ones, which can
 produce a tight loop when the service exits 0 immediately.
 
-## RestartSec — why 15s, not 1s
+## RestartSec - why 15s, not 1s
 
 A 1-second retry on a race condition produces 60 retries per minute, all hitting
 the same not-yet-ready dependency. The journal fills up, CPU spikes, and if the
@@ -223,19 +223,19 @@ The `[Service]` `Type=` directive tells systemd when "started" actually means st
 
 | Type        | "Started" means                                                                |
 |-------------|--------------------------------------------------------------------------------|
-| `simple`    | The main process has been forked. **Default — and often wrong** for daemons.   |
+| `simple`    | The main process has been forked. **Default - and often wrong** for daemons.   |
 | `forking`   | The parent process has exited (classic daemon double-fork).                    |
 | `notify`    | The process has called `sd_notify(READY=1)`.                                   |
-| `exec`      | `execve()` has succeeded — slightly stronger than `simple`.                    |
+| `exec`      | `execve()` has succeeded - slightly stronger than `simple`.                    |
 | `oneshot`   | The process has run and exited (used for scripts that do work and finish).     |
 
 For ordering with `After=`, the dependency must reach its "started" state before
-this unit runs. With `Type=simple`, that happens almost instantly — meaning
+this unit runs. With `Type=simple`, that happens almost instantly - meaning
 `After=` only guarantees the dependency *was launched*, not that it's *ready*.
 For real readiness, the dependency must use `Type=notify` or `Type=forking` correctly.
 
 This is why `After=tailscaled.service` is necessary but not sufficient for the
-SSH race — `tailscaled` is `Type=notify` and signals readiness, but the IP-assignment
+SSH race - `tailscaled` is `Type=notify` and signals readiness, but the IP-assignment
 happens *after* readiness in some versions. The `Restart=on-failure` is the
 belt-and-suspenders catch.
 

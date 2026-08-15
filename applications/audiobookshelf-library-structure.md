@@ -6,11 +6,11 @@ ABS supports two layouts:
 
 ```
 Author/
-└── Book/                        # flat — works, ABS detects metadata from tags
+└── Book/                        # flat - works, ABS detects metadata from tags
 
 Author/
 └── Series Name/
-    └── NN - Book Title/         # preferred for series — ABS reads series from folder name
+    └── NN - Book Title/         # preferred for series - ABS reads series from folder name
 ```
 
 Mixed is fine: series books in subfolders, standalones directly under the author dir.
@@ -19,7 +19,7 @@ Mixed is fine: series books in subfolders, standalones directly under the author
 
 ABS resolves series name and sequence number from the folder path when no explicit
 metadata is set. `Author/Series/01 - Title/` is unambiguous. `Author/Series 01 - Title/`
-requires ABS to parse the series name out of the book folder — less reliable.
+requires ABS to parse the series name out of the book folder - less reliable.
 
 ## Common source format (Audible downloads)
 
@@ -56,4 +56,4 @@ skip if two source folders would map to the same destination.
 ## Privacy note
 
 The `AUTHOR_PREFIXES` mapping in the script reveals what you own. Commit only an
-empty template to public repos — populate locally on the machine running the script.
+empty template to public repos - populate locally on the machine running the script.

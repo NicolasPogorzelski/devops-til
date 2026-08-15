@@ -10,14 +10,14 @@ A role is a self-contained package: tasks, variables, templates, and handlers
 bundled under a single name. You invoke the role by name instead of copying tasks.
 
 ```yaml
-# Without role — tasks inline, not reusable
+# Without role - tasks inline, not reusable
 - name: install node_exporter
   hosts: all
   tasks:
     - name: download binary
       ...
 
-# With role — reusable, invoked by name
+# With role - reusable, invoked by name
 - name: install node_exporter
   hosts: all
   roles:
@@ -31,11 +31,11 @@ Ansible expects roles under `roles/<name>/` relative to the playbook or `ansible
 ```
 roles/node_exporter/
 ├── tasks/
-│   └── main.yml       # entry point — Ansible loads this automatically
+│   └── main.yml       # entry point - Ansible loads this automatically
 ├── defaults/
-│   └── main.yml       # low-priority variables — intended to be overridden
+│   └── main.yml       # low-priority variables - intended to be overridden
 ├── vars/
-│   └── main.yml       # high-priority variables — internal, not for overriding
+│   └── main.yml       # high-priority variables - internal, not for overriding
 ├── files/
 │   └── *              # static files copied 1:1 to nodes
 ├── templates/
@@ -52,16 +52,16 @@ Both hold variables. The difference is who controls them.
 
 | | `defaults/` | `vars/` |
 |---|---|---|
-| Priority | Lowest — easily overridden | High — hard to override |
+| Priority | Lowest - easily overridden | High - hard to override |
 | Intent | "I suggest this value, change it if needed" | "This is fixed, don't touch it" |
 | Examples | version number, port, feature flags | binary path, system username |
 
 ```yaml
-# defaults/main.yml — callers can override these per-playbook
+# defaults/main.yml - callers can override these per-playbook
 node_exporter_version: "1.11.1"
 node_exporter_port: 9100
 
-# vars/main.yml — internal constants
+# vars/main.yml - internal constants
 node_exporter_binary: /usr/local/bin/node_exporter
 node_exporter_user: node_exporter
 ```
@@ -78,20 +78,20 @@ roles:
 
 | | `files/` | `templates/` |
 |---|---|---|
-| Content | Static — copied byte-for-byte | Dynamic — Jinja2 variables rendered before copying |
+| Content | Static - copied byte-for-byte | Dynamic - Jinja2 variables rendered before copying |
 | Extension | any | `.j2` |
 | Use case | Config with no per-host variation | Config that differs per node (IPs, hostnames) |
 | Module | `ansible.builtin.copy` | `ansible.builtin.template` |
 
-`src` in both modules is relative to the role directory — no full path needed:
+`src` in both modules is relative to the role directory - no full path needed:
 
 ```yaml
-# files/ — static copy
+# files/ - static copy
 - ansible.builtin.copy:
     src: node_exporter.conf        # resolves to roles/node_exporter/files/
     dest: /etc/node_exporter.conf
 
-# templates/ — Jinja2 render then copy
+# templates/ - Jinja2 render then copy
 - ansible.builtin.template:
     src: node_exporter.service.j2  # resolves to roles/node_exporter/templates/
     dest: /etc/systemd/system/node_exporter.service
@@ -198,7 +198,7 @@ the config changed.
 
 **Critical implicit behavior:** a handler only fires if the notifying task reports
 `changed: true`. If the task was already in the desired state (`ok`, `changed=0`),
-the handler is silently skipped — no notification is sent. This is correct behavior
+the handler is silently skipped - no notification is sent. This is correct behavior
 for idempotency (don't restart if nothing changed), but it means you cannot rely on
 a handler to "always run at the end of the play".
 

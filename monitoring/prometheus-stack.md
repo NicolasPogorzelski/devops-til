@@ -27,7 +27,7 @@ scrape_configs:
           - "100.x.y.z:9100"   # Tailscale IP of each node
 ```
 
-Prometheus is a pull system — it reaches out to targets. Targets do not push.
+Prometheus is a pull system - it reaches out to targets. Targets do not push.
 
 ## node_exporter
 
@@ -83,14 +83,14 @@ for the specified duration, the alert fires.
 | `SnapRAIDScrubStale` | `time() - last_scrub > 32d` | SnapRAID hasn't scrubbed |
 | `PostgreSQLBackupStale` | `time() - last_backup > 25h` | Backup overdue |
 
-## Node-up ≠ service-up (the monitoring blind spot)
+## Node-up != service-up (the monitoring blind spot)
 
 `up == 0` from `NodeDown` only tells you the **node_exporter** target stopped
-answering — i.e. the host (or its exporter) is down. It says nothing about whether the
+answering - i.e. the host (or its exporter) is down. It says nothing about whether the
 actual application is serving traffic.
 
 This blind spot caused a real incident (KE-8). Jellyfin (8096) and Audiobookshelf
-(13378) on VM100 hung — alive as processes but not serving — while node_exporter (9100)
+(13378) on VM100 hung - alive as processes but not serving - while node_exporter (9100)
 answered the entire time. `up{job="node-vm100-gpu"}` stayed `1`, no alert fired, and the
 outage was only noticed by a human trying to use the service.
 
@@ -98,7 +98,7 @@ outage was only noticed by a human trying to use the service.
 box can host a dead service. To close the gap you need a probe that speaks the service's
 own protocol:
 
-- **blackbox_exporter** — Prometheus probes an HTTP(S)/TCP endpoint from the outside and
+- **blackbox_exporter** - Prometheus probes an HTTP(S)/TCP endpoint from the outside and
   exports whether it responded, the status code, and latency. A `ServiceDown` rule on a
   failed HTTP probe catches "port open but app wedged" and "port dead" alike.
 
@@ -111,7 +111,7 @@ own protocol:
     summary: "Service {{ $labels.service }} failing its probe"
 ```
 
-`probe_success` comes from blackbox_exporter, not node_exporter — that is the whole
+`probe_success` comes from blackbox_exporter, not node_exporter - that is the whole
 point: a *second, independent* signal at the application layer.
 
 ### The relabel dance (the part that confuses everyone)
@@ -121,7 +121,7 @@ URL to probe*. The target URL therefore has to be shuffled through labels:
 
 ```yaml
 - job_name: "blackbox-http"
-  metrics_path: /probe            # not /metrics — blackbox's probe endpoint
+  metrics_path: /probe            # not /metrics - blackbox's probe endpoint
   params:
     module: [http_2xx]            # which prober profile from blackbox.yml
   static_configs:
@@ -141,14 +141,14 @@ to the exporter and pass the real target as a query param. `module:` picks the p
 profile (e.g. `http_2xx`; a lenient `valid_status_codes: [200,301,302,401,403]` variant
 is useful so an auth redirect/deny still counts as "alive").
 
-### Why this matters — a real catch (KE-9)
+### Why this matters - a real catch (KE-9)
 
 On first deploy the HTTPS probes returned `probe_success=0` with `probe_http_status_code=502`.
 A 502 from `tailscale serve` means serve is up but its **backend is dead**. Root cause: the
-central PostgreSQL had bound loopback-only after a boot (the Tailscale-IP bind race — see
+central PostgreSQL had bound loopback-only after a boot (the Tailscale-IP bind race - see
 [systemd-service-hardening](../linux/systemd-service-hardening.md)), so DB-backed services
 (OpenWebUI, Paperless) failed. `pg_up` was **green the whole time** because postgres_exporter
-connects locally — it can't see a missing *remote* bind. Only the service-level probe exposed
+connects locally - it can't see a missing *remote* bind. Only the service-level probe exposed
 it. That is the entire argument for blackbox in one incident: node-up and exporter-up are not
 service-up.
 
@@ -166,14 +166,14 @@ count_over_time(up{job="node-vm100-gpu"}[2h])
 min_over_time(up{job="node-vm100-gpu"}[2h])
 ```
 
-- `count_over_time(...[2h])` — number of samples in the range. 300/300 expected samples
-  present meant the node never stopped being scraped — it was reachable throughout.
-- `min_over_time(...[2h])` — if this is `1`, `up` was never `0`; the node never went
+- `count_over_time(...[2h])` - number of samples in the range. 300/300 expected samples
+  present meant the node never stopped being scraped - it was reachable throughout.
+- `min_over_time(...[2h])` - if this is `1`, `up` was never `0`; the node never went
   down. A single 60s gap lined up exactly with the recovery restart, nothing else.
 
 This is how the KE-8 investigation *excluded* "node down / network loss" as causes
-without any application log to lean on — Prometheus retained the evidence the journal
-didn't (see [systemd Basics → Persistent journald storage](../linux/systemd-basics.md)).
+without any application log to lean on - Prometheus retained the evidence the journal
+didn't (see [systemd Basics -> Persistent journald storage](../linux/systemd-basics.md)).
 
 ## Alertmanager routing
 
@@ -197,7 +197,7 @@ on success. Alert if the timestamp is too old:
 time() - my_job_last_success_timestamp > 86400   # more than 24h ago
 ```
 
-This is more reliable than checking if a process is running — it catches
+This is more reliable than checking if a process is running - it catches
 silent failures where the job runs but does nothing.
 
 ## Related

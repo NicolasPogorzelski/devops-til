@@ -26,10 +26,10 @@ Never assume. The process:
 2. **Hypothesize** a cause
 3. **Verify** the hypothesis with a concrete command before acting
 4. **Diagnose** based on verified evidence
-5. **Fix** — only after diagnosis
+5. **Fix** - only after diagnosis
 
 ```
-Symptom → Verification command → Confirmed diagnosis → Fix
+Symptom -> Verification command -> Confirmed diagnosis -> Fix
 ```
 
 "It's probably X" without a verification step is not a diagnosis.
@@ -50,7 +50,7 @@ Keep a record of known errors with their root cause, fix, and status.
 Each entry gets a KE number (Known Error):
 
 ```
-KE-1: SQLite on CIFS — "database is locked"
+KE-1: SQLite on CIFS - "database is locked"
 KE-7: Package corruption when LVM thin-pool overflows during apt upgrade
 ```
 
@@ -61,9 +61,9 @@ This prevents re-diagnosing the same issue next time it occurs.
 In a single-host homelab without HA, the design principle is:
 **assume failure will happen, document how to recover**.
 
-- No HA → clear recovery runbooks
-- Single storage VM is a SPOF → documented recovery procedure
-- No automated failover → manual runbooks with exact commands
+- No HA -> clear recovery runbooks
+- Single storage VM is a SPOF -> documented recovery procedure
+- No automated failover -> manual runbooks with exact commands
 
 ## Boot order dependency modeling
 
@@ -71,7 +71,7 @@ After a host reboot, services must come up in dependency order:
 
 ```
 Layer 0: Proxmox host
-Layer 1: Storage (VM102 — MergerFS, SnapRAID, Samba)
+Layer 1: Storage (VM102 - MergerFS, SnapRAID, Samba)
 Layer 2: Infrastructure LXCs (LXC260 PostgreSQL, LXC200 Monitoring)
 Layer 3: Service LXCs (Nextcloud, Paperless, Calibre-Web, etc.)
 ```
@@ -95,7 +95,7 @@ docs(platform): document lvm thin-pool overflow incident
 fix(monitoring): correct grafana datasource url
 ```
 
-## Failure modes table — required runbook element
+## Failure modes table - required runbook element
 
 A runbook without a failure-modes section is incomplete. Pattern:
 
@@ -110,7 +110,7 @@ A runbook without a failure-modes section is incomplete. Pattern:
 ```
 
 Three columns, three perspectives: prevention (left), detection (middle),
-response (right). Skipping the middle column is the most common mistake —
+response (right). Skipping the middle column is the most common mistake -
 runbooks that say "restart the service" without saying *how you know it's broken*
 are useless during incidents.
 
@@ -121,22 +121,22 @@ on what's most accessible:
 
 ```
 Bottom-up (when you can reach the host):
-  L0: Storage mounts        — findmnt, df
-  L1: Network reachability  — nc -zv from this host to deps
-  L2: Container/process     — docker ps, systemctl status
-  L3: Database/state        — psql \dt, redis-cli ping
-  L4: Application API       — curl /health
-  L5: User-facing endpoint  — curl https://...
+  L0: Storage mounts        - findmnt, df
+  L1: Network reachability  - nc -zv from this host to deps
+  L2: Container/process     - docker ps, systemctl status
+  L3: Database/state        - psql \dt, redis-cli ping
+  L4: Application API       - curl /health
+  L5: User-facing endpoint  - curl https://...
 
 Top-down (when you only have the user-facing symptom):
-  L5 → L0
+  L5 -> L0
 ```
 
 Each layer has a fast verification command. Document the chain in the runbook
 of the affected service. When the user reports "X is broken", running the
 chain end-to-end takes 60 seconds and pinpoints the layer.
 
-## Verification table — proof of working state
+## Verification table - proof of working state
 
 Restore runbooks and disaster-recovery procedures need a verification table
 that gets filled in after each rehearsal:
@@ -148,7 +148,7 @@ that gets filled in after each rehearsal:
 |------------|------------------------|--------|------------|------------------------|
 | 2026-01-15 | postgres full restore  | OK     | <username> | 3min duration          |
 | 2026-04-10 | nextcloud config       | OK     | <username> | Files matched checksum |
-| 2026-07-01 | full disaster recovery | —      | (planned)  |                        |
+| 2026-07-01 | full disaster recovery | -      | (planned)  |                        |
 ```
 
 Empty rows are a signal: either the rehearsal hasn't happened, or it failed
@@ -160,11 +160,11 @@ in the repo, so it doesn't get forgotten.
 Before deploying or changing anything non-trivial:
 
 1. Identify the official documentation for the tool/service
-2. Read the relevant sections (not just skim — quote them in the runbook)
+2. Read the relevant sections (not just skim - quote them in the runbook)
 3. Link those sections in the implementation runbook
 4. Only then write the actual procedure
 
-The benefit isn't pedantry — it's traceability. Six months later when something
+The benefit isn't pedantry - it's traceability. Six months later when something
 breaks, the runbook tells you not just "do X" but "do X, because the docs at
 this URL say Y". If the docs have changed, you discover the assumption mismatch
 quickly.
@@ -179,7 +179,7 @@ quickly.
 For Arch-based systems: ArchWiki sections. For Debian: official Debian admin
 handbook + upstream docs. Cite the section header you used, not just the URL.
 
-## Fail-forward visibility — when degradation isn't downtime
+## Fail-forward visibility - when degradation isn't downtime
 
 A service that "still loads but does the wrong thing" is harder to diagnose
 than one that's fully down. Examples:
@@ -190,12 +190,12 @@ than one that's fully down. Examples:
   appear empty rather than erroring.
 - Grafana dashboards render when Prometheus is unreachable, showing "no data".
 
-This is *fail-forward* design — the UI prefers showing partial state over a
+This is *fail-forward* design - the UI prefers showing partial state over a
 hard error. It is operationally fine *if* monitoring covers the underlying
 layers. It is dangerous if monitoring only covers the UI's HTTP endpoint.
 
 Rule: **any service with fail-forward behavior must have its dependencies
-monitored separately**. UI-availability ≠ stack-availability.
+monitored separately**. UI-availability != stack-availability.
 
 ## Related
 

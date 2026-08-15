@@ -9,11 +9,11 @@ With 7 LXCs, all 7 would download packages at the same time.
 
 On a Proxmox host with thin-pool storage, parallel apt upgrades caused a real incident:
 - All 7 nodes downloaded packages simultaneously
-- ~48 MB per node × 7 = ~336 MB written to the pool at once
+- ~48 MB per node x 7 = ~336 MB written to the pool at once
 - Pool hit 100% capacity mid-download
 - Result: corrupt binaries, VM freeze, platform-wide outage
 
-## serial: N — how it works
+## serial: N - how it works
 
 `serial` sets how many hosts run the entire play at once before moving to the next batch.
 
@@ -25,7 +25,7 @@ On a Proxmox host with thin-pool storage, parallel apt upgrades caused a real in
     - ...
 ```
 
-With `serial: 1` and 7 hosts: host 1 finishes completely → host 2 starts → etc.
+With `serial: 1` and 7 hosts: host 1 finishes completely -> host 2 starts -> etc.
 
 ## serial values
 

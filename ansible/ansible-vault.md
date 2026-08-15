@@ -2,14 +2,14 @@
 
 ## What it is
 
-Ansible Vault is AES-256 symmetric encryption built into Ansible. It encrypts either entire YAML files or individual variable values. Ansible decrypts on-the-fly at playbook run time — no separate service required.
+Ansible Vault is AES-256 symmetric encryption built into Ansible. It encrypts either entire YAML files or individual variable values. Ansible decrypts on-the-fly at playbook run time - no separate service required.
 
 ## The problem it solves
 
 Without Vault, secrets end up in Git as plaintext:
 
 ```yaml
-# group_vars/all/vars.yml — visible to everyone who clones the repo
+# group_vars/all/vars.yml - visible to everyone who clones the repo
 db_password: "SuperSecret123"
 discord_webhook: "https://discord.com/api/webhooks/..."
 ```
@@ -26,7 +26,7 @@ Only someone with the vault password can decrypt. The ciphertext in Git is usele
 
 ## Why rotation after a leak is not enough
 
-If a plaintext credential was ever committed to Git, it is permanently in the history — even after deletion and rotation:
+If a plaintext credential was ever committed to Git, it is permanently in the history - even after deletion and rotation:
 
 ```bash
 git log -p --all | grep "db_password"
@@ -46,7 +46,7 @@ Rotation stops future damage. It does not undo past damage.
 2. Invalidate all active sessions
 3. Check audit logs: who authenticated with the old credential and when
 4. Check for unknown accounts (DB users, SSH keys, API tokens)
-5. Clean Git history with `git filter-repo` — so future repo clones no longer contain the credential
+5. Clean Git history with `git filter-repo` - so future repo clones no longer contain the credential
 
 `git filter-repo` replaces the deprecated `git filter-branch`. Note: history rewrite on a shared repo forces all collaborators to re-clone.
 
@@ -72,7 +72,7 @@ discord_webhook_url: "{{ vault_discord_webhook_url }}"
 vault_discord_webhook_url: "https://discord.com/api/webhooks/..."
 ```
 
-This way, `vars.yml` is always readable and shows which variables exist — without exposing values.
+This way, `vars.yml` is always readable and shows which variables exist - without exposing values.
 
 ## Key commands
 
@@ -121,14 +121,14 @@ The password file must never be committed. Add to `.gitignore`:
 
 ## Practical workflow: encrypt_string
 
-For individual secrets inside a vars file (recommended for homelab — keeps files readable):
+For individual secrets inside a vars file (recommended for homelab - keeps files readable):
 
 ```bash
 # encrypt a single value and print ready-to-paste YAML
 ansible-vault encrypt_string 'my-secret-value' --name 'vault_db_password'
 ```
 
-Output is valid YAML — paste directly into `group_vars/all/vault.yml`:
+Output is valid YAML - paste directly into `group_vars/all/vault.yml`:
 
 ```yaml
 vault_db_password: !vault |
@@ -156,40 +156,40 @@ group_vars/all/
   vault.yml             # encrypted secrets only
 ```
 
-`defaults/main.yml` — plain, readable:
+`defaults/main.yml` - plain, readable:
 ```yaml
 app_dbport: 5432
 app_dbname: mydb
 ```
 
-`vault.yml` — encrypted:
+`vault.yml` - encrypted:
 ```yaml
 vault_app_dbpass: !vault |
     $ANSIBLE_VAULT;1.1;AES256
     ...
 ```
 
-`templates/app.env.j2` — bridges both:
+`templates/app.env.j2` - bridges both:
 ```
 APP_DBPORT={{ app_dbport }}
 APP_DBPASS={{ vault_app_dbpass }}
 ```
 
-The `.env` written to the node contains plaintext — Vault only protects the value in the repo and during transit. Access control on the target is a separate concern.
+The `.env` written to the node contains plaintext - Vault only protects the value in the repo and during transit. Access control on the target is a separate concern.
 
 ## What Vault does NOT protect
 
-Vault protects secrets in your Ansible code and Git repo. It does not protect the deployed secret on the target server — the `.env` file or config file on disk remains plaintext. Access control on the target server is a separate concern.
+Vault protects secrets in your Ansible code and Git repo. It does not protect the deployed secret on the target server - the `.env` file or config file on disk remains plaintext. Access control on the target server is a separate concern.
 
 ## Vault IDs and the --ask-vault-pass conflict
 
 Every Ansible Vault password source gets a label called a **vault ID**. When no ID is specified explicitly, Ansible assigns the label `default`.
 
-Two sources produce two `default` IDs — Ansible cannot determine which to use for encryption:
+Two sources produce two `default` IDs - Ansible cannot determine which to use for encryption:
 
 ```
-vault_password_file = ~/.vault_pass   →  vault ID: default
---ask-vault-pass                      →  vault ID: default
+vault_password_file = ~/.vault_pass   ->  vault ID: default
+--ask-vault-pass                      ->  vault ID: default
 ```
 
 Error:
@@ -211,7 +211,7 @@ For inline vault, each value must be re-encrypted individually:
    ansible lxc211 -m debug -a "var=vault_paperless_dbpass"
    ```
 
-2. Update `~/.vault_pass` with the new password **first** — this avoids the vault-ID conflict:
+2. Update `~/.vault_pass` with the new password **first** - this avoids the vault-ID conflict:
    ```bash
    echo 'new-password' > ~/.vault_pass
    ```
@@ -227,11 +227,11 @@ For inline vault, each value must be re-encrypted individually:
 
 ## The !vault | YAML syntax
 
-`!vault` is a YAML tag. It tells the YAML parser: "this is not a plain string — pass it to Ansible Vault for decryption." Without the tag, Ansible would treat the ciphertext as a literal string and never decrypt it.
+`!vault` is a YAML tag. It tells the YAML parser: "this is not a plain string - pass it to Ansible Vault for decryption." Without the tag, Ansible would treat the ciphertext as a literal string and never decrypt it.
 
 `|` is the YAML block scalar operator. It preserves newlines in multi-line values. The AES256 ciphertext spans multiple lines, so `|` is required.
 
-Together: `!vault |` = "multi-line encrypted value — decrypt at runtime."
+Together: `!vault |` = "multi-line encrypted value - decrypt at runtime."
 
 ## Where decryption happens
 
@@ -242,7 +242,7 @@ The managed node never sees:
 - The encrypted ciphertext
 - `~/.vault_pass` or `ansible.cfg`
 
-It only receives the final plaintext value — either as a variable in memory, or written to a file by a task (e.g., a deployed `.env`).
+It only receives the final plaintext value - either as a variable in memory, or written to a file by a task (e.g., a deployed `.env`).
 
 ## Official documentation
 

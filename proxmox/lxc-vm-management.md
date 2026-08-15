@@ -1,6 +1,6 @@
 # Proxmox: LXC & VM Management
 
-## pct — LXC container management
+## pct - LXC container management
 
 ```bash
 pct status <ctid>          # running / stopped
@@ -10,7 +10,7 @@ pct restart <ctid>
 pct exec <ctid> -- <cmd>   # run a command inside the container
 ```
 
-`pct exec` does not require SSH — it uses the Proxmox host's privileged access to
+`pct exec` does not require SSH - it uses the Proxmox host's privileged access to
 the container's namespaces. Useful when SSH is broken or Tailscale is down.
 
 ```bash
@@ -20,7 +20,7 @@ pct exec 230 -- systemctl status tailscaled
 pct exec 200 -- df -h /
 ```
 
-## qm — VM management
+## qm - VM management
 
 ```bash
 qm status <vmid>           # running / stopped / io-error
@@ -33,7 +33,7 @@ qm resume <vmid>           # resume from io-error or suspended state
 `io-error` state means QEMU suspended the VM because a disk write failed
 (typically: thin-pool full). Fix: free pool space, then `qm resume <vmid>`.
 
-`qm guest exec` runs commands inside VMs — but requires qemu-guest-agent
+`qm guest exec` runs commands inside VMs - but requires qemu-guest-agent
 to be installed and running. Without it, use the console instead.
 
 ```bash
@@ -86,14 +86,14 @@ no getty is running on the serial port. Type `normal` to load the GRUB menu.
 For VMs without serial console configured: use the Proxmox web UI
 (noVNC console button in the VM view).
 
-## lxc-info — LXC runtime info
+## lxc-info - LXC runtime info
 
 ```bash
 lxc-info -n <ctid>         # state, PID, IPs, network stats
 lxc-info -n 200 | awk '/^PID:/{print $2}'   # extract init PID (useful for nsenter)
 ```
 
-## pvesm — storage management
+## pvesm - storage management
 
 ```bash
 pvesm status               # all storage backends and their utilization
@@ -113,13 +113,13 @@ pvesm status               # all storage backends and their utilization
 ## LXC unprivileged containers
 
 Proxmox runs LXCs as unprivileged by default. UID/GID mapping shifts container
-UIDs by 100000 — uid 0 inside the container = uid 100000 on the host.
+UIDs by 100000 - uid 0 inside the container = uid 100000 on the host.
 
 This matters for bind mounts: a file owned by `root` (uid 0) inside the container
 is actually owned by uid 100000 on the host. Use `chown 100000:100000` on the host
 when preparing mounted directories for unprivileged LXCs.
 
-## LXC config file — `/etc/pve/lxc/<ctid>.conf`
+## LXC config file - `/etc/pve/lxc/<ctid>.conf`
 
 The container's full declarative state. Edit-and-restart is how most settings
 change; `pct set` writes here too.
@@ -165,10 +165,10 @@ LXC because it needs to mount cgroup hierarchies that LXC denies by default.
 `nesting=1` permits mounting `/proc`, `/sys`, and cgroup subtrees from inside.
 
 This is the *single* most common Docker-in-LXC issue. Set it at container
-creation, or add to existing config and `pct stop && pct start` (not just restart —
+creation, or add to existing config and `pct stop && pct start` (not just restart -
 config reload happens at start).
 
-## VM config file — `/etc/pve/qemu-server/<vmid>.conf`
+## VM config file - `/etc/pve/qemu-server/<vmid>.conf`
 
 ```ini
 agent: 1
@@ -232,7 +232,7 @@ This is also why `mp0`/`mp1` changes appear to "not work" until you do a stop+st
 LXC blocks mounting it for security. The unit attempts to mount it on every
 boot and fails.
 
-**Fix:** None required if you're not using NFS. The failure is **cosmetic** —
+**Fix:** None required if you're not using NFS. The failure is **cosmetic** -
 nothing depends on rpc_pipefs unless you're an NFS client/server. Mask the unit
 to keep status output clean:
 
@@ -245,13 +245,13 @@ out of curiosity and bring back the noise.
 
 ## Disk passthrough safety: one filesystem, one kernel
 
-A raw disk passed into a VM (`scsiN: /dev/disk/by-id/…`) and simultaneously mounted on the
+A raw disk passed into a VM (`scsiN: /dev/disk/by-id/...`) and simultaneously mounted on the
 Proxmox host is a loaded gun. Both kernels can write; neither knows about the other. **ext4, xfs
-and btrfs are not cluster filesystems — there is no locking across hosts.** The result of a
+and btrfs are not cluster filesystems - there is no locking across hosts.** The result of a
 concurrent mount is metadata corruption, not a race you might win.
 
 This survives reboots silently, because the danger only materialises when *something* mounts it in
-the guest — an uncommented fstab line, a manual `mount`, a rebuild from an old fstab.
+the guest - an uncommented fstab line, a manual `mount`, a rebuild from an old fstab.
 
 ### Check what the running process actually has open
 
@@ -260,13 +260,13 @@ the guest — an uncommented fstab line, a manual `mount`, a rebuild from an old
 ```bash
 qm config 102 | grep -E '^(scsi|sata|virtio|ide)[0-9]'
 
-# What the LIVE process holds — config and runtime can diverge
+# What the LIVE process holds - config and runtime can diverge
 ps -o args= -C kvm | tr ',' '\n' | grep -i '<disk-serial>'
 ```
 
-- `-o args=` — print only the command line; the `=` suppresses the column header.
-- `-C kvm` — select processes named `kvm` (the running QEMU).
-- `tr ',' '\n'` — QEMU's command line is one enormous comma-separated string; without splitting it,
+- `-o args=` - print only the command line; the `=` suppresses the column header.
+- `-C kvm` - select processes named `kvm` (the running QEMU).
+- `tr ',' '\n'` - QEMU's command line is one enormous comma-separated string; without splitting it,
   `grep` returns the whole thing and you see nothing.
 
 Then correlate host and guest by **filesystem UUID**, not by device name (`sdX` is not stable):
@@ -291,7 +291,7 @@ findmnt /dev/sdX ; grep -c sdX /proc/mounts ; pvs | grep -c sdX ; grep -c sdX /p
 # 2. Detach (hot-unplug with virtio-scsi-single)
 qm set <vmid> --delete scsi8
 
-# 3. Reversal — write the exact line down BEFORE you delete it
+# 3. Reversal - write the exact line down BEFORE you delete it
 qm set <vmid> --scsi8 /dev/disk/by-id/<id>,size=<size>
 ```
 
@@ -299,7 +299,7 @@ qm set <vmid> --scsi8 /dev/disk/by-id/<id>,size=<size>
 appears and no data is touched, because a device path is not a storage-managed volume. (Data
 destruction requires `qm disk unlink --force` / `destroy-unreferenced-disks`.)
 
-The guest will log `Synchronize Cache(10) failed … hostbyte=DID_BAD_TARGET` — expected. The kernel
+The guest will log `Synchronize Cache(10) failed ... hostbyte=DID_BAD_TARGET` - expected. The kernel
 tried to flush the device's write cache after QEMU already removed it. Harmless if nothing was
 mounted.
 
@@ -316,9 +316,9 @@ dir: appdata_aux1tb
 	is_mountpoint 1
 ```
 
-- `mkdir 0` — do not *create* the path. It does **not** stop Proxmox from *writing into* an
+- `mkdir 0` - do not *create* the path. It does **not** stop Proxmox from *writing into* an
   existing empty mountpoint.
-- `is_mountpoint 1` — treat the storage as offline unless something is actually mounted there.
+- `is_mountpoint 1` - treat the storage as offline unless something is actually mounted there.
 
 Without it, a disk that fails to mount at boot leaves an empty directory behind, Proxmox considers
 the storage active, and VM disks get written into the host's **root filesystem** until it fills.

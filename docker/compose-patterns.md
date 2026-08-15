@@ -17,11 +17,11 @@ services:
 
 ## Pinning images safely (don't guess the version)
 
-"Pin, never `:latest`" is the principle — but pinning to a *wrong* tag breaks the
+"Pin, never `:latest`" is the principle - but pinning to a *wrong* tag breaks the
 next `compose up`. When retrofitting pins onto running stacks, derive the tag from
 reality and verify it exists before committing:
 
-1. **Read the version that is actually running** — don't pick "latest stable" from
+1. **Read the version that is actually running** - don't pick "latest stable" from
    memory (that risks a silent upgrade on next deploy, and is a guess):
 
    ```bash
@@ -31,7 +31,7 @@ reality and verify it exists before committing:
    docker exec <container> prometheus --version    # prom stack, grafana 'server -v', etc.
    ```
 
-2. **Verify the tag exists in the registry _before_ writing it** — no pull, just a
+2. **Verify the tag exists in the registry _before_ writing it** - no pull, just a
    manifest lookup. This is the step that catches a bad guess:
 
    ```bash
@@ -42,10 +42,10 @@ reality and verify it exists before committing:
    (`v3.12.0`), grafana/jellyfin/paperless do not (`13.0.2`).
 
 3. **Watch for a version label inherited from the base image.** `apache/tika`
-   reported `org.opencontainers.image.version=26.04` — but that label's sibling
+   reported `org.opencontainers.image.version=26.04` - but that label's sibling
    fields said `image.title=ubuntu`: it was the **Ubuntu base** version, not Tika's.
    `apache/tika:26.04` does not exist. When the human-readable version is unreliable,
-   **pin by digest** — immutable, guaranteed-pullable, exactly what is running:
+   **pin by digest** - immutable, guaranteed-pullable, exactly what is running:
 
    ```yaml
    image: apache/tika@sha256:90b7fa1dc018...   # digest pin
@@ -58,7 +58,7 @@ reality and verify it exists before committing:
    digest if you need reproducibility.
 
 A digest pin satisfies the *intent* of "no `:latest`" (reproducible, no surprise
-upgrades) even more strictly than a version tag — it's the honest fallback whenever
+upgrades) even more strictly than a version tag - it's the honest fallback whenever
 a clean version tag isn't available or verifiable.
 
 ## Volume mounts
@@ -70,7 +70,7 @@ volumes:
   - myvolume:/container/path          # named volume (managed by Docker)
 ```
 
-`:ro` is a security practice — if the container is compromised, it cannot write
+`:ro` is a security practice - if the container is compromised, it cannot write
 to the mounted path.
 
 ## Environment variables
@@ -93,7 +93,7 @@ with placeholder values.
 network_mode: host
 ```
 
-The container shares the host's network stack directly — no Docker network isolation,
+The container shares the host's network stack directly - no Docker network isolation,
 no NAT, no Docker DNS.
 
 **Consequence:** Container name resolution (`http://other-container`) does not work.
@@ -107,7 +107,7 @@ scraping via Tailscale IP, Jellyfin with NVIDIA Container Toolkit).
 The inverse of host mode, and a common config trap. On the **default Compose
 network** (what you get without `network_mode`), each service runs in its own
 network namespace. Inside a container, `localhost` (`127.0.0.1`) is **that
-container itself** — not the host, not a sibling container. Compose provides a
+container itself** - not the host, not a sibling container. Compose provides a
 DNS resolver that maps **service names** (and `container_name` aliases) to the
 right container.
 
@@ -115,8 +115,8 @@ right container.
 services:
   app:
     environment:
-      REDIS_URL: redis://redis:6379      # ✅ service name -> resolves to the redis container
-      # REDIS_URL: redis://localhost:6379  # ❌ resolves to app's OWN container; nothing listens -> connection refused
+      REDIS_URL: redis://redis:6379      # service name -> resolves to the redis container
+      # REDIS_URL: redis://localhost:6379  # resolves to app's OWN container; nothing listens -> connection refused
   redis:
     image: redis:7-alpine
 ```
@@ -124,7 +124,7 @@ services:
 **Real failure (Paperless, KE-9):** `PAPERLESS_REDIS=redis://localhost:6379`
 produced `Error 111 connecting to localhost:6379. Connection refused.` in an
 endless init crash-loop (`RestartCount` in the thousands). The Redis container
-was healthy the whole time — `localhost` simply pointed at Paperless' own
+was healthy the whole time - `localhost` simply pointed at Paperless' own
 container. Fix: use the service name (`redis://redis:6379`), the same way the
 stack already addressed `http://gotenberg:3000` and `http://tika:9998`.
 
@@ -148,7 +148,7 @@ namespace. On a normal bridge network it's almost always a bug.
 | `unless-stopped` | Restart always except when manually stopped |
 | `on-failure` | Restart only on non-zero exit code |
 
-`unless-stopped` is the standard for homelab services — survives reboots,
+`unless-stopped` is the standard for homelab services - survives reboots,
 respects manual stops.
 
 ## Logging limits
@@ -175,7 +175,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
 ```
 
-`pid: "host"` shares the host PID namespace — required for the NVIDIA toolkit
+`pid: "host"` shares the host PID namespace - required for the NVIDIA toolkit
 to access GPU devices.
 
 ## Healthchecks
@@ -200,7 +200,7 @@ docker system df                  # disk usage summary
 docker image prune -a --force     # remove unused images
 ```
 
-## `depends_on` — startup ordering, with caveats
+## `depends_on` - startup ordering, with caveats
 
 ```yaml
 services:
@@ -213,7 +213,7 @@ services:
 What this **does**: starts `db` and `redis` containers before `app`.
 
 What this **does not** do (without `condition:`): wait for them to be *ready*.
-A container being "started" means the entrypoint has been launched — not that
+A container being "started" means the entrypoint has been launched - not that
 the application is listening on its port.
 
 For real readiness ordering:
@@ -240,16 +240,16 @@ accepting connections". The dependency must define a healthcheck.
 ## `env_file` vs `environment`
 
 ```yaml
-# A — env_file: load from a file
+# A - env_file: load from a file
 env_file: .env
 
-# B — environment: list-form
+# B - environment: list-form
 environment:
   - PUID=1000
   - PGID=1000
   - TZ=Europe/Berlin
 
-# C — environment: map-form
+# C - environment: map-form
 environment:
   PUID: 1000
   PGID: 1000
@@ -283,19 +283,19 @@ services:
 |----------|-----------------------------------------------------------------------|
 | `PUID`   | Container's `abc` user is mapped to this host UID at startup          |
 | `PGID`   | Same for primary group                                                |
-| `TZ`     | Container timezone — affects log timestamps and scheduled jobs        |
+| `TZ`     | Container timezone - affects log timestamps and scheduled jobs        |
 
 The `lscr.io/linuxserver/*` namespace is the linuxserver.io maintained image
 registry. Their images consistently use `PUID`/`PGID`. Other image families
-use different variable names — Paperless uses `USERMAP_UID`/`USERMAP_GID`.
+use different variable names - Paperless uses `USERMAP_UID`/`USERMAP_GID`.
 Always check the image's docs.
 
 Why bother: bind-mounted host directories have specific UIDs. If the container
-runs as a different UID, files it creates appear with that UID on the host —
+runs as a different UID, files it creates appear with that UID on the host -
 either unreadable from the host side, or with the wrong owner for backup/sync
 tools. Setting `PUID:PGID` to match the host's expected ownership avoids this.
 
-## Named volumes + bind mounts — mixing strategies
+## Named volumes + bind mounts - mixing strategies
 
 ```yaml
 services:
@@ -314,15 +314,15 @@ When to use each:
 
 | Volume type    | Right for                                                       |
 |----------------|------------------------------------------------------------------|
-| Named volume   | Service-internal state — DB files, cache, logs. Docker manages location |
-| Bind mount     | Cross-service paths — user-visible files, files written by host scripts |
-| `:ro` bind     | Configs, certificates, read-only data — can't be modified from container |
+| Named volume   | Service-internal state - DB files, cache, logs. Docker manages location |
+| Bind mount     | Cross-service paths - user-visible files, files written by host scripts |
+| `:ro` bind     | Configs, certificates, read-only data - can't be modified from container |
 
 Don't bind-mount everything just for visibility. Named volumes back up via
 `docker volume` commands and are well-isolated. Use them whenever the
 container-internal layout doesn't need to be visible from the host.
 
-## 3-part bind syntax — explicit host interface
+## 3-part bind syntax - explicit host interface
 
 ```yaml
 ports:
@@ -336,12 +336,12 @@ ports:
 | `8083`                | Container port                                                |
 
 The 3-part form is the only form that lets you pin to a specific host interface.
-The 2-part form (`8080:8080`) binds to `0.0.0.0` — every interface, including
+The 2-part form (`8080:8080`) binds to `0.0.0.0` - every interface, including
 LAN. For homelab security, `${BIND_ADDRESS}` should be `127.0.0.1` or the
 Tailscale IP, never `0.0.0.0` unless explicitly intended.
 
 Using env-var substitution lets the same compose file deploy to different hosts
-without editing — each host's `.env` sets its own bind address.
+without editing - each host's `.env` sets its own bind address.
 
 ## Related
 

@@ -4,7 +4,7 @@
 
 - `lvs -o lv_name,data_percent` shows `data` at `100.00`
 - `qm status <vmid>` returns `status: io-error`
-- `df -h /` inside containers looks fine (this is misleading — see below)
+- `df -h /` inside containers looks fine (this is misleading - see below)
 - apt upgrades fail with `No space left on device`
 - Ansible: `Failed to create temporary directory` on affected nodes
 

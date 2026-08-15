@@ -3,7 +3,7 @@
 ## What Alertmanager does (and doesn't)
 
 Alertmanager is a **deduplication, grouping, and routing** layer. It does not
-generate alerts — Prometheus does. It does not store metrics — Prometheus does.
+generate alerts - Prometheus does. It does not store metrics - Prometheus does.
 It receives firing alerts and decides:
 
 1. Should I send a notification at all? (silences, inhibits)
@@ -52,7 +52,7 @@ inhibit_rules:
     equal: ["alertname", "instance"]
 ```
 
-## The four time settings — and why each exists
+## The four time settings - and why each exists
 
 | Setting              | What it controls                                            | Typical homelab value |
 |----------------------|-------------------------------------------------------------|------------------------|
@@ -67,10 +67,10 @@ each becomes a separate notification. With `group_wait: 30s`, the first one wait
 catches the others, and you get one consolidated message.
 
 `repeat_interval` is what stops Alertmanager from spamming you. `12h` is the
-sweet spot for a homelab — you'll see the alert at start of day if it persists,
+sweet spot for a homelab - you'll see the alert at start of day if it persists,
 without getting paged every hour overnight. For 24/7 production, `4h` or shorter.
 
-## `group_by` — what defines a "group"
+## `group_by` - what defines a "group"
 
 ```yaml
 group_by: ["alertname", "instance"]
@@ -83,13 +83,13 @@ Alerts sharing all listed label values are grouped into one notification.
 | `["alertname"]`              | All instances of one alert type collapse into one message |
 | `["alertname", "instance"]`  | Per-host: one message per (alertname, host) pair          |
 | `["..."]` (literal `...`)    | Group all alerts together (single notification per round) |
-| `[]` (empty)                 | No grouping — every alert is its own notification         |
+| `[]` (empty)                 | No grouping - every alert is its own notification         |
 
 For most homelabs, `["alertname", "instance"]` is right: a disk-full alert on
 two different hosts shouldn't be merged, but multiple firings of the same alert
 on the same host should be.
 
-## Inhibit rules — preventing redundant noise
+## Inhibit rules - preventing redundant noise
 
 When a critical alert fires, you usually don't want the warning that preceded
 it to keep notifying you separately:
@@ -112,7 +112,7 @@ suppress all warnings *anywhere*. With `equal: ["alertname", "instance"]`,
 suppression is scoped: a `HostDiskCritical` on `vm100` suppresses
 `HostDiskWarning` on `vm100` only.
 
-## Routing tree — first match wins
+## Routing tree - first match wins
 
 ```yaml
 route:
@@ -137,7 +137,7 @@ If you want a warning storage alert to go to *both* the team channel and the
 warning channel: set `continue: true` on the matching route, which lets evaluation
 fall through to subsequent routes.
 
-## Receivers — Discord webhook
+## Receivers - Discord webhook
 
 Alertmanager 0.27+ has native Discord support:
 
@@ -146,7 +146,7 @@ receivers:
   - name: "discord-critical"
     discord_configs:
       - webhook_url_file: /etc/alertmanager/secrets/discord-critical-url
-        title: "🚨 {{ .GroupLabels.alertname }}"
+        title: " {{ .GroupLabels.alertname }}"
         message: |
           {{ range .Alerts }}
           **{{ .Labels.instance }}**: {{ .Annotations.summary }}
@@ -155,14 +155,14 @@ receivers:
 
 | Setting          | Why                                                                          |
 |------------------|------------------------------------------------------------------------------|
-| `webhook_url_file` | Read URL from file. Better than `webhook_url:` directly — keeps secrets out of YAML |
+| `webhook_url_file` | Read URL from file. Better than `webhook_url:` directly - keeps secrets out of YAML |
 | `title`            | Discord embed title. Templated like Prometheus annotations                  |
 | `message`          | Body of the message. The `range .Alerts` iterates all alerts in the group   |
 
 For old Alertmanager versions without native Discord support, use the generic
 `webhook_configs` and let Discord's webhook URL do the formatting (limited).
 
-## Silences — for planned maintenance
+## Silences - for planned maintenance
 
 A silence suppresses alerts matching a label set for a duration:
 
@@ -174,7 +174,7 @@ amtool silence add severity=warning instance=vm100 \
 | Flag           | Why                                                                       |
 |----------------|---------------------------------------------------------------------------|
 | `--duration`   | Auto-expires. Forgotten silences are how alerts get missed for years       |
-| `--comment`    | Required by `amtool` — forces you to document the reason                  |
+| `--comment`    | Required by `amtool` - forces you to document the reason                  |
 | `--author`     | Who silenced it. Audit trail                                              |
 
 Silences are stored in Alertmanager's local storage and survive restarts.

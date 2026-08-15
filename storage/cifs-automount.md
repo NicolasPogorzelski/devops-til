@@ -14,17 +14,17 @@ mountpoint is first accessed.
 
 ```
 A process accesses /mnt/smb/foo
-        ↓
+        v
 systemd-automount intercepts
-        ↓
+        v
 Triggers <mountpoint>.mount unit
-        ↓
+        v
 Process gets the mounted filesystem
 ```
 
 Two units cooperate per mountpoint:
-- `mnt-smb-foo.mount` — the actual mount
-- `mnt-smb-foo.automount` — the trigger that activates the mount on access
+- `mnt-smb-foo.mount` - the actual mount
+- `mnt-smb-foo.automount` - the trigger that activates the mount on access
 
 The automount unit is enabled at boot. The mount unit is started lazily.
 
@@ -45,7 +45,7 @@ The automount unit is enabled at boot. The mount unit is started lazily.
 |---|---|
 | `x-systemd.automount` | systemd-fstab-generator creates an `.automount` unit alongside the `.mount` unit |
 | `x-systemd.idle-timeout=600` | Unmount after 10 minutes of inactivity |
-| `noauto` | Don't mount at boot — wait for first access |
+| `noauto` | Don't mount at boot - wait for first access |
 | `credentials=<path>` | Path to a credentials file (chmod 600, contains username/password) |
 | `vers=3.0` | Force SMB3 (avoid SMB1, deprecated and insecure) |
 | `uid=1000,gid=1000` | Map share ownership to a specific local UID/GID |
@@ -59,7 +59,7 @@ systemctl list-units --type=mount  # all currently active mount units
 systemctl list-units --type=automount  # active automount triggers
 ```
 
-## The boot-trigger pattern — and why my version of it was theatre
+## The boot-trigger pattern - and why my version of it was theatre
 
 The idea: services access bind-mounted CIFS paths during their own startup, before anything
 triggers the automount, and start against an empty directory. So add a oneshot unit that touches
@@ -68,7 +68,7 @@ every `/mnt/smb/*` early and forces the mounts up.
 I ran this for months:
 
 ```bash
-# /usr/local/sbin/trigger-smb-automounts.sh — DON'T. Kept here as a specimen.
+# /usr/local/sbin/trigger-smb-automounts.sh - DON'T. Kept here as a specimen.
 for d in /mnt/smb/*; do
   timeout 3s ls -la "$d"/. >/dev/null 2>&1 || true
 done
@@ -84,7 +84,7 @@ instead of the unit):
 1. **Ordering.** On a Proxmox host, `network-online.target` is reached *before*
    `pve-guests.service` starts the storage VM. Measured on one boot: trigger at `12:16:15`,
    VM started at `12:16:23`. It poked automounts whose SMB server did not exist yet. **No boot
-   ordering can fix this class** — the server is a guest of the machine doing the mounting. Lazy,
+   ordering can fix this class** - the server is a guest of the machine doing the mounting. Lazy,
    on-access mounting is the *only* mechanism that works.
 2. **`|| true` swallowed every error.** The unit reported success unconditionally, forever. It
    passed its positive test every single boot while achieving nothing.
@@ -126,7 +126,7 @@ ExecStart=/usr/local/sbin/check-smb-mounts.sh
 ```
 
 A failing unit is exported by `node_exporter --collector.systemd` and raises an alert. That turns
-a silent boot-time mount failure into a page — which is the entire difference between the old unit
+a silent boot-time mount failure into a page - which is the entire difference between the old unit
 and the new one.
 
 **Test the negative case, always.** The old unit passed its positive test for months. Prove the new
@@ -142,12 +142,12 @@ rmdir /mnt/smb/zz-test && systemctl reset-failed smb-mounts-check.service
 ## Field report: one missing option, one month of failure (KE-15)
 
 The theory at the top of this file was written *before* the incident it describes. Knowing the
-mechanism did not prevent it — **one fstab line was missing `x-systemd.automount`**, and nothing
+mechanism did not prevent it - **one fstab line was missing `x-systemd.automount`**, and nothing
 ever checked:
 
 ```
-//vm102/Books-service  /mnt/smb/books     cifs  _netdev,nofail,x-systemd.automount,…   # fine
-//vm102/Books          /mnt/smb/books-rw  cifs  _netdev,nofail,noatime,…               # BROKEN
+//vm102/Books-service  /mnt/smb/books     cifs  _netdev,nofail,x-systemd.automount,...   # fine
+//vm102/Books          /mnt/smb/books-rw  cifs  _netdev,nofail,noatime,...               # BROKEN
 ```
 
 Without the option, systemd tries the mount **once**, at boot, against a VM the host has not
@@ -156,7 +156,7 @@ and **systemd never retries**. The unit sits in `failed` forever. Downstream: th
 the empty directory underneath (on the host's root LV), the container's service cannot write
 there, and it failed every two minutes for a month behind a green dashboard.
 
-**The audit that would have caught it in one second — run it on every host with CIFS mounts:**
+**The audit that would have caught it in one second - run it on every host with CIFS mounts:**
 
 ```bash
 grep '/mnt/smb/' /etc/fstab | grep -v x-systemd.automount   # must print nothing
@@ -166,7 +166,7 @@ Two more things the incident taught:
 
 - **The failure signature, seen from inside the container:** `findmnt /books-rw` reports
   `ext4 /dev/mapper/pve-root[/mnt/smb/books-rw]` instead of `cifs`. That is the bind showing the
-  bare directory under the failed mount. `mountpoint -q` says "yes, it's a mountpoint" — because
+  bare directory under the failed mount. `mountpoint -q` says "yes, it's a mountpoint" - because
   the bind *is* one. Existence is not identity (see
   [mount existence vs identity](../linux/mount-existence-vs-identity.md)).
 - **A container's bind does not heal when the host mount comes back.** The namespace was set up
@@ -174,7 +174,7 @@ Two more things the incident taught:
 
 **Documentation is not a control.** This file described the chicken-and-egg problem correctly and
 in detail while the fleet had a live instance of it. What closes the gap is the `grep` above, plus
-a unit that fails loudly — not prose.
+a unit that fails loudly - not prose.
 
 ## Hard rule: no databases on CIFS
 
@@ -185,7 +185,7 @@ Architectural rule: no SQLite/PostgreSQL data directories on automount-backed
 network shares. Use local block storage for runtime; CIFS is fine for *backups*
 since they are write-once + read-on-restore.
 
-## App-state vs uploads — a generalizable split
+## App-state vs uploads - a generalizable split
 
 The "no DBs on CIFS" rule generalizes:
 
@@ -219,19 +219,19 @@ systemctl status mnt-smb-foo.automount # detailed state of a specific automount
 mount-point hierarchy and unit naming, and `--json` makes scripted health
 checks straightforward.
 
-## Desktop fstab — `_netdev` is not enough when the server is behind Tailscale
+## Desktop fstab - `_netdev` is not enough when the server is behind Tailscale
 
 The tempting rule is "desktops don't need automount, `_netdev,nofail` is fine." That holds
-**only if the CIFS server is reachable the moment `network-online.target` is reached** — i.e.
+**only if the CIFS server is reachable the moment `network-online.target` is reached** - i.e.
 a plain-LAN NAS. It is false when the server is reached over **Tailscale** (or any WireGuard/VPN
 overlay), and that distinction is the whole lesson.
 
-`_netdev` waits for `network-online.target`. That target means "a routable interface is up" —
+`_netdev` waits for `network-online.target`. That target means "a routable interface is up" -
 it does **not** wait for `tailscaled` to finish authenticating and installing the route to the
 `100.64.0.0/10` peer. So the boot ordering is:
 
 ```
-network-online.target  →  fstab CIFS mount fires  →  route to 100.x.y.z not up yet  →  FAIL
+network-online.target  ->  fstab CIFS mount fires  ->  route to 100.x.y.z not up yet  ->  FAIL
                                                       tailscaled finishes a moment later
 ```
 
@@ -244,11 +244,11 @@ after a reboot, 4 shares were mounted and exactly one sat `failed`:
 mount error(111): could not connect to 100.x.y.z  Unable to find suitable address.
 ```
 
-Same credentials, same options, same server as the 4 that worked — the only variable was timing.
+Same credentials, same options, same server as the 4 that worked - the only variable was timing.
 The empty mountpoint underneath then shows as an empty folder to the file manager / Jellyfin / ES-DE.
 
 **Fix: use `x-systemd.automount` on the desktop too.** Lazy on-access mounting sidesteps the race
-entirely — by the time anything touches the folder, `tailscaled` is long up. This is the same
+entirely - by the time anything touches the folder, `tailscaled` is long up. This is the same
 mechanism as the server case above; the trigger there is a chicken-and-egg VM dependency, here it
 is VPN-route-after-`network-online`. Both are "the network isn't really ready when `_netdev` says
 it is", and automount is the answer to both.
@@ -259,7 +259,7 @@ it is", and automount is the answer to both.
 
 `noauto` frees the mountpoint for the `.automount` unit; keep `_netdev`/`nofail` (harmless). The
 generated `.automount` unit is `WantedBy=remote-fs.target` (CIFS = remote fs), so it is pulled at
-boot automatically — do **not** `systemctl enable` it (generated units refuse `enable`: "transient
+boot automatically - do **not** `systemctl enable` it (generated units refuse `enable`: "transient
 or generated"). Activate without a reboot: unmount the old direct mounts, `systemctl daemon-reload`,
 then `systemctl start <name>.automount`; the units go to `active waiting`, and the first `ls` on
 the path triggers the real CIFS mount.
@@ -274,13 +274,13 @@ grep -E '\bcifs\b' /etc/fstab | grep -v x-systemd.automount   # any Tailscale-ba
 
 If the NAS is on the same L2 LAN (server reachable via a normal DHCP/static route that exists at
 `network-online.target`), the plain `_netdev,nofail` entry shown under **fstab entry** below is
-sufficient — no VPN hop, no race. The credentials-file and `cifs-utils` notes that follow apply to
+sufficient - no VPN hop, no race. The credentials-file and `cifs-utils` notes that follow apply to
 both the automount and the plain variant.
 
 ### KIO/GVfs is not a real mount
 
 KDE Dolphin mounts network shares on-demand via KIO/GVfs. These are not real
-filesystem mounts — they live under `/run/user/1000/gvfs/smb-share:...` and
+filesystem mounts - they live under `/run/user/1000/gvfs/smb-share:...` and
 are invisible to applications. ES-DE, RetroArch, and any other app that needs
 a stable path cannot use them.
 
@@ -312,9 +312,9 @@ sudo chown root:root /etc/samba/credentials/<name>
 | Option | Purpose |
 |---|---|
 | `credentials=` | Path to credentials file (chmod 600) |
-| `uid=1000,gid=1000` | Map share to local user — required for apps to read/write |
+| `uid=1000,gid=1000` | Map share to local user - required for apps to read/write |
 | `iocharset=utf8` | Unicode filenames (game titles with special characters) |
-| `_netdev` | Tell systemd this mount needs the network — delays it until network is up |
+| `_netdev` | Tell systemd this mount needs the network - delays it until network is up |
 | `nofail` | Boot succeeds even if the share is unreachable |
 
 Test without reboot: `sudo mount -a`
@@ -330,7 +330,7 @@ paru -S cifs-utils
 ### Immutable OS (Bazzite / Fedora Atomic): rpm-ostree layering
 
 On an `rpm-ostree`-based desktop (Bazzite, Silverblue, Kinoite) the root filesystem
-is immutable — there is no live `dnf install`. The kernel CIFS code is built in, but
+is immutable - there is no live `dnf install`. The kernel CIFS code is built in, but
 the userspace helper (`mount.cifs` from `cifs-utils`) may need layering:
 
 ```bash
@@ -339,11 +339,11 @@ mount.cifs --version || rpm-ostree install cifs-utils   # often already in the b
 
 | Step | Why |
 |---|---|
-| `mount.cifs --version` | Check first — Bazzite ships `cifs-utils` in the base image, so layering is frequently a no-op |
+| `mount.cifs --version` | Check first - Bazzite ships `cifs-utils` in the base image, so layering is frequently a no-op |
 | `rpm-ostree install` | Layers the package into a **new deployment**; the running system is untouched |
 | `systemctl reboot` | The layered package only becomes active in the next boot's deployment |
 
-The `/etc/fstab` + credentials-file steps above are identical — `/etc` is writable
+The `/etc/fstab` + credentials-file steps above are identical - `/etc` is writable
 and persists across `rpm-ostree` updates. Only the package-install mechanism differs
 from a traditional distro. `sudo mount -a` still works immediately once `mount.cifs`
 is present (no reboot needed for the mount itself, only for the layering).

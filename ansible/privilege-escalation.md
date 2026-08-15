@@ -13,11 +13,11 @@ Ansible connects as a specific user (e.g. `gpu`, `storage`). Some tasks require 
 | `become_user: root` | User to escalate to | root |
 | `become_method: sudo` | Escalation method | sudo |
 
-`become: true` alone is enough in most cases — root is the default target.
+`become: true` alone is enough in most cases - root is the default target.
 
-## Placement — play level vs task level
+## Placement - play level vs task level
 
-**Play level** — applies to all tasks in the play:
+**Play level** - applies to all tasks in the play:
 
 ```yaml
 - name: upgrade apt
@@ -32,7 +32,7 @@ Ansible connects as a specific user (e.g. `gpu`, `storage`). Some tasks require 
         upgrade: dist
 ```
 
-**Task level** — applies only to that specific task:
+**Task level** - applies only to that specific task:
 
 ```yaml
 tasks:
@@ -48,10 +48,10 @@ Use play level when all tasks need root. Use task level when only specific tasks
 ## How Ansible uses sudo
 
 When `become: true` is set, Ansible escalates the **entire Python module execution** to root
-via sudo — not just the final command. This means the sudo rule must allow the Python
+via sudo - not just the final command. This means the sudo rule must allow the Python
 interpreter, not just the tool being used.
 
-This is why `NOPASSWD: /usr/bin/apt-get` is not enough for Ansible — the actual sudo call
+This is why `NOPASSWD: /usr/bin/apt-get` is not enough for Ansible - the actual sudo call
 is to Python, not apt-get.
 
 For Ansible-managed nodes, use:
@@ -81,10 +81,10 @@ chmod 440 /etc/sudoers.d/ansible
 ```
 
 `validate` runs `visudo -csf %s` on a temp copy before writing. If the syntax
-is invalid, the file is never written — sudo cannot be broken by a typo.
+is invalid, the file is never written - sudo cannot be broken by a typo.
 `%s` is replaced by Ansible with the temp file path.
 
-`mode: '0440'` must be a quoted string — unquoted `0440` can be misinterpreted
+`mode: '0440'` must be a quoted string - unquoted `0440` can be misinterpreted
 as a decimal integer by YAML parsers.
 
 **Important:** The file must be owned by root. sudo refuses files with wrong ownership:
@@ -123,8 +123,8 @@ Install sudo before writing the sudoers file:
     validate: /usr/sbin/visudo -csf %s
 ```
 
-`state: present` — install if missing, do nothing if already installed (idempotent).
-`state: latest` — always upgrade to newest version. Use `present` in bootstrap
+`state: present` - install if missing, do nothing if already installed (idempotent).
+`state: latest` - always upgrade to newest version. Use `present` in bootstrap
 playbooks to avoid unintended upgrades.
 
 ## The dedicated ansible user pattern

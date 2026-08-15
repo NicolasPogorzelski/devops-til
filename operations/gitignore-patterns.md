@@ -1,7 +1,7 @@
 # .gitignore Patterns: Excluding a Directory vs. Excluding Its Contents
 
 Two forms look interchangeable and are not. Picking the wrong one does not fail
-loudly — it fails later, when a negation you added silently does nothing.
+loudly - it fails later, when a negation you added silently does nothing.
 
 ## The rule that catches everyone
 
@@ -16,7 +16,7 @@ bring it back:
 
 ```gitignore
 .claude/
-!.claude/skills/    # has NO effect — the parent is already excluded
+!.claude/skills/    # has NO effect - the parent is already excluded
 ```
 
 From `gitignore(5)`:
@@ -24,8 +24,8 @@ From `gitignore(5)`:
 > It is not possible to re-include a file if a parent directory of that file is
 > excluded.
 
-With `.claude/*`, only the direct children are excluded — the `*` does not match
-`/` — and the directory itself stays traversable, so negations work:
+With `.claude/*`, only the direct children are excluded - the `*` does not match
+`/` - and the directory itself stays traversable, so negations work:
 
 ```gitignore
 .claude/*
@@ -50,12 +50,12 @@ Two details that matter when writing the negation:
 
 ## Default-deny for directories a tool writes into
 
-Any directory that a tool manages itself — editor state, agent settings, caches —
+Any directory that a tool manages itself - editor state, agent settings, caches -
 will grow files you did not anticipate. Two ways to handle it:
 
 | Approach | Failure mode |
 |---|---|
-| Denylist (`dir/state.json`, `dir/state.json.bak`, …) | A new file the tool invents lands in the repo. Fails **open**. |
+| Denylist (`dir/state.json`, `dir/state.json.bak`, ...) | A new file the tool invents lands in the repo. Fails **open**. |
 | Allowlist (`dir/*` + explicit `!`) | A file you wanted versioned is silently not. Fails **closed**. |
 
 For anything that might contain paths, tokens or machine-specific config, the
@@ -78,7 +78,7 @@ git check-ignore -v <path>
 
 - `-v` prints source, line number and the matching pattern. Without it you get
   only the list of paths that are ignored.
-- **No output means no rule matched** — the file is simply untracked, not ignored.
+- **No output means no rule matched** - the file is simply untracked, not ignored.
   Exit code is 1 in that case, which is easy to misread as an error.
 
 ## `?? dir/` does not mean the directory is unignored
@@ -105,7 +105,7 @@ git ls-files <path>             # empty output = not tracked, rule will apply
 git rm --cached <path>          # stop tracking, keep the file on disk
 ```
 
-Check `git ls-files` *before* concluding that a rule is broken — it separates
+Check `git ls-files` *before* concluding that a rule is broken - it separates
 "the rule does not match" from "the rule never applied here in the first place".
 
 ## Verifying a pattern before committing to it
@@ -118,7 +118,7 @@ printf 'dir/*\n!dir/keep/\n' > .gitignore
 git status --short -uall
 ```
 
-Note that git does not track empty directories, so the probe files are required —
+Note that git does not track empty directories, so the probe files are required -
 without a file inside, a negation on a directory cannot be observed at all.
 
 ## Related

@@ -1,21 +1,21 @@
-# SnapRAID + MergerFS — Homelab Storage Stack
+# SnapRAID + MergerFS - Homelab Storage Stack
 
 ## Architecture overview
 
 ```
 Physical disks (individual ext4)
-        ↓
-    MergerFS         ← pooled virtual filesystem (/mnt/pool)
-        ↓
-    SnapRAID         ← parity protection (not RAID, not real-time)
-        ↓
-   Samba shares      ← network access for service LXCs
+        v
+    MergerFS         <- pooled virtual filesystem (/mnt/pool)
+        v
+    SnapRAID         <- parity protection (not RAID, not real-time)
+        v
+   Samba shares      <- network access for service LXCs
 ```
 
 ## MergerFS
 
 MergerFS pools multiple disks into a single virtual filesystem. Files are stored
-on individual disks — MergerFS presents them as one unified path.
+on individual disks - MergerFS presents them as one unified path.
 
 Key property: **files are not split across disks**. Each file lives entirely on one disk.
 If a disk fails, only the files on that disk are at risk.
@@ -33,7 +33,7 @@ to another disk automatically.
 ## SnapRAID
 
 SnapRAID calculates parity data across all pooled disks and writes it to a
-dedicated parity disk. It is **not real-time** — parity is only updated when `snapraid sync` runs.
+dedicated parity disk. It is **not real-time** - parity is only updated when `snapraid sync` runs.
 
 **Consequence:** Files written after the last sync are unprotected. If a disk fails
 before sync, those files are unrecoverable.
@@ -90,7 +90,7 @@ Access is least-privilege:
 - Read-write for producers (Nextcloud, Paperless)
 - Never use SMB for database files (SQLite locking breaks over CIFS)
 
-## fstab tuning — `noatime`
+## fstab tuning - `noatime`
 
 ext4 by default updates each file's *access time* on every read (`atime`).
 For a media or archive disk that is mostly read, this is pure write amplification:
@@ -116,10 +116,10 @@ The trailing `0 2` is `<dump>` and `<fsck-pass>`:
 | `<dump>` (0 or 1)  | Used by the (deprecated) `dump` command. `0` always.               |
 | `<fsck-pass>`      | `0` skip, `1` root, `2` other. Disks at `2` are checked in parallel |
 
-For data disks: `0 2`. For system root: `0 1`. Don't mix `1` for non-root —
+For data disks: `0 2`. For system root: `0 1`. Don't mix `1` for non-root -
 fsck passes are ordered, and pass 1 should be reserved for root.
 
-## SnapRAID `excludes` — what not to protect
+## SnapRAID `excludes` - what not to protect
 
 ```
 exclude *.tmp
@@ -144,7 +144,7 @@ snapraid status              # shows excluded file count per disk
 snapraid diff | head -50     # what changed since last sync, after exclusions
 ```
 
-## Multiple `content` files — robustness
+## Multiple `content` files - robustness
 
 SnapRAID's `content` file is the catalog of every file's hash. Lose all copies
 and you cannot verify integrity or recover. Configure multiple copies (one per
@@ -162,10 +162,10 @@ Why one per disk: any single disk failure leaves all other content files intact.
 Why one outside the array (`/var`): protects against a corrupt-everything-
 on-the-pool scenario.
 
-The first listed `content` file is the *primary* — SnapRAID writes it most
+The first listed `content` file is the *primary* - SnapRAID writes it most
 aggressively. Make it the most reliable disk (often `/var` on the system SSD).
 
-## MergerFS create policy — `category.create=mfs`
+## MergerFS create policy - `category.create=mfs`
 
 MergerFS decides which underlying disk a new file goes to via a *create policy*:
 
@@ -182,7 +182,7 @@ defaults,category.create=mfs
 
 `mfs` is the right default for media storage: it spreads load evenly. `epmfs`
 keeps related files together (good for "all of season 1 on one disk"), at the
-cost of imbalanced fill. Pick one and stay with it — switching later does
+cost of imbalanced fill. Pick one and stay with it - switching later does
 not redistribute existing files.
 
 ## Anti-pattern: `--force-deletions`
@@ -210,7 +210,7 @@ If the disks are mounted and the deletions are real (you actually deleted
 those files), then `--force-deletions` is correct. If a disk is unmounted,
 fix that first.
 
-## Hash mismatch during scrub — critical signal
+## Hash mismatch during scrub - critical signal
 
 ```
 snapraid scrub
@@ -235,7 +235,7 @@ snapraid scrub --plan=full          # re-verify entire array
 Hash mismatches are rarely isolated; if SMART shows growing reallocated sectors,
 plan the disk replacement before the next scrub.
 
-## `snapraid fix` — parity-based recovery
+## `snapraid fix` - parity-based recovery
 
 When a disk fails entirely or files are corrupted, `snapraid fix` rebuilds them
 from parity:
@@ -247,14 +247,14 @@ snapraid fix -f /path/to/file     # repair specific file
 ```
 
 Time to fix scales with array size. For a 50TB array with a single failed disk,
-expect 8–24h of read+write across all surviving disks. During this time,
-**no further sync should run** — the array is in a degraded state.
+expect 8-24h of read+write across all surviving disks. During this time,
+**no further sync should run** - the array is in a degraded state.
 
 ## Live disk expansion without remounting (mergerfs xattr)
 
 MergerFS exposes a control interface via extended attributes on the hidden
 `.mergerfs` file at the mountpoint root. This allows adding or removing disks
-at runtime without unmounting — and without interrupting services that are
+at runtime without unmounting - and without interrupting services that are
 currently reading or writing through the pool.
 
 ```bash
@@ -283,32 +283,32 @@ approach works on all mergerfs versions that support the control interface
 When adding a new, empty disk to the SnapRAID data pool, the sync is fast.
 
 **Why:** SnapRAID parity = XOR across all data disks. An empty disk contains
-only zeros. `data XOR 0 = data` — parity is unchanged. SnapRAID only needs to
+only zeros. `data XOR 0 = data` - parity is unchanged. SnapRAID only needs to
 register the new disk in its content files and scan the empty disk (instant).
 
 Procedure:
 1. Add `data <diskname> /mnt/<diskname>` to `snapraid.conf`
 2. Add `content /mnt/<diskname>/snapraid.content` to `snapraid.conf`
-3. Run `snapraid sync` — completes in minutes (scan + content file writes)
+3. Run `snapraid sync` - completes in minutes (scan + content file writes)
 
 Contrast: removing a disk **with data** requires moving files off it first,
 then syncing. Removing an already-empty disk is equally fast (XOR with zeros
 again leaves parity unchanged).
 
-## `snapraid status` — output interpretation
+## `snapraid status` - output interpretation
 
 Key fields in the status report:
 
 | Field | Meaning |
 |-------|---------|
-| Free GB | Based on last sync state — may differ from `df` if files were added since last sync |
+| Free GB | Based on last sync state - may differ from `df` if files were added since last sync |
 | Scrub graph (`*`) | Blocks scrubbed most recently. `o` = older. Sparse graph = scrub hasn't covered the full array yet |
-| `X% not scrubbed` | Normal after monthly partial scrubs — each run covers a fraction of the array |
-| `N files with zero sub-second timestamp` | Files copied without sub-second precision; fix with `snapraid touch` → `snapraid sync` |
+| `X% not scrubbed` | Normal after monthly partial scrubs - each run covers a fraction of the array |
+| `N files with zero sub-second timestamp` | Files copied without sub-second precision; fix with `snapraid touch` -> `snapraid sync` |
 
 **Free space discrepancy (snapraid vs df):** If snapraid reports more free space
 than `df`, files were written to the pool since the last sync. Those files exist
-on disk but snapraid doesn't know about them yet — they are unprotected.
+on disk but snapraid doesn't know about them yet - they are unprotected.
 Run `snapraid sync` to close the gap.
 
 ## Related

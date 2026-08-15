@@ -23,12 +23,12 @@ Five parts:
 | Part           | Role                                                                   |
 |----------------|------------------------------------------------------------------------|
 | `alert:`       | Alert name. Used for routing in Alertmanager                          |
-| `expr:`        | PromQL. Boolean — alert fires when this returns a non-empty result    |
-| `for:`         | Debounce — must remain true continuously for this duration            |
+| `expr:`        | PromQL. Boolean - alert fires when this returns a non-empty result    |
+| `for:`         | Debounce - must remain true continuously for this duration            |
 | `labels:`      | Metadata attached to firing alerts. Used for routing                  |
 | `annotations:` | Human-readable text. Templates can reference `$labels` and `$value`   |
 
-## `for:` — the debouncing tool
+## `for:` - the debouncing tool
 
 `for: 10m` means "the expression must be continuously true for 10 minutes
 before the alert fires". This is the single most important alerting setting.
@@ -42,7 +42,7 @@ before the alert fires". This is the single most important alerting setting.
 
 Without `for:`, every momentary blip generates a notification. With too long a
 `for:`, real failures take ages to alert. Default to `2m` for binary up/down,
-`10–15m` for resource pressure.
+`10-15m` for resource pressure.
 
 ## Labels: severity convention
 
@@ -53,12 +53,12 @@ Two values, no third:
 | `critical`  | User-affecting now. Wake someone up.                           |
 | `warning`   | Trending toward problem; investigate during business hours     |
 
-Adding `info` or `notice` levels is a common mistake — alerts at "info" level
+Adding `info` or `notice` levels is a common mistake - alerts at "info" level
 get ignored. If something is informational, it goes in a dashboard, not an alert.
 
 `severity` is what Alertmanager routes on. See [Alertmanager Routing](alertmanager-routing.md).
 
-## Filesystem queries — excluding pseudo-filesystems
+## Filesystem queries - excluding pseudo-filesystems
 
 Naive `node_filesystem_avail_bytes` includes tmpfs, overlayfs, fuse mounts.
 Filtering them out is non-optional:
@@ -76,7 +76,7 @@ node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|overlay"}
 
 `fstype!~"tmpfs|fuse.lxcfs|overlay"` reads as "fstype does not match the regex
 `tmpfs|fuse.lxcfs|overlay`". Without it, every tmpfs near-fullness (which is
-normal — tmpfs grows on demand) generates noise.
+normal - tmpfs grows on demand) generates noise.
 
 Add the same filter to disk-related alerts:
 
@@ -101,7 +101,7 @@ sum by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
 `without` is often clearer than `by` when most labels should be preserved.
 `by (instance)` collapses everything except instance.
 
-## PostgreSQL filtering — exclude internal databases
+## PostgreSQL filtering - exclude internal databases
 
 ```promql
 pg_stat_activity_count{datname!~"template.*|postgres"}
@@ -129,7 +129,7 @@ annotations:
 | `{{ $value }}`     | Numeric value of the alert expression                    |
 
 `printf "%.1f"` formats to one decimal place. Without it, you get `9.731289326`
-in your alert text — readable, but not pretty. Common formats:
+in your alert text - readable, but not pretty. Common formats:
 
 | Format     | Example output                          |
 |------------|-----------------------------------------|
@@ -138,16 +138,16 @@ in your alert text — readable, but not pretty. Common formats:
 | `%.2f`     | `42.31`                                 |
 | `%g`       | `42.3142` (auto-trims trailing zeros)   |
 
-## Annotations vs labels — what's the difference
+## Annotations vs labels - what's the difference
 
 | Field           | Used by                                               |
 |-----------------|-------------------------------------------------------|
 | **labels**      | Alertmanager for routing/grouping. Affect alert identity |
 | **annotations** | Humans. Display text. Do not affect routing            |
 
-Putting `summary` in labels is wrong — Alertmanager would treat every distinct
+Putting `summary` in labels is wrong - Alertmanager would treat every distinct
 summary as a different alert and never group them. Putting `severity` in
-annotations is wrong — routes can't reach it.
+annotations is wrong - routes can't reach it.
 
 Rule of thumb: **label = identifier or routing dimension. Annotation = description**.
 
@@ -156,7 +156,7 @@ Rule of thumb: **label = identifier or routing dimension. Annotation = descripti
 ```yaml
 groups:
   - name: snapraid           # one group per domain
-    interval: 5m             # less frequent eval — these are slow-moving
+    interval: 5m             # less frequent eval - these are slow-moving
     rules:
       - alert: SnapraidSyncOverdue
         expr: time() - snapraid_last_sync_seconds > 86400 * 2
@@ -169,7 +169,7 @@ groups:
 Per-group `interval:` overrides the global `evaluation_interval`. Slow-moving
 domains (storage health, backup ages) don't need to be evaluated every 15s.
 
-## Recording rules — pre-computing expensive queries
+## Recording rules - pre-computing expensive queries
 
 When a dashboard query is slow because PromQL evaluates over millions of samples,
 move the work to a *recording rule* that pre-computes the value periodically:
@@ -185,7 +185,7 @@ groups:
 ```
 
 Naming convention: `<aggregation_level>:<metric>:<operation>`. The dashboard
-then queries `instance:node_cpu_utilization:rate5m` directly — pre-computed,
+then queries `instance:node_cpu_utilization:rate5m` directly - pre-computed,
 fast, and consistently named across dashboards.
 
 ## Validation
@@ -195,7 +195,7 @@ promtool check rules /etc/prometheus/rules/*.yml
 promtool test rules /etc/prometheus/rules/test/*.yml
 ```
 
-`check` validates syntax. `test` runs unit tests defined in test YAML files —
+`check` validates syntax. `test` runs unit tests defined in test YAML files -
 overkill for homelab, essential at scale.
 
 ## Related

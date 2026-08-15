@@ -5,7 +5,7 @@
 The Docker daemon (`dockerd`) delegates container lifecycle management to
 `containerd`, which is a separate daemon. Both run independently.
 
-When `dockerd` crashes ungracefully, `containerd` keeps running — including
+When `dockerd` crashes ungracefully, `containerd` keeps running - including
 any task state it holds for previously running containers.
 
 ## Stale task state after ungraceful daemon shutdown
@@ -17,23 +17,23 @@ containerd is left with stale task directories in:
 /run/containerd/io.containerd.runtime.v2.task/moby/<container-id>/
 ```
 
-`/run/` is a tmpfs — this is ephemeral state, not persistent storage.
+`/run/` is a tmpfs - this is ephemeral state, not persistent storage.
 
 On the next Docker start, `dockerd` reads its own container database and
 tries to restart containers with `restart: unless-stopped` or `restart: always`.
-It attempts to create a new containerd task — and fails because the stale
+It attempts to create a new containerd task - and fails because the stale
 directory already exists.
 
 ## Error messages
 
 Two distinct errors depending on recovery stage:
 
-**Stage 1 — stale directory:**
+**Stage 1 - stale directory:**
 ```
 failed to create task for container: mkdir /run/containerd/.../moby/<id>: file exists
 ```
 
-**Stage 2 — stale container registration in containerd:**
+**Stage 2 - stale container registration in containerd:**
 ```
 failed to create task for container: failed to create shim task:
 OCI runtime create failed: runc create failed: container with given ID already exists
@@ -56,7 +56,7 @@ cd /path/to/compose && docker compose up -d
 removing both the task directory and the container object. The `-f` flag forces
 removal even if the container is not in a running state.
 
-Do not attempt to manually delete `/run/containerd/...` directories — by the
+Do not attempt to manually delete `/run/containerd/...` directories - by the
 time Stage 2 is reached, the stale state is in containerd's metadata, not just
 the filesystem.
 

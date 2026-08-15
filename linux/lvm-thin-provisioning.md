@@ -3,7 +3,7 @@
 ## What it is
 
 Thin provisioning lets you allocate more virtual disk space to VMs and containers than physically
-exists on the storage pool. The pool only grows when data is actually written — not when the
+exists on the storage pool. The pool only grows when data is actually written - not when the
 disk is created.
 
 Proxmox uses a LVM thin-pool (`local-lvm`) for all VM and LXC disks by default.
@@ -23,13 +23,13 @@ lvs -o lv_name,lv_size,data_percent
 
 - QEMU VMs enter `io-error` state and suspend (all writes fail)
 - LXC containers keep running but all writes fail silently
-- In-progress package downloads are truncated → corrupt `.deb` archives
-- Binaries being written mid-upgrade are truncated → corrupt ELF files
+- In-progress package downloads are truncated -> corrupt `.deb` archives
+- Binaries being written mid-upgrade are truncated -> corrupt ELF files
 
 ## How to reclaim space (fstrim)
 
 Deleting files inside a container does not automatically free blocks in the thin-pool.
-The pool needs to be told that those blocks are free — this is done with `fstrim`.
+The pool needs to be told that those blocks are free - this is done with `fstrim`.
 
 ### Inside VMs (works normally via SSH)
 
@@ -37,12 +37,12 @@ The pool needs to be told that those blocks are free — this is done with `fstr
 sudo fstrim -v /
 ```
 
-### Inside LXC containers (blocked — must use nsenter from Proxmox host)
+### Inside LXC containers (blocked - must use nsenter from Proxmox host)
 
 `fstrim` inside an LXC fails with `FITRIM ioctl failed: Operation not permitted` because
 the FITRIM ioctl is blocked by the LXC security profile.
 
-Workaround — run from the Proxmox host using the container's PID namespace:
+Workaround - run from the Proxmox host using the container's PID namespace:
 
 ```bash
 PID=$(lxc-info -n 200 | awk '/^PID:/{print $2}')
@@ -80,7 +80,7 @@ pvesm status          # all pools: type, total, used, available, %
 pvesm list local-lvm  # all volumes in the thin-pool with nominal sizes
 ```
 
-Nominal size (from `pvesm list`) ≠ actual thin-pool consumption (from `pvesm status`).
+Nominal size (from `pvesm list`) != actual thin-pool consumption (from `pvesm status`).
 A 64 GB nominal disk only consumes thin-pool blocks for data actually written.
 
 ## Key commands

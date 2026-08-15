@@ -2,7 +2,7 @@
 
 Documentation drifts from the system it describes. A **doc-reality audit** treats
 every documented claim as a hypothesis and checks it against live state with a
-concrete verification command — the same root-cause discipline used for
+concrete verification command - the same root-cause discipline used for
 incidents, applied at documentation scale. Run against a homelab repo (2026-07-08)
 it surfaced ~30 drifts, several of them real functional bugs hiding behind
 correct-looking docs.
@@ -17,10 +17,10 @@ loop per claim:
 1. **Read the claim** in the doc.
 2. **Name the verification command** that reads the corresponding live state.
 3. **Run it, compare.**
-4. **Reconcile** — and consciously decide the *direction* (see below).
+4. **Reconcile** - and consciously decide the *direction* (see below).
 
-This is deliberately the same shape as symptom → verification command →
-diagnosis → fix. The only difference is the trigger is a written claim rather
+This is deliberately the same shape as symptom -> verification command ->
+diagnosis -> fix. The only difference is the trigger is a written claim rather
 than an alert.
 
 ## Reconciliation direction is a decision, not a default
@@ -30,13 +30,13 @@ but **not automatic**. Three outcomes, and choosing between them needs intent:
 
 | Disagreement | Correct direction | Example from the audit |
 |---|---|---|
-| Doc stale, reality fine | Fix the **doc** | Boot order, image versions, node naming (`CT260`→`lxc260`) |
-| Doc right, reality wrong | Fix the **reality** (or file it) | sshd effectively unhardened — reality is the bug |
-| Doc "wrong", reality intentional | Fix the **doc**, record the rationale | Calibre-Web on `tier1` not `tier2` — confirmed deliberate |
+| Doc stale, reality fine | Fix the **doc** | Boot order, image versions, node naming (`CT260`->`lxc260`) |
+| Doc right, reality wrong | Fix the **reality** (or file it) | sshd effectively unhardened - reality is the bug |
+| Doc "wrong", reality intentional | Fix the **doc**, record the rationale | Calibre-Web on `tier1` not `tier2` - confirmed deliberate |
 
 The dangerous instinct is to "make the red go away" by editing the doc every
 time. That silently launders a real defect into "documented behaviour". Deciding
-direction requires knowing what was *intended* — which is exactly why an audit
+direction requires knowing what was *intended* - which is exactly why an audit
 often ends in a question to a human, not a commit.
 
 ## Drift classes worth grepping for
@@ -47,7 +47,7 @@ Categories that recur, each with the live-state command that adjudicates it:
   Verify against the actual `prometheus.yml`, not the prose. (Found: documented 13
   jobs, live 14 jobs / 19 targets.)
 - **Image pins.** Docs/compose say a service is pinned; the *running container*
-  says otherwise. `docker inspect <ctr>` for the live image ref — the repo file is
+  says otherwise. `docker inspect <ctr>` for the live image ref - the repo file is
   only a claim until it's actually deployed (see the compose-sync gap in
   [Docker Compose Updates](../ansible/docker-compose-updates.md#the-sync-gap-a-role-that-updated-nothing-2026-07-08)).
 - **Boot / dependency order.** Prose tables rot fast. Rebuild from `pct config` /
@@ -56,7 +56,7 @@ Categories that recur, each with the live-state command that adjudicates it:
   Ansible-managed when it was hand-deployed means it silently vanishes on rebuild.
   Verify the role actually exists *and* has been applied.
 - **Access-control policy.** The mirrored policy doc vs the live ACL. A changelog
-  entry claiming a rule was added is not proof the rule's *body* was updated —
+  entry claiming a rule was added is not proof the rule's *body* was updated -
   check the actual policy object.
 - **Naming consistency.** A renamed entity leaves stale tokens scattered
   (`CT260`/`ct260` vs `lxc260`). `grep -rn` the old token repo-wide.
@@ -66,10 +66,10 @@ Categories that recur, each with the live-state command that adjudicates it:
 The audit's most useful lesson: the bugs that survive are the ones where every
 surface looks right.
 
-- The repo showed a pinned image — but the pin was never shipped to the node.
-- `--check` reported `changed=0` on the ssh role — but the node was unhardened
+- The repo showed a pinned image - but the pin was never shipped to the node.
+- `--check` reported `changed=0` on the ssh role - but the node was unhardened
   because a higher-priority drop-in won.
-- A health-check playbook exited 0 — but matched zero hosts and wrote no report.
+- A health-check playbook exited 0 - but matched zero hosts and wrote no report.
 
 None of these throw an error. Each requires reading the *effective* state
 (`sshd -T`, the running container, the produced artifact), not the input you
@@ -88,7 +88,7 @@ and handing an attacker a runbook are different things.
 
 ## Related
 
-- [Runbook Methodology](runbook-methodology.md) — the root-cause loop this reuses
-- [Repo Validation](repo-validation.md) — structural checks that catch a subset mechanically
-- [Docker Compose Updates](../ansible/docker-compose-updates.md) — the compose-sync drift in full
-- [SSH Hardening](../ansible/ssh-hardening.md) — the sshd first-match-wins drift in full
+- [Runbook Methodology](runbook-methodology.md) - the root-cause loop this reuses
+- [Repo Validation](repo-validation.md) - structural checks that catch a subset mechanically
+- [Docker Compose Updates](../ansible/docker-compose-updates.md) - the compose-sync drift in full
+- [SSH Hardening](../ansible/ssh-hardening.md) - the sshd first-match-wins drift in full

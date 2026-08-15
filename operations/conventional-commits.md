@@ -27,7 +27,7 @@ the type identifies *what kind* of change it is.
 
 ## Scopes (homelab convention)
 
-Two scope categories — pick whichever is most specific:
+Two scope categories - pick whichever is most specific:
 
 **Per-node** (when the change affects a single node):
 `vm100`, `vm102`, `lxc200`, `lxc210`, `lxc211`, `lxc220`, `lxc230`, `lxc240`, `lxc250`, `lxc260`
@@ -63,7 +63,7 @@ feat(lxc260): add PostgreSQL 15 with hardened pg_hba
               ^ what was added                ^ how it's distinct
 ```
 
-The body (separated by a blank line) is for the "why" — one or two short
+The body (separated by a blank line) is for the "why" - one or two short
 paragraphs explaining motivation, trade-offs, references. Skip the body if
 the title is self-explanatory.
 
@@ -76,8 +76,8 @@ the title is self-explanatory.
 
 ## Tooling
 
-- `git log --oneline --grep='^feat'` — filter by type
-- `git log --grep='(monitoring)' --oneline` — filter by scope
+- `git log --oneline --grep='^feat'` - filter by type
+- `git log --grep='(monitoring)' --oneline` - filter by scope
 - `commitlint` (npm) can enforce the format in CI if needed
 
 ## Related

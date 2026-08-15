@@ -11,20 +11,20 @@ Architecture is a multi-container pipeline:
 ```
        File drops in consume/
                 │
-                ▼
+                v
         ┌───────────────┐    OCR via tesseract
-        │ paperless-ngx │◄────────────────────
+        │ paperless-ngx │<────────────────────
         │  (Django app) │
         └──────┬────────┘
                │
    ┌───────────┼─────────────────────┐
-   ▼           ▼                     ▼
+   v           v                     v
 ┌─────────┐ ┌──────────┐      ┌─────────────┐
 │ Redis   │ │ Postgres │      │ Gotenberg   │
-│ (queue) │ │ (state)  │      │ (Office→PDF)│
+│ (queue) │ │ (state)  │      │ (Office->PDF)│
 └─────────┘ └──────────┘      └─────────────┘
                                      │
-                                     ▼
+                                     v
                               ┌─────────────┐
                               │ Apache Tika │
                               │ (metadata)  │
@@ -44,7 +44,7 @@ You can run without Gotenberg + Tika; you lose Office-document ingestion in exch
 ## Hardening Gotenberg
 
 Gotenberg ships a headless Chromium. By default it allows JavaScript execution
-when converting HTML → PDF. For a document-management context, JS in arriving
+when converting HTML -> PDF. For a document-management context, JS in arriving
 files is a vulnerability surface, not a feature.
 
 ```yaml
@@ -59,12 +59,12 @@ gotenberg:
 | Flag                                  | Why                                                                  |
 |---------------------------------------|----------------------------------------------------------------------|
 | `--chromium-disable-javascript=true`  | Documents being converted cannot execute scripts                     |
-| `--chromium-allow-list=file:///tmp/.*`| Restricts which URLs Chromium will load — local files only           |
+| `--chromium-allow-list=file:///tmp/.*`| Restricts which URLs Chromium will load - local files only           |
 
 Without the disable-javascript flag, a maliciously-crafted HTML file in your
 inbox could perform requests when Gotenberg renders it.
 
-## CSRF — `PAPERLESS_CSRF_TRUSTED_ORIGINS`
+## CSRF - `PAPERLESS_CSRF_TRUSTED_ORIGINS`
 
 Django enforces same-origin POST requests via CSRF tokens. When Paperless is
 served from a hostname different from `localhost` (e.g., a Tailscale MagicDNS
@@ -82,7 +82,7 @@ environment:
 | `PAPERLESS_CSRF_TRUSTED_ORIGINS`  | Comma-separated list of origins allowed to POST                     |
 
 Both must include the scheme (`https://`). Multiple origins are comma-separated
-without spaces. Don't use a wildcard — it defeats CSRF protection.
+without spaces. Don't use a wildcard - it defeats CSRF protection.
 
 ## OCR language
 
@@ -90,13 +90,13 @@ without spaces. Don't use a wildcard — it defeats CSRF protection.
 PAPERLESS_OCR_LANGUAGE: "deu+eng"
 ```
 
-Tesseract takes language codes in `lang1+lang2` form. The `+` joins them — both
+Tesseract takes language codes in `lang1+lang2` form. The `+` joins them - both
 languages are tried and the higher-confidence match wins per page. For mixed
 German/English documents, `deu+eng` (or `eng+deu`) gives noticeably better
 results than either alone.
 
 Trade-off: each added language increases OCR time roughly proportionally. Don't
-list every language "just in case" — only those you actually have documents in.
+list every language "just in case" - only those you actually have documents in.
 
 The language pack must be installed in the container. The official image ships
 with a configurable list; check `PAPERLESS_OCR_LANGUAGES` (plural) for build-time
@@ -121,18 +121,18 @@ environment:
 
 Why this matters: bind-mounted directories (the consume folder, media folder,
 data folder) on the host are owned by some UID. If the container process runs as
-a different UID, it cannot write — or worse, files it creates are owned by an
+a different UID, it cannot write - or worse, files it creates are owned by an
 unexpected UID and become unreadable from the host side.
 
 For unprivileged LXC containers, the *host* UID is shifted (e.g., +100000), so
 USERMAP_UID=1000 inside the container means the bind-mount must be owned by
 UID 101000 on the Proxmox host. Document this mapping per service.
 
-## inotify doesn't work on CIFS — use polling
+## inotify doesn't work on CIFS - use polling
 
 Paperless watches its consume directory for new files. By default it uses
 **inotify** (Linux's filesystem-event API). That works on local filesystems and
-ext4, but **not on CIFS/SMB mounts** — inotify events are not propagated across
+ext4, but **not on CIFS/SMB mounts** - inotify events are not propagated across
 the network protocol.
 
 ```yaml
@@ -171,7 +171,7 @@ different subfolders to different tags/correspondents automatically.
 
 Once Paperless has consumed a file (OCR'd it, stored it in its archive), the
 file is **deleted** from the consume folder. Empty subdirectories are also
-removed. This is by design — the consume folder is a queue, not a permanent
+removed. This is by design - the consume folder is a queue, not a permanent
 location.
 
 Architectural consequence: don't put a `*.pdf` in the consume folder for "safekeeping".

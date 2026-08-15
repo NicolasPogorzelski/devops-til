@@ -3,7 +3,7 @@
 ## Core principle
 
 Every process, user, and service should have the minimum permissions needed to
-function — nothing more. This limits blast radius when something is compromised.
+function - nothing more. This limits blast radius when something is compromised.
 
 ## File permissions for SMB shares
 
@@ -40,7 +40,7 @@ chmod 600 /etc/smb-credentials   # only root can read
 
 ## .env files
 
-- Never commit `.env` files to git — they contain secrets
+- Never commit `.env` files to git - they contain secrets
 - Always commit `.env.example` with placeholder values
 - Each Docker Compose directory with a `docker-compose.yml` must have a `.env.example`
 
@@ -51,7 +51,7 @@ chmod 600 /etc/smb-credentials   # only root can read
 
 ## Service isolation
 
-Each service gets its own database user and database — not a shared superuser:
+Each service gets its own database user and database - not a shared superuser:
 
 ```sql
 CREATE USER nextcloud WITH PASSWORD 'secret';
@@ -62,18 +62,18 @@ GRANT ALL PRIVILEGES ON DATABASE nextcloud TO nextcloud;
 ## Sanitization rules for public repos
 
 IPs and identifiers that must never appear in the repo:
-- Tailscale IPs (`100.x.y.z`) → use `<tailscale-ip-nodename>`
-- Tailnet ID (`*.ts.net` domain) → use `<tailnet-id>`
-- Real passwords → use `<password>` or `<your-password>`
-- Private keys / certificates → never commit
+- Tailscale IPs (`100.x.y.z`) -> use `<tailscale-ip-nodename>`
+- Tailnet ID (`*.ts.net` domain) -> use `<tailnet-id>`
+- Real passwords -> use `<password>` or `<your-password>`
+- Private keys / certificates -> never commit
 
-## Sudoers — NOPASSWD scoping
+## Sudoers - NOPASSWD scoping
 
 ```bash
 # Minimal: only specific commands
 gpu ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt
 
-# Broad: all commands (for Ansible — it needs to sudo Python, not just apt)
+# Broad: all commands (for Ansible - it needs to sudo Python, not just apt)
 gpu ALL=(root) NOPASSWD: ALL
 ```
 
@@ -92,9 +92,9 @@ Files in `/etc/sudoers.d/` must:
 
 sudo ignores or rejects files that don't meet these requirements.
 
-## NOPASSWD helpers — the binary is the boundary
+## NOPASSWD helpers - the binary is the boundary
 
-When NOPASSWD can't be scoped to fixed arguments (the argument is dynamic — a
+When NOPASSWD can't be scoped to fixed arguments (the argument is dynamic - a
 device id, a path resolved at runtime), the sudoers line necessarily allows the
 binary with *any* arguments:
 
@@ -102,7 +102,7 @@ binary with *any* arguments:
 user ALL=(root) NOPASSWD: /usr/local/bin/my-helper
 ```
 
-The sudoers rule then protects almost nothing on its own — the **helper binary
+The sudoers rule then protects almost nothing on its own - the **helper binary
 becomes the actual security boundary**. That shifts the requirements onto it:
 
 - **Not user-writable.** Root-owned, mode `0755`, in a root-owned directory. If
@@ -111,13 +111,13 @@ becomes the actual security boundary**. That shifts the requirements onto it:
   that isn't a known-good target (e.g. a device-vendor allowlist).
 - **No path traversal.** Reject `/` in identifiers used to build paths, and
   reject `.` / `..`; build paths only from validated components.
-- **Match literally, not as a pattern.** Use fixed-string compares (`grep -F`) —
+- **Match literally, not as a pattern.** Use fixed-string compares (`grep -F`) -
   a value with regex metacharacters (`.`, `*`) must not be interpreted.
 - **Fail closed.** On any doubt, exit non-zero and touch nothing.
 
 Rule of thumb: assume the caller is hostile and passes arbitrary arguments,
 because the NOPASSWD grant lets them. The binary must be safe under that
-assumption — not just under the arguments your own code happens to send.
+assumption - not just under the arguments your own code happens to send.
 
 ## Secret generation
 
@@ -125,9 +125,9 @@ When a service needs a random secret (signing key, admin token, encryption key),
 do not invent one. Use a CSPRNG:
 
 ```bash
-openssl rand -hex 32       # 256 bits, 64 hex chars — most env vars
-openssl rand -base64 32    # 256 bits, 44 base64 chars — denser
-openssl rand -base64 48    # 384 bits — when you want extra margin
+openssl rand -hex 32       # 256 bits, 64 hex chars - most env vars
+openssl rand -base64 32    # 256 bits, 44 base64 chars - denser
+openssl rand -base64 48    # 384 bits - when you want extra margin
 ```
 
 | Property                | `-hex`            | `-base64`           |
@@ -143,7 +143,7 @@ echo -n "your-very-long-secret" | argon2 "$(openssl rand -base64 32)" -e -id -t 
 ```
 
 The hash, not the secret, goes in the env file. An attacker with read access
-to `.env` cannot directly use the secret — they would have to crack the hash.
+to `.env` cannot directly use the secret - they would have to crack the hash.
 
 ### Rotation
 
@@ -159,7 +159,7 @@ Every secret should have a documented rotation procedure:
 A secret that has never been rotated is a secret you don't know how to rotate.
 The first rotation reveals every place the secret is hardcoded.
 
-## Defense in depth — multiple independent layers
+## Defense in depth - multiple independent layers
 
 Single-mechanism security is brittle. Pattern: stack independent controls so
 defeating any one of them is not sufficient:

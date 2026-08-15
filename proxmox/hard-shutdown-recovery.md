@@ -18,7 +18,7 @@ TASK ERROR: startup for container '260' failed
 **Cause:** A container has a bind mount (`mp1`, `mp2`, ...) pointing to an SMB path
 on the Proxmox host. If the storage VM/LXC that provides the SMB mount is still
 booting, the path doesn't exist yet. The LXC pre-start hook checks all mount
-points — if one is missing, it exits with code 19 (`ENODEV` = "No such device").
+points - if one is missing, it exits with code 19 (`ENODEV` = "No such device").
 
 **Fix:**
 
@@ -31,7 +31,7 @@ pct start 260
 ```
 
 **Prevention:** Increase the `up` delay in the container's startup order config
-(Proxmox WebUI → container → Options → Start/Shutdown Order).
+(Proxmox WebUI -> container -> Options -> Start/Shutdown Order).
 
 ## SSH unreachable after reboot (Tailscale race condition)
 
@@ -39,8 +39,8 @@ pct start 260
 even though the container is running.
 
 **Cause:** The sshd_config contains `ListenAddress <tailscale-ip>`. sshd starts
-before Tailscale connects (~30–60 s). During that window, sshd has no address to
-bind to — connections are refused.
+before Tailscale connects (~30-60 s). During that window, sshd has no address to
+bind to - connections are refused.
 
 **Fix:**
 
@@ -68,7 +68,7 @@ Use the first available method:
 | 3 | SSH to Proxmox host (LAN) | `ssh root@<proxmox-lan-ip>` |
 | 4 | LXC console (WebUI) | Proxmox WebUI accessible |
 
-**Finding the Proxmox LAN IP:** Fritz!Box → Heimnetz → Netzwerk, or `arp -n` from
+**Finding the Proxmox LAN IP:** Fritz!Box -> Heimnetz -> Netzwerk, or `arp -n` from
 any device on the LAN.
 
 ## Starting all containers after recovery
@@ -80,7 +80,7 @@ pct list
 # Start in dependency order (storage-dependent containers last)
 pct start 200 && pct start 210 && pct start 211 && pct start 220
 pct start 230 && pct start 240 && pct start 250
-# Start postgres last — depends on SMB from storage VM
+# Start postgres last - depends on SMB from storage VM
 ls /mnt/smb/postgres-backups && pct start 260
 
 # Verify all Ansible-managed nodes are reachable
@@ -95,5 +95,5 @@ journalctl -u pve-container@260.service --no-pager -n 30
 ```
 
 Common exit codes:
-- `19` (`ENODEV`): bind-mount path not found — storage not ready
-- `1`: generic failure — read the full journal output
+- `19` (`ENODEV`): bind-mount path not found - storage not ready
+- `1`: generic failure - read the full journal output

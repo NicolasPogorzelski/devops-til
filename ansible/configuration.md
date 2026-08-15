@@ -38,7 +38,7 @@ ssh_args              = -o ControlMaster=auto -o ControlPersist=60s
 ### `roles_path = ./roles`
 
 Where Ansible looks for roles. Without this, Ansible searches `<playbook_dir>/roles/`,
-`~/.ansible/roles`, and `/etc/ansible/roles` — but not `ansible/roles/` if your
+`~/.ansible/roles`, and `/etc/ansible/roles` - but not `ansible/roles/` if your
 playbooks live in a subdirectory.
 
 Set this whenever your `roles/` directory is not a sibling of your playbooks:
@@ -55,7 +55,7 @@ is missing or wrong.
 
 Default inventory file. Without this, every `ansible-playbook` invocation needs
 `-i path/to/inventory`. Relative path means it resolves relative to the directory
-where `ansible.cfg` lives, not the CWD — which is what you want.
+where `ansible.cfg` lives, not the CWD - which is what you want.
 
 ### `remote_user = root`
 
@@ -92,7 +92,7 @@ known_hosts properly via a separate playbook.
 
 Stops Ansible from creating `*.retry` files in the playbook directory after a
 failed run. The retry files clutter git status and serve almost no purpose
-(re-running with `--limit @retry_file` is rarely useful — by then the issue
+(re-running with `--limit @retry_file` is rarely useful - by then the issue
 has been fixed and you re-run the whole play).
 
 ### `stdout_callback = yaml`
@@ -112,8 +112,8 @@ For interactive use, `yaml` is the best balance of detail and readability.
 
 ### `forks = 10`
 
-How many hosts to run tasks on in parallel. Default is 5 — too low for a
-homelab with 10+ nodes (each play takes 2× as long).
+How many hosts to run tasks on in parallel. Default is 5 - too low for a
+homelab with 10+ nodes (each play takes 2x as long).
 
 For a real homelab: set to `len(inventory)` or slightly more. The cost is
 mostly memory on the controller; 10 parallel SSH sessions to LXCs is trivial.
@@ -133,7 +133,7 @@ plays where you've audited that no role uses facts.
 
 **How the cache works in a multi-play playbook:** the first play that runs `setup`
 on a host populates `hostvars` for that host. Subsequent plays in the same run skip
-`setup` entirely for that host — they read from the already-populated `hostvars`.
+`setup` entirely for that host - they read from the already-populated `hostvars`.
 This means a play with `gather_facts: false` later in the run can still access
 facts collected by an earlier play. The cache is per-host, per-playbook-run.
 
@@ -159,7 +159,7 @@ keeps the master socket alive for 60 seconds after the last operation.
 
 The inventory file often contains real hostnames or IPs. Two patterns:
 
-**Pattern A — gitignore the real, commit a sanitized example:**
+**Pattern A - gitignore the real, commit a sanitized example:**
 
 ```
 inventory/
@@ -174,7 +174,7 @@ inventory/hosts.yml
 
 Onboarding: copy the example, fill in real values.
 
-**Pattern B — encrypt with ansible-vault:**
+**Pattern B - encrypt with ansible-vault:**
 
 ```bash
 ansible-vault encrypt inventory/hosts.yml

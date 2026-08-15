@@ -1,6 +1,6 @@
 # Ansible Task Control
 
-## `register` — capture task output
+## `register` - capture task output
 
 `register` saves the result of a task into a variable. The variable is
 available to all subsequent tasks in the same play.
@@ -19,9 +19,9 @@ The registered variable is a dict with these keys:
 | `stderr` | Standard error as a string |
 | `stdout_lines` | stdout split into a list by newline |
 | `rc` | Return code (integer) |
-| `failed` | Boolean — whether Ansible considers the task failed |
+| `failed` | Boolean - whether Ansible considers the task failed |
 
-## `changed_when` — control the "changed" state
+## `changed_when` - control the "changed" state
 
 Ansible marks `shell` and `command` tasks as **changed** every time they run,
 because it cannot know whether the command modified anything.
@@ -40,7 +40,7 @@ Without `changed_when: false`, every run shows yellow "changed" in the output
 even though nothing was modified. This makes the changed/ok distinction
 meaningless for that play.
 
-## `ansible.builtin.fail` — abort with a message
+## `ansible.builtin.fail` - abort with a message
 
 `fail` immediately stops the play on that host and prints a message.
 Unlike a task error, it lets you write a human-readable explanation
@@ -52,11 +52,11 @@ including context variables.
     msg: "Corrupt files on {{ inventory_hostname }}: {{ dpkg_verify.stdout }}"
 ```
 
-`{{ inventory_hostname }}` is a built-in variable — the hostname of the current
+`{{ inventory_hostname }}` is a built-in variable - the hostname of the current
 target node as defined in inventory. Useful in plays that run across multiple
 hosts (`serial: 1`) so the error message names the affected node.
 
-## `when` — conditional execution
+## `when` - conditional execution
 
 `when` controls whether a task runs at all. It accepts a Jinja2 expression.
 
@@ -85,10 +85,10 @@ nothing (empty string, possibly with a trailing newline).
 | `command` | No | Simple command, no piping needed |
 | `shell` | Yes | Command uses `\|`, `>`, `&&`, `\|\|`, globs |
 
-`command` is preferred when possible — it avoids shell injection risk.
+`command` is preferred when possible - it avoids shell injection risk.
 Use `shell` only when the command genuinely needs shell features.
 
-## Combining the patterns — post-upgrade integrity check
+## Combining the patterns - post-upgrade integrity check
 
 ```yaml
 - name: collect dpkg integrity results
@@ -133,9 +133,9 @@ conditionally restart services that need it after the upgrade:
   when: "'tailscale' in packages_pending.stdout"
 ```
 
-- `apt-get -s dist-upgrade` — simulate only, no changes; lists what would be upgraded
-- `awk '/^Inst /{print $2}'` — lines starting with `Inst` are packages being installed/upgraded; `$2` is the package name
-- `changed_when: false` — this task only reads state, never mark it as changed
+- `apt-get -s dist-upgrade` - simulate only, no changes; lists what would be upgraded
+- `awk '/^Inst /{print $2}'` - lines starting with `Inst` are packages being installed/upgraded; `$2` is the package name
+- `changed_when: false` - this task only reads state, never mark it as changed
 - The restart task is skipped entirely when `tailscale` is not in the pending list
 
 Run the dry-run **before** the actual upgrade. Afterwards, the dpkg log reflects
@@ -163,7 +163,7 @@ format and pipe through `awk` instead:
 ansible all -m shell -a "docker ps --no-trunc | awk '{print \$NF, \$2}'" --become
 ```
 
-Note the `\$NF` and `\$2` — the `\` escapes the `$` from the outer shell before
+Note the `\$NF` and `\$2` - the `\` escapes the `$` from the outer shell before
 Ansible sees the string. Without the backslash, the shell expands `$NF` to empty
 before passing the argument to Ansible.
 
@@ -171,7 +171,7 @@ before passing the argument to Ansible.
 doesn't support pipes. Use `shell` for any command that needs `|`, `&&`, `>`, or
 variable escaping.
 
-## `ansible.builtin.cron` — idempotent cron entries
+## `ansible.builtin.cron` - idempotent cron entries
 
 The `cron` module writes cron entries into a user's crontab. The `name` parameter
 is the idempotency key: Ansible writes it as a comment above the entry
@@ -181,7 +181,7 @@ runs. Without `name`, Ansible cannot identify the entry and will duplicate it.
 ```yaml
 - name: Schedule pg_dumpall cron job
   ansible.builtin.cron:
-    name: pg-backup          # idempotency key → written as "#Ansible: pg-backup"
+    name: pg-backup          # idempotency key -> written as "#Ansible: pg-backup"
     user: postgres           # whose crontab to write into (crontab -u postgres)
     minute: "0"
     hour: "3"
@@ -191,7 +191,7 @@ runs. Without `name`, Ansible cannot identify the entry and will duplicate it.
 If a manual cron entry already exists with the same job string, Ansible adds the
 `#Ansible: <name>` comment above it (taking ownership) without duplicating the entry.
 
-`user` writes into that user's personal crontab — equivalent to `crontab -u postgres -e`.
+`user` writes into that user's personal crontab - equivalent to `crontab -u postgres -e`.
 Omit `cron_file` unless you want a file under `/etc/cron.d/` (system-wide, owned by root).
 
 ### The module cannot remove an entry it did not write
@@ -203,7 +203,7 @@ line, now being taken over by a role.
 
 Two cases, two tools:
 
-**A file in `/etc/cron.d/`** — just delete the file. It is a file:
+**A file in `/etc/cron.d/`** - just delete the file. It is a file:
 
 ```yaml
 - name: Remove the legacy snapraid cron file
@@ -212,7 +212,7 @@ Two cases, two tools:
     state: absent
 ```
 
-**A line in a user crontab** — filter the crontab and pipe it back through `crontab -`, which
+**A line in a user crontab** - filter the crontab and pipe it back through `crontab -`, which
 validates the syntax and fixes ownership and mode, rather than editing the spool file directly:
 
 ```yaml
@@ -237,7 +237,7 @@ validates the syntax and fixes ownership and mode, rather than editing the spool
 Three details that each cost a debugging round:
 
 - **`sed -E '/pat/d'`, not `grep -vE pat`.** `grep` exits 1 when it prints no lines. On a crontab
-  whose only entry is the one being removed, printing nothing is success — and `set -o pipefail`
+  whose only entry is the one being removed, printing nothing is success - and `set -o pipefail`
   turns that into a task failure. `sed` exits 0 either way.
 - **`check_mode: false` on the read.** `command`/`shell` are skipped under `--check`. Without the
   override, `root_crontab.stdout` never gets registered and the `when:` on the next task raises
@@ -272,7 +272,7 @@ is undefined and every `when:` downstream explodes:
 Could not find the requested service foo.timer: host
 ```
 
-That is not a node problem, it is a role problem — the role simply cannot be dry-run:
+That is not a node problem, it is a role problem - the role simply cannot be dry-run:
 
 ```yaml
 - name: Enable and start the timer
@@ -291,7 +291,7 @@ non-empty diff means a real pending change, and the dry run is evidence rather t
 
 ## `assert` as a precondition, not a comment
 
-When a role depends on state it does not manage — a mount, a hand-installed binary, an env file —
+When a role depends on state it does not manage - a mount, a hand-installed binary, an env file -
 assert it and let the play fail with a sentence that tells the next person what to do:
 
 ```yaml
@@ -305,10 +305,10 @@ assert it and let the play fail with a sentence that tells the next person what 
 ```
 
 Order the role so the artefacts deploy *before* the assert. Then a run against a broken node still
-ships the fixed script and units, and fails afterwards with the diagnosis — rather than refusing to
+ships the fixed script and units, and fails afterwards with the diagnosis - rather than refusing to
 do the part it could have done.
 
-## `ansible.builtin.copy` — `remote_src` gotcha
+## `ansible.builtin.copy` - `remote_src` gotcha
 
 By default, `copy` expects `src` to be a path on the **Ansible controller**.
 Set `remote_src: yes` when the source file is already on the **target host**
@@ -325,14 +325,14 @@ Set `remote_src: yes` when the source file is already on the **target host**
   ansible.builtin.copy:
     src: /tmp/node_exporter-1.11.1.linux-amd64/node_exporter
     dest: /usr/local/bin/node_exporter
-    remote_src: yes          # extracted file is on the remote — REQUIRED
+    remote_src: yes          # extracted file is on the remote - REQUIRED
     owner: root
     mode: '0755'
 ```
 
 **Latent bug pattern:** if `remote_src` is missing but the destination file already
 exists at `dest`, Ansible checks the destination and reports `changed=0` (already
-in place) — the missing flag is never hit. The bug only surfaces when the tarball
+in place) - the missing flag is never hit. The bug only surfaces when the tarball
 is re-downloaded and the copy task actually needs to run.
 
 ## Related

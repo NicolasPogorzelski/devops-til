@@ -2,7 +2,7 @@
 
 ## Backup
 
-### pg_dumpall — full cluster backup
+### pg_dumpall - full cluster backup
 
 ```bash
 pg_dumpall -U postgres > /backup/postgres_full_$(date +%Y%m%d).sql
@@ -11,7 +11,7 @@ pg_dumpall -U postgres > /backup/postgres_full_$(date +%Y%m%d).sql
 Dumps all databases, roles, and global objects in a single SQL file.
 Use for complete cluster backups.
 
-### pg_dump — single database backup
+### pg_dump - single database backup
 
 ```bash
 pg_dump -U postgres -d mydb > /backup/mydb_$(date +%Y%m%d).sql
@@ -46,7 +46,7 @@ pg_isready -U postgres -h localhost
 Used in scripts and Docker healthchecks to verify PostgreSQL is ready before
 running queries.
 
-## Authentication — pg_hba.conf
+## Authentication - pg_hba.conf
 
 `pg_hba.conf` controls who can connect, from where, and with what authentication method.
 
@@ -70,8 +70,8 @@ PostgreSQL username. Used for local administrative access (`sudo -u postgres psq
 
 - Services connect over TCP with unique credentials per database
 - Admin access only via local socket (peer auth) from the host
-- No external port exposure — PostgreSQL is accessed via Tailscale IP only
-- Each service has its own database and user — no shared credentials
+- No external port exposure - PostgreSQL is accessed via Tailscale IP only
+- Each service has its own database and user - no shared credentials
 
 ## Staleness monitoring with textfile collector
 
@@ -84,7 +84,7 @@ echo "pg_backup_last_success_timestamp $(date +%s)" \
 
 Alert in Prometheus if the timestamp is older than 25 hours.
 
-## Backup script — robust file creation with `install`
+## Backup script - robust file creation with `install`
 
 Inside backup scripts, `install` creates files atomically with permissions:
 
@@ -96,15 +96,15 @@ pg_dumpall -U postgres | gzip > /backup/pg_backup.sql.gz
 | Flag             | Why                                                           |
 |------------------|---------------------------------------------------------------|
 | `-m 600`         | Set file mode at creation. No race with `chmod` afterward     |
-| `-o postgres`    | Owner — the user the dump must be readable by                 |
+| `-o postgres`    | Owner - the user the dump must be readable by                 |
 | `-g postgres`    | Group                                                         |
 
 `install /dev/null <file>` is a one-line "create empty file with these
-attributes". Equivalent to `touch && chown && chmod` but atomic — the file
+attributes". Equivalent to `touch && chown && chmod` but atomic - the file
 never exists with wrong permissions, which matters when other processes
 might try to read it during creation.
 
-## `crontab -u` — per-user crontabs
+## `crontab -u` - per-user crontabs
 
 The `postgres` user's cron jobs should run as `postgres`, not root, so that
 peer authentication works without password prompts:
@@ -124,9 +124,9 @@ Alternative: drop a file in `/etc/cron.d/` with explicit user column:
 | Approach                | Pro                                | Con                                 |
 |-------------------------|-------------------------------------|-------------------------------------|
 | `crontab -u <user>`     | User's own jobs visible via `crontab -l`  | Edit-via-vipw, harder to versioncontrol |
-| `/etc/cron.d/<service>` | File-based — version controllable, deployable via Ansible | Slightly less discoverable |
+| `/etc/cron.d/<service>` | File-based - version controllable, deployable via Ansible | Slightly less discoverable |
 
-For homelab IaC: `/etc/cron.d/<service>` is the right pattern — the cron job
+For homelab IaC: `/etc/cron.d/<service>` is the right pattern - the cron job
 is part of the service's config and gets deployed alongside the binary.
 
 ## Pre-flight checks in backup scripts
@@ -153,7 +153,7 @@ pg_isready -U postgres -h localhost >/dev/null || { echo "ERROR: PG not ready" >
 `-s` checks "exists and non-empty". Critical: a 0-byte `.sql.gz` *looks* like
 a successful backup until you try to restore.
 
-## `pg_monitor` role — for postgres_exporter
+## `pg_monitor` role - for postgres_exporter
 
 PostgreSQL ships a built-in `pg_monitor` role with read-only access to
 monitoring views (`pg_stat_*`). For Prometheus scraping:
@@ -165,7 +165,7 @@ GRANT pg_monitor TO monitor;
 
 Why `pg_monitor` instead of giving exporter superuser access:
 
-- `pg_monitor` cannot read user data — only stat views and admin functions
+- `pg_monitor` cannot read user data - only stat views and admin functions
 - A compromised exporter cannot exfiltrate application data
 - Future PG versions extend `pg_monitor` automatically; you don't have to grant
   individual `pg_stat_*` permissions
@@ -184,12 +184,12 @@ zcat /backup/pg_backup.sql.gz | tail -5
 
 | Check          | What it tells you                                                  |
 |----------------|--------------------------------------------------------------------|
-| Header (first 50 lines) | `SET` directives, `\connect`, role definitions — dump is intact |
+| Header (first 50 lines) | `SET` directives, `\connect`, role definitions - dump is intact |
 | Tail (last 5 lines)     | Should end with `--` comment block. If truncated, dump aborted    |
 | `gzip -t file` | Verify gzip integrity without decompressing                       |
 
 For deeper validation: restore to a scratch host and run `\dt` on each database.
-That's a quarterly task, not per-backup — but per-backup `head/tail` catches
+That's a quarterly task, not per-backup - but per-backup `head/tail` catches
 80% of corruption fast and cheap.
 
 ## Related

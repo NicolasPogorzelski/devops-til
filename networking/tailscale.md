@@ -1,4 +1,4 @@
-# Tailscale — Zero-Trust Overlay Network
+# Tailscale - Zero-Trust Overlay Network
 
 ## What it is
 
@@ -7,9 +7,9 @@ regardless of its physical location or LAN. Devices communicate directly when po
 (peer-to-peer), via relay (DERP) when NAT blocks direct connections.
 
 Key properties:
-- No public ports needed — no port forwarding, no exposed ingress
+- No public ports needed - no port forwarding, no exposed ingress
 - Identity-based access (not IP-based) via ACL tags
-- LAN is treated as untrusted — services bind to Tailscale IP only
+- LAN is treated as untrusted - services bind to Tailscale IP only
 
 ## Tailscale IPs
 
@@ -30,13 +30,13 @@ not individual IPs. This makes rules policy-based rather than host-based.
 ```
 
 Tag hierarchy in this homelab:
-- `tag:tier0` — critical infrastructure (storage VM, monitoring)
-- `tag:tier1` — user-facing services
-- `tag:tier2` — non-critical services
-- `tag:monitoring` — Prometheus stack
-- `tag:database` — PostgreSQL platform
-- `tag:ai-stack` — Ollama, OpenWebUI
-- `tag:admin` — management nodes (LXC250)
+- `tag:tier0` - critical infrastructure (storage VM, monitoring)
+- `tag:tier1` - user-facing services
+- `tag:tier2` - non-critical services
+- `tag:monitoring` - Prometheus stack
+- `tag:database` - PostgreSQL platform
+- `tag:ai-stack` - Ollama, OpenWebUI
+- `tag:admin` - management nodes (LXC250)
 
 ## ACL rules
 
@@ -44,7 +44,7 @@ Tag hierarchy in this homelab:
 {"action": "accept", "src": ["tag:monitoring"], "dst": ["tag:tier0:9100"]}
 ```
 
-Rules are deny-by-default. Only explicitly allowed src→dst:port combinations work.
+Rules are deny-by-default. Only explicitly allowed src->dst:port combinations work.
 
 ## Tailscale Serve
 
@@ -55,7 +55,7 @@ handling TLS termination automatically.
 tailscale serve --https=443 http://localhost:3000
 ```
 
-Services bind to `127.0.0.1` (loopback) and are proxied by Tailscale Serve —
+Services bind to `127.0.0.1` (loopback) and are proxied by Tailscale Serve -
 not exposed on any LAN or public interface.
 
 ## Key commands
@@ -92,21 +92,21 @@ Two caveats learned the hard way:
 
 - **Some services cannot bind to `tailscale0` at all.** Samba skips point-to-point TUN
   interfaces for IPv4 (see [Samba server config](../storage/samba-server-config.md)). When the
-  service cannot enforce the boundary, the kernel must —
+  service cannot enforce the boundary, the kernel must -
   [nftables alongside Tailscale](nftables-with-tailscale.md).
 - **Binding to a Tailscale IP couples the service's startup to `tailscaled`.** The address does
-  not exist until the tunnel is up, so the unit needs `After=tailscaled.service` — and ideally
+  not exist until the tunnel is up, so the unit needs `After=tailscaled.service` - and ideally
   `Restart=on-failure`, so a lost race self-heals instead of leaving the service dead until
   someone notices.
 
-## Performance: same-subnet peers go direct — measure before you believe otherwise
+## Performance: same-subnet peers go direct - measure before you believe otherwise
 
 The intuition "traffic through the VPN is capped by my internet upload" is **wrong for peers on
 the same LAN**. Tailscale negotiates a **direct** WireGuard path using the local endpoints; the
 DERP relay is only a fallback when no direct path can be established. Same-subnet peers therefore
 talk over the LAN cable, encrypted, and never touch the uplink.
 
-Check which path is in use — do not guess:
+Check which path is in use - do not guess:
 
 ```bash
 tailscale ping storage
@@ -116,14 +116,14 @@ tailscale ping storage
 
 ```bash
 tailscale status --json | jq '.Peer[] | select(.HostName=="storage") | .CurAddr'
-# a LAN address  → direct
-# empty ("")     → relayed via DERP (this is the slow case)
+# a LAN address  -> direct
+# empty ("")     -> relayed via DERP (this is the slow case)
 ```
 
 `Relay: fra` in the status output only names the *assigned* DERP region. It does **not** mean the
-relay is in use — if `CurAddr` is set, the path is direct.
+relay is in use - if `CurAddr` is set, the path is direct.
 
-Measured cost of the encryption, workstation → storage node, 1500 MiB into a discarding sink
+Measured cost of the encryption, workstation -> storage node, 1500 MiB into a discarding sink
 (network + crypto only, no disk):
 
 | Path | Throughput |
@@ -132,13 +132,13 @@ Measured cost of the encryption, workstation → storage node, 1500 MiB into a d
 | Tailscale address, WireGuard | 741 Mbit/s |
 
 **~8 %, not an order of magnitude.** On a gigabit link this is noise. It only becomes a real
-bottleneck on 2.5G/10G, where userspace WireGuard's CPU cost starts to matter — measure there,
+bottleneck on 2.5G/10G, where userspace WireGuard's CPU cost starts to matter - measure there,
 do not extrapolate.
 
 The practical lesson: "we keep this on the LAN for speed" is a claim, and claims of that shape
 are cheap to test. A wrong one costs you a Zero-Trust boundary for nothing.
 
-## MagicDNS — name resolution inside the tailnet
+## MagicDNS - name resolution inside the tailnet
 
 Tailscale assigns each node a hostname like `nextcloud.<tailnet-id>.ts.net`.
 With MagicDNS enabled, those names resolve from any tailnet member:
@@ -147,11 +147,11 @@ With MagicDNS enabled, those names resolve from any tailnet member:
 dig +short nextcloud.<tailnet-id>.ts.net    # returns the 100.x.y.z IP
 ```
 
-Names are stable across IP changes — useful for services binding to a
+Names are stable across IP changes - useful for services binding to a
 Tailscale IP directly. Bind to the IP in configs, but use the MagicDNS name
 in client URLs so a re-issued IP doesn't break links.
 
-MagicDNS is also what makes `tailscale cert <hostname>` work — the cert is
+MagicDNS is also what makes `tailscale cert <hostname>` work - the cert is
 issued for the MagicDNS name and resolves only within the tailnet.
 
 ## TLS via Tailscale-managed certs
@@ -171,7 +171,7 @@ SSLCertificateFile    /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.crt
 SSLCertificateKeyFile /var/lib/tailscale/certs/nextcloud.<tailnet-id>.ts.net.key
 ```
 
-Renewal: re-run `tailscale cert` (idempotent — re-issues if close to expiry).
+Renewal: re-run `tailscale cert` (idempotent - re-issues if close to expiry).
 Cron weekly:
 
 ```cron
@@ -200,7 +200,7 @@ before the rule was added stays alive indefinitely.
 # On the source: check what's already connected
 ss -t state established | grep <target-tailscale-ip>
 
-# Force a fresh connection — this respects current ACLs
+# Force a fresh connection - this respects current ACLs
 nc -zv <target> <port>
 ```
 
@@ -242,7 +242,7 @@ HTTPS inside it."
 **WireGuard encrypts node-to-node traffic on the wire.** That's transport-layer
 security between Tailscale endpoints. It does not provide:
 
-- Application-layer authentication (who's the user? — service does that)
+- Application-layer authentication (who's the user? - service does that)
 - Database-level encryption (at rest, on disk)
 - Protection from a compromised endpoint (other end is in clear)
 

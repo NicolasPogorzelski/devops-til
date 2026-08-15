@@ -3,7 +3,7 @@
 ## Problem
 
 Tailscale uses the kernel's WireGuard module (kernel-mode networking) by default.
-This requires access to `/dev/net/tun` — a character device that creates virtual
+This requires access to `/dev/net/tun` - a character device that creates virtual
 network interfaces.
 
 In an unprivileged LXC container:
@@ -34,13 +34,13 @@ Both lines are required. Either alone is insufficient.
 These are common debugging shortcuts that should not survive into production:
 
 ```
-lxc.apparmor.profile: unconfined   # disables AppArmor — bad
-lxc.cap.drop:                      # empty drop = grants all caps — very bad
+lxc.apparmor.profile: unconfined   # disables AppArmor - bad
+lxc.cap.drop:                      # empty drop = grants all caps - very bad
 ```
 
 `unconfined` removes the kernel's mandatory access control for all processes
 in the container. Combined with no dropped capabilities, this gives the
-container near-host-level kernel privileges — defeats the point of unprivileged
+container near-host-level kernel privileges - defeats the point of unprivileged
 LXCs entirely.
 
 If Tailscale needs more than the CT210-pattern allows, the right move is to
@@ -76,7 +76,7 @@ ip addr show tailscale0   # should now show the Tailscale IP
 
 Then restart any service that binds to the Tailscale IP (e.g., node_exporter).
 
-## The same flag, delivered differently — and the symptom inverts
+## The same flag, delivered differently - and the symptom inverts
 
 The section above describes the case where `bind()` **fails** and the service will
 not start. There is a second shape of this fault that looks like the opposite,
@@ -84,7 +84,7 @@ and it is far harder to spot.
 
 Encountered 2026-07-28: a container where `node_exporter` was `active`,
 `ss -tlnp` showed it listening on the Tailscale IP, and `ip addr show tailscale0`
-showed the interface with its address — everything an operator would check looked
+showed the interface with its address - everything an operator would check looked
 correct. Only the scrape from the monitoring node failed, with
 `connection refused`.
 
@@ -92,20 +92,20 @@ Two things were going on:
 
 1. The mode did not come from `/etc/default/tailscaled` at all. That file read
    `FLAGS=""` and the packaged unit was unmodified. A **second, hand-written
-   unit** — `/etc/systemd/system/tailscaled-userspace.service` — was `enabled`
+   unit** - `/etc/systemd/system/tailscaled-userspace.service` - was `enabled`
    alongside the stock `tailscaled.service`. Every boot started *two* daemons,
    two seconds apart, against the same `--state` and `--socket` paths.
 2. Because a TUN daemon was also running, `tailscale0` existed and carried the
    address. So the bind succeeded. What did not happen was **delivery**: the
    userspace daemon terminates incoming connections in netstack and never hands
    them to the kernel socket the service is bound to. Tailscale answers with a
-   RST, which the client reports as `connection refused` — indistinguishable at
+   RST, which the client reports as `connection refused` - indistinguishable at
    a glance from an ACL denial.
 
 The tell that it was not an ACL: `tailscale serve` traffic on 443 worked the
 whole time, because serve is answered *inside* that same userspace process. The
 node therefore looked healthy in blackbox HTTPS probes while its metrics target
-was down — a service-level probe and a metrics scrape disagreeing is a strong
+was down - a service-level probe and a metrics scrape disagreeing is a strong
 hint that something is terminating traffic in userspace.
 
 **The generalisable lesson: a successful `bind()` does not prove reachability.**
@@ -128,13 +128,13 @@ systemctl restart tailscaled.service
 ```
 
 Note that `disable` leaves the unit *file* in place. A later `systemctl enable`,
-or a rebuild from this machine's state, revives it — delete the file to close it
+or a rebuild from this machine's state, revives it - delete the file to close it
 out properly.
 
 ## Why this matters for service binding
 
 The Zero-Trust binding model requires services to bind either to loopback or
-to the Tailscale IP. With userspace networking, only loopback binding works —
+to the Tailscale IP. With userspace networking, only loopback binding works -
 so any service that should listen on `<tailscale-ip>:<port>` silently fails
 to start. That includes `node_exporter`, `postgresql` with `listen_addresses`,
 and Ollama.
@@ -150,7 +150,7 @@ pct exec <ctid> -- ls -l /dev/net/tun
 pct exec <ctid> -- ip addr show tailscale0
 # expected: device with inet 100.x.y.z
 
-# 3. tailscaled runs WITHOUT the userspace flag — check the process, not the config.
+# 3. tailscaled runs WITHOUT the userspace flag - check the process, not the config.
 #    `cat /etc/default/tailscaled` is NOT sufficient: the flag can arrive from a
 #    second unit file while that file reads FLAGS="" (seen on lxc220, 2026-07-28).
 pct exec <ctid> -- ps -o pid,args -C tailscaled
@@ -164,7 +164,7 @@ pct exec <ctid> -- systemctl list-unit-files | grep -i tailscale
 # 4. Service can bind to the Tailscale IP
 pct exec <ctid> -- ss -tlnp | grep <tailscale-ip>
 
-# 5. …and is actually REACHABLE from another node. Step 4 alone proves nothing:
+# 5. ...and is actually REACHABLE from another node. Step 4 alone proves nothing:
 #    with userspace networking the bind succeeds and delivery still fails.
 pct exec 200 -- curl -s -o /dev/null -w '%{http_code}\n' \
     http://<tailscale-ip>:9100/metrics

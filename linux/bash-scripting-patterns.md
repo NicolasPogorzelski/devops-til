@@ -44,9 +44,9 @@ esac
 
 | Pattern | Purpose |
 |---|---|
-| `command -v <tool>` | Returns 0 if `<tool>` is found in `PATH`, 1 otherwise — POSIX-portable, faster than `which` |
-| `>&2` | Redirect to stderr — error messages must not pollute stdout (which may be piped) |
-| `${1:-}` | Default empty string if `$1` is unset — works under `set -u` |
+| `command -v <tool>` | Returns 0 if `<tool>` is found in `PATH`, 1 otherwise - POSIX-portable, faster than `which` |
+| `>&2` | Redirect to stderr - error messages must not pollute stdout (which may be piped) |
+| `${1:-}` | Default empty string if `$1` is unset - works under `set -u` |
 
 ## Post-action validation
 
@@ -75,12 +75,12 @@ fi
 Avoid the `touch` + `chmod` + `chown` dance:
 
 ```bash
-# Less safe — file briefly exists with wrong perms between touch and chmod
+# Less safe - file briefly exists with wrong perms between touch and chmod
 touch /usr/local/sbin/myscript.sh
 chmod 0750 /usr/local/sbin/myscript.sh
 chown root:postgres /usr/local/sbin/myscript.sh
 
-# Atomic — file is created with final mode/ownership in one syscall
+# Atomic - file is created with final mode/ownership in one syscall
 install -m 0750 -o root -g postgres /dev/null /usr/local/sbin/myscript.sh
 ```
 
@@ -108,8 +108,8 @@ UNIT
 | Variant | Behavior |
 |---|---|
 | `<< UNIT` | Variables in the body are expanded (`${VAR}` interpolated) |
-| `<< 'UNIT'` | Single-quoted delimiter — no expansion, body is literal |
-| `<<- UNIT` | Strip leading TABs (only TABs, not spaces) — useful for indented heredocs |
+| `<< 'UNIT'` | Single-quoted delimiter - no expansion, body is literal |
+| `<<- UNIT` | Strip leading TABs (only TABs, not spaces) - useful for indented heredocs |
 
 Pick the variant by intent: if the unit must contain a literal `$VAR`, quote the delimiter.
 
@@ -121,7 +121,7 @@ trap 'rm -f "${TMP}"' EXIT
 ```
 
 `mktemp` creates a unique temp file in `$TMPDIR` (or `/tmp`) with safe permissions.
-`trap '<cmd>' EXIT` runs `<cmd>` when the script exits — including on errors with `set -e`.
+`trap '<cmd>' EXIT` runs `<cmd>` when the script exits - including on errors with `set -e`.
 
 For directories: `mktemp -d`. To clean up a tree: `trap 'rm -rf "${TMPDIR}"' EXIT`.
 
@@ -144,7 +144,7 @@ case "${1:-}" in
 esac
 ```
 
-A single script with sub-commands is often cleaner than multiple separate scripts —
+A single script with sub-commands is often cleaner than multiple separate scripts -
 shared setup runs once, the dispatch is explicit, and one cron/systemd entry per command.
 
 ## Globs that may match nothing
@@ -159,7 +159,7 @@ done
 ```
 
 Without `nullglob`: if `/mnt/smb/*` matches nothing, the loop runs once with `$d` set to the
-literal string `/mnt/smb/*` — usually a bug. With `nullglob`, the loop simply doesn't execute.
+literal string `/mnt/smb/*` - usually a bug. With `nullglob`, the loop simply doesn't execute.
 
 ## Bounded execution with `timeout`
 
@@ -187,12 +187,12 @@ su -s /bin/bash -c '<command>' <user>
 
 | Flag | Purpose |
 |---|---|
-| `-s /bin/bash` | Force a specific shell — works even if the user's login shell is `/usr/sbin/nologin` |
+| `-s /bin/bash` | Force a specific shell - works even if the user's login shell is `/usr/sbin/nologin` |
 | `-c '<cmd>'` | Run `<cmd>` and exit, no interactive shell |
 | `<user>` | Target user (must be after the flags) |
 
 Use case: running `php occ` as `www-data` from a script that runs as root. The `www-data` user
-often has `nologin` as login shell, so `su www-data -c '...'` fails — `su -s /bin/bash` works.
+often has `nologin` as login shell, so `su www-data -c '...'` fails - `su -s /bin/bash` works.
 
 ## Silent skip for optional work
 
@@ -203,12 +203,12 @@ some_command 2>/dev/null || true
 | Component | Effect |
 |---|---|
 | `2>/dev/null` | Suppress stderr (the error message) |
-| `\|\| true` | If the command fails, return 0 — don't abort the script under `set -e` |
+| `\|\| true` | If the command fails, return 0 - don't abort the script under `set -e` |
 
 Use case: a per-user loop where some users don't have the resource being processed.
 The check would be more code than just trying and ignoring failure.
 
-## `$?` lies inside a pipe — use `PIPESTATUS`
+## `$?` lies inside a pipe - use `PIPESTATUS`
 
 `$?` holds the exit code of the **last** command in a pipeline, not the one you
 usually care about. When you pipe a real command into a formatter, the formatter's
@@ -216,7 +216,7 @@ success masks the command's failure:
 
 ```bash
 ./validate-repo.sh | tail -8
-echo "$?"        # ← tail's exit code (~always 0), NOT the script's
+echo "$?"        # <- tail's exit code (~always 0), NOT the script's
 ```
 
 Bash records every pipe member's code in the `PIPESTATUS` array. Index 0 is the
@@ -231,7 +231,7 @@ Two ways to get the leftmost code reliably:
 
 | Approach | Effect |
 |---|---|
-| `${PIPESTATUS[0]}` | Read the specific member's code. Must be used on the **very next line** — any other command overwrites the array. |
+| `${PIPESTATUS[0]}` | Read the specific member's code. Must be used on the **very next line** - any other command overwrites the array. |
 | `set -o pipefail` | Make the pipeline itself return the first non-zero code, so plain `$?` works. Changes behaviour for the whole script. |
 
 `pipefail` is the right default in a script header. `PIPESTATUS` is what you reach
@@ -242,21 +242,21 @@ shorten output and still need the producer's status.
 
 `cmd || true` (above) *discards* a failure so `set -e` won't abort. Sometimes you
 need the opposite: keep running, but **inspect** the code and branch on it. A bare
-assignment from a failing command still trips `set -e`; the `&& … || …` idiom
+assignment from a failing command still trips `set -e`; the `&& ... || ...` idiom
 neutralises it:
 
 ```bash
 out="$(some-linter . 2>&1)" && rc=0 || rc=$?
 if [[ "${rc}" -ne 0 ]]; then
     echo "${out}" | sed 's/^/  /'   # show what it said
-    ERRORS=$((ERRORS + 1))          # …and act on it
+    ERRORS=$((ERRORS + 1))          # ...and act on it
 fi
 ```
 
 Why it works: `set -e` does not trigger on a command that is the left side of `&&`
-or `||` — the failure is considered "handled". `&& rc=0` runs on success, `|| rc=$?`
+or `||` - the failure is considered "handled". `&& rc=0` runs on success, `|| rc=$?`
 captures the code on failure. Without this wrapper, `out="$(some-linter .)"` under
-`set -e` would abort the whole script the moment the linter found something —
+`set -e` would abort the whole script the moment the linter found something -
 before you could print its output.
 
 `ansible-lint` (exit 2 on findings) and any test runner (non-zero on failure) need
@@ -293,17 +293,17 @@ Why functions: deploying the same change across LXCs (`pct exec`), VMs (`ssh`), 
 (local execution) requires three different access methods. Functions abstract the access path
 so the call sites stay readable.
 
-`local` declares variables scoped to the function — without it, variables leak into the global scope.
+`local` declares variables scoped to the function - without it, variables leak into the global scope.
 
 ## Idempotent loops
 
 Running a script twice should not produce different state than running it once.
 
 ```bash
-# Bad — appends every run, eventually duplicates the line
+# Bad - appends every run, eventually duplicates the line
 echo "0 3 * * * /usr/local/sbin/pg-backup.sh" >> /etc/cron.d/pg-backup
 
-# Good — overwrites with current desired state
+# Good - overwrites with current desired state
 echo "0 3 * * * /usr/local/sbin/pg-backup.sh" > /etc/cron.d/pg-backup
 ```
 
@@ -330,7 +330,7 @@ DUMP_FILE="${BACKUP_DIR}/pg_dumpall_${TIMESTAMP}.sql.gz"
 | `%Y%m%d_%H%M%S` | `20260425_140530` |
 | `%Y-%m-%dT%H:%M:%S%z` | `2026-04-25T14:05:30+0200` (ISO 8601) |
 
-Sortable by name (alphanumerical sort = chronological sort) — important for retention scripts
+Sortable by name (alphanumerical sort = chronological sort) - important for retention scripts
 using `find -mtime` or `ls -t`.
 
 ## Human-readable size summary
@@ -343,7 +343,7 @@ echo "wrote ${FILE} (${SIZE})"
 | Component | Effect |
 |---|---|
 | `du -h` | Disk usage in human-readable units (K, M, G) |
-| `cut -f1` | Take the first tab-separated field (the size) — drops the path |
+| `cut -f1` | Take the first tab-separated field (the size) - drops the path |
 
 ## Nested grep + while read
 
@@ -359,11 +359,11 @@ done < <(find . -name "*.md" -type f)
 
 | Component | Effect |
 |---|---|
-| `read -r` | Don't interpret backslash escapes — preserves literal `\n`, `\t` in filenames |
-| `< <(cmd)` | Process substitution — feed the output of `cmd` as stdin to the loop. Avoids subshell scoping issues that `cmd | while read` would create. |
-| `grep -oP '...\K...'` | Perl regex with `\K`: discard everything before `\K` from the match — used to extract just the captured part |
+| `read -r` | Don't interpret backslash escapes - preserves literal `\n`, `\t` in filenames |
+| `< <(cmd)` | Process substitution - feed the output of `cmd` as stdin to the loop. Avoids subshell scoping issues that `cmd | while read` would create. |
+| `grep -oP '...\K...'` | Perl regex with `\K`: discard everything before `\K` from the match - used to extract just the captured part |
 
-Use process substitution (`< <(...)`) over piping (`| while`) when the loop modifies variables —
+Use process substitution (`< <(...)`) over piping (`| while`) when the loop modifies variables -
 piping creates a subshell where modifications are lost.
 
 ## Related

@@ -2,7 +2,7 @@
 
 ## What `occ` is
 
-`occ` (ownCloud Console — the project's historical name) is Nextcloud's admin CLI.
+`occ` (ownCloud Console - the project's historical name) is Nextcloud's admin CLI.
 It lives at `<webroot>/occ` and must be run as the web-server user (the user
 that owns the Nextcloud files), because it writes to the same files PHP-FPM/Apache do.
 
@@ -12,7 +12,7 @@ sudo -u www-data php /var/www/nextcloud/occ <command>
 
 | Part                                | Why                                                     |
 |-------------------------------------|---------------------------------------------------------|
-| `sudo -u www-data`                  | Run as web-server user — same UID that owns the files   |
+| `sudo -u www-data`                  | Run as web-server user - same UID that owns the files   |
 | `php`                               | `occ` is a PHP script invoked via the PHP CLI           |
 | `/var/www/nextcloud/occ`            | Path to the script (varies by install method)           |
 
@@ -25,19 +25,19 @@ A non-Docker Nextcloud install on Debian:
 
 ```
                              ┌─────────────────┐
-        Client (HTTPS) ───►  │ Apache (TLS)    │
+        Client (HTTPS) ───>  │ Apache (TLS)    │
                              │ /var/lib/tail-  │
                              │  scale/certs    │
                              └────────┬────────┘
                                       │ FastCGI (Unix socket)
-                                      ▼
+                                      v
                              ┌─────────────────┐
                              │ PHP-FPM         │
                              │ (www-data)      │
                              └────────┬────────┘
                                       │
                 ┌─────────────────────┼─────────────────────┐
-                ▼                     ▼                     ▼
+                v                     v                     v
         ┌────────────┐         ┌────────────┐         ┌────────────┐
         │ MariaDB    │         │ Redis      │         │ Filesystem │
         │ (state)    │         │ (locking)  │         │ (data dir) │
@@ -47,10 +47,10 @@ A non-Docker Nextcloud install on Debian:
 Why each piece:
 
 - **MariaDB** for relational state (users, shares, file index). `dbhost=localhost`
-  for a same-host install to use the Unix socket — faster and removes one network hop.
+  for a same-host install to use the Unix socket - faster and removes one network hop.
 - **Redis** for **distributed file locking** (`OC\Memcache\Redis` for `memcache.locking`)
   and **transactional cache** (`memcache.distributed`).
-- **APCu** for **local cache** (`memcache.local`) — in-process PHP cache, fast
+- **APCu** for **local cache** (`memcache.local`) - in-process PHP cache, fast
   but not shared between PHP workers.
 
 The cache split is important: APCu is per-process, Redis is shared. Using only
@@ -100,7 +100,7 @@ sudo -u www-data php occ files:scan --path="<username>/files/Inbox"
 |----------------|-------------------------------------------------------------------------|
 | `--all`        | Scan every user. Slow on large installs.                                |
 | `<username>`   | Positional: scan only this user's storage                               |
-| `--path=...`   | Scan only this subpath. Fast — use this for "I just dropped a file in X" |
+| `--path=...`   | Scan only this subpath. Fast - use this for "I just dropped a file in X" |
 
 ### External storage
 
@@ -116,7 +116,7 @@ sudo -u www-data php occ files_external:applicable --add-user=<user> <mount-id>
 
 | Command                           | Use case                                                  |
 |-----------------------------------|-----------------------------------------------------------|
-| `files_external:verify`           | "Why can't user X see the share?" — first thing to run    |
+| `files_external:verify`           | "Why can't user X see the share?" - first thing to run    |
 | `files_external:applicable`       | Audit who has access to a given external mount            |
 
 ### User listing for scripts
@@ -139,7 +139,7 @@ su -s /bin/bash -c 'php /var/www/nextcloud/occ files:scan --path="alice/files/In
 
 | Part                    | Why                                                              |
 |-------------------------|------------------------------------------------------------------|
-| `su -s /bin/bash`       | Use bash explicitly — `www-data`'s default shell may be `nologin` |
+| `su -s /bin/bash`       | Use bash explicitly - `www-data`'s default shell may be `nologin` |
 | `-c '<command>'`        | Run this command non-interactively                               |
 | `www-data`              | Target user                                                      |
 

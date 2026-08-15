@@ -16,9 +16,9 @@ and serve them; you do not fine-tune with Ollama.
 
 | Backend | Hardware       | Speed (relative)  | Setup pain                                          |
 |---------|----------------|-------------------|-----------------------------------------------------|
-| CUDA    | NVIDIA GPUs    | 1.0× (baseline)   | Driver + Container Toolkit; well-supported          |
-| ROCm    | AMD GPUs       | ~0.5–0.7× of CUDA | `ollama-rocm` package on Arch; spotty per-GPU       |
-| CPU     | Any x86_64     | 5–20× slower      | Trivial — but unusable for >7B models               |
+| CUDA    | NVIDIA GPUs    | 1.0x (baseline)   | Driver + Container Toolkit; well-supported          |
+| ROCm    | AMD GPUs       | ~0.5-0.7x of CUDA | `ollama-rocm` package on Arch; spotty per-GPU       |
+| CPU     | Any x86_64     | 5-20x slower      | Trivial - but unusable for >7B models               |
 
 For a homelab AI host: NVIDIA + Container Toolkit is the path of least resistance.
 Document the hardware path explicitly in the host's node doc so future-you knows
@@ -55,7 +55,7 @@ ollama create my-qwen3 -f ./qwen3-16k.modelfile
 ollama run my-qwen3
 ```
 
-## Quantization tags — what `q4_K_M` means
+## Quantization tags - what `q4_K_M` means
 
 Model tags encode quantization. For Qwen3-8B you might see:
 
@@ -68,29 +68,29 @@ Model tags encode quantization. For Qwen3-8B you might see:
 | `q8_0`     | 8    | ~9 GB                | Negligible           |
 | `f16`      | 16   | ~16 GB               | None (baseline)      |
 
-The `_K_M` variants are "K-quantized, medium" — same bit budget as `q4_0` but
+The `_K_M` variants are "K-quantized, medium" - same bit budget as `q4_0` but
 with smarter weight grouping. Default to `q4_K_M` unless you have a measurement
 showing it's hurting your use case; it's the best quality-per-GB tradeoff.
 
-## Context window — `num_ctx` and the trade-off
+## Context window - `num_ctx` and the trade-off
 
 `num_ctx` sets the maximum token window the model considers. Doubling it does
 not double VRAM, but it scales roughly linearly with KV-cache memory (the per-token
 state the model keeps around).
 
 There is a **quality** trade-off most users miss: at very large context sizes,
-attention degrades — the model "forgets" details from the middle of long contexts.
-For a 8B model, going from 8k → 128k context typically:
+attention degrades - the model "forgets" details from the middle of long contexts.
+For a 8B model, going from 8k -> 128k context typically:
 
-- Increases VRAM usage by 2–6 GB
+- Increases VRAM usage by 2-6 GB
 - Slows generation noticeably (KV cache pressure)
 - *Reduces* answer quality on focused tasks (more "lost in the middle")
 
-Right approach: maintain **two variants** per base model — a small-context one
+Right approach: maintain **two variants** per base model - a small-context one
 for daily Q&A and a large-context one for "summarize this whole document".
 Don't run a single 128k model and use it for everything.
 
-## Bind address — loopback vs Tailscale IP
+## Bind address - loopback vs Tailscale IP
 
 By default Ollama binds to `127.0.0.1:11434`. To expose it to other hosts on the
 Tailnet, override via systemd drop-in:
@@ -109,7 +109,7 @@ Environment="OLLAMA_HOST=100.x.y.z:11434"
 | `OLLAMA_HOST` | Both server bind address *and* default for the `ollama` CLI client      |
 
 **Gotcha:** when the server binds non-loopback, the local CLI also needs
-`OLLAMA_HOST` set in your shell (`export OLLAMA_HOST=100.x.y.z:11434`) — otherwise
+`OLLAMA_HOST` set in your shell (`export OLLAMA_HOST=100.x.y.z:11434`) - otherwise
 `ollama list` connects to the default `127.0.0.1:11434` and reports "connection refused".
 Add the export to `~/.bashrc` on the host to avoid re-debugging this every session.
 
@@ -123,13 +123,13 @@ Two failure modes recur:
 1. **GPU went away**: VRAM allocation failed, model unloaded, next request returns
    500. Cause: another process took the GPU, or the driver hung. `nvidia-smi` /
    `rocm-smi` is the first check.
-2. **Model not pulled**: `ollama run my-model` returns "model not found" — the
+2. **Model not pulled**: `ollama run my-model` returns "model not found" - the
    Modelfile-derived model wasn't created on this host. `ollama list` to verify.
 
 OpenWebUI exhibits a related fail-forward pattern: if the Ollama backend is
 unreachable, OpenWebUI still shows the model list (cached) and a chat UI. Sending
-a message returns a 500. This is by design — UI stays usable for browsing prior
-chats — but it means UI-availability ≠ inference-availability. Monitor both layers.
+a message returns a 500. This is by design - UI stays usable for browsing prior
+chats - but it means UI-availability != inference-availability. Monitor both layers.
 
 ## Verification commands
 

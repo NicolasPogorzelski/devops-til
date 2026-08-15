@@ -16,7 +16,7 @@ runtime, so when a container requests GPU access, it injects:
 Without the Toolkit, GPU containers do not work. With it, GPU access becomes a
 declarative property of the compose file.
 
-## Two syntaxes — same outcome
+## Two syntaxes - same outcome
 
 **Compose v2 deploy.resources syntax (recommended):**
 
@@ -59,8 +59,8 @@ Controls which GPUs the container sees:
 |----------------|--------------------------------------------------------------|
 | `all`          | All GPUs visible                                             |
 | `0` or `0,1`   | Specific GPU indices (as listed by `nvidia-smi`)             |
-| `none`         | No GPUs (rarely useful — same as not setting it)             |
-| `<UUID>`       | Specific GPU by UUID — survives reordering                   |
+| `none`         | No GPUs (rarely useful - same as not setting it)             |
+| `<UUID>`       | Specific GPU by UUID - survives reordering                   |
 
 For multi-GPU hosts, prefer UUIDs (`nvidia-smi -L`) over indices. The kernel
 can renumber GPUs after a reboot if a card is added or removed.
@@ -71,21 +71,21 @@ Tells the Toolkit which categories of libraries to mount:
 
 | Capability  | What it enables                                              |
 |-------------|--------------------------------------------------------------|
-| `compute`   | CUDA / OpenCL — compute kernels                              |
+| `compute`   | CUDA / OpenCL - compute kernels                              |
 | `utility`   | `nvidia-smi` and management libraries                        |
 | `video`     | NVENC/NVDEC for hardware video encoding/decoding             |
-| `graphics`  | OpenGL / Vulkan — for graphical applications                 |
-| `display`   | Display output — almost never needed in containers           |
+| `graphics`  | OpenGL / Vulkan - for graphical applications                 |
+| `display`   | Display output - almost never needed in containers           |
 | `all`       | Everything                                                   |
 
 For media servers (Jellyfin, Plex): `compute,utility,video`.
 For LLM inference (Ollama, vLLM): `compute,utility`.
 For ML training: `compute,utility` (and `graphics` only if the framework needs it).
 
-Don't use `all` — it mounts more libraries than the container needs and increases
+Don't use `all` - it mounts more libraries than the container needs and increases
 the surface area of the host driver exposed inside the container.
 
-## `pid: host` — when you need it
+## `pid: host` - when you need it
 
 Some workloads (notably media transcoding via NVENC under specific driver versions)
 need `pid: host` in the container:

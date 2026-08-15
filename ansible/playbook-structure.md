@@ -22,7 +22,7 @@ A playbook is a YAML file containing one or more **plays**. Each play needs:
 
 ## YAML indentation rules
 
-YAML uses indentation as structure — not just style. Wrong indentation = wrong meaning.
+YAML uses indentation as structure - not just style. Wrong indentation = wrong meaning.
 
 - Each level: 2 spaces (no tabs)
 - A list item starts with `- ` (dash + space)

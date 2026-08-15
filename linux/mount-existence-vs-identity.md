@@ -1,7 +1,7 @@
 # Mount Existence vs Mount Identity
 
 A guard that asks *"is something mounted here?"* answers a different question from
-*"is the **right thing** mounted here?"* — and when a remote filesystem fails to mount, those two
+*"is the **right thing** mounted here?"* - and when a remote filesystem fails to mount, those two
 questions give opposite answers.
 
 This is a recurring bug class, not a one-off. On a single platform audit it appeared three times
@@ -9,8 +9,8 @@ independently, in three different tools, written by three different mechanisms.
 
 ## The failure shape
 
-A CIFS/NFS share is mounted on a host at `/mnt/smb/books-rw`. Something else — an LXC bind mount,
-a container volume, an application — consumes that path.
+A CIFS/NFS share is mounted on a host at `/mnt/smb/books-rw`. Something else - an LXC bind mount,
+a container volume, an application - consumes that path.
 
 When the share is mounted, the consumer sees the share. When the mount **fails**, the consumer
 does not see an error. It sees the **empty directory that the mountpoint was created from**, which
@@ -24,7 +24,7 @@ Nothing crashes. Nothing is `ENOENT`. The path is there. It is just the wrong fi
 | Guard | What it actually tests | Why it passes anyway |
 |---|---|---|
 | `[ -d "$DIR" ]` | The path is a directory | The empty mountpoint underneath *is* a directory |
-| `mountpoint -q "$DIR"` | *A* mount exists at this path | An LXC bind mount is a mount. It is mounted — from `pve-root` |
+| `mountpoint -q "$DIR"` | *A* mount exists at this path | An LXC bind mount is a mount. It is mounted - from `pve-root` |
 | `mkdir 0` (Proxmox storage) | Refuse to create the directory | The directory already exists, so nothing is created and nothing is refused |
 
 `mountpoint -q` is the seductive one. It looks like the correct tool, it is the tool everyone
@@ -51,7 +51,7 @@ fi
 Where a filesystem type is not distinctive enough, assert on the source instead:
 `findmnt -no SOURCE "$DIR"` returns e.g. `//<storage-host>/Books-service` for CIFS versus
 `/dev/mapper/pve-root[/mnt/smb/books-rw]` for the bind-to-empty-dir case. The `[...]` suffix on a
-bind mount names the subtree of the source device — a strong tell on its own.
+bind mount names the subtree of the source device - a strong tell on its own.
 
 Confirming the diagnosis from inside the affected container:
 
@@ -83,7 +83,7 @@ observable state; throwing that away with `exit 0` gives back everything the mig
 - **Proxmox storage definitions.** A directory storage without `is_mountpoint 1` is considered
   active whenever its path exists. If the backing disk fails to mount, Proxmox happily writes
   guest images into the empty mountpoint on the boot disk until it fills. `mkdir 0` does not
-  prevent this — it only stops Proxmox from *creating* the directory, which already exists.
+  prevent this - it only stops Proxmox from *creating* the directory, which already exists.
   `is_mountpoint 1` is the option that asserts identity.
 - **Docker bind mounts.** A bind source that does not exist is silently created as an empty,
   root-owned directory. The container starts, sees an empty volume, and reinitialises its data.
@@ -95,8 +95,8 @@ observable state; throwing that away with `exit 0` gives back everything the mig
 
 Any check of the form *"does the thing exist"* is weaker than *"is the thing what I think it is"*,
 and the gap between them is exactly where a silent failure lives. When a resource can be
-**shadowed** by something cheaper that looks like it — an empty directory under a mountpoint, a
-localhost bind under a missing interface, a default config under a missing drop-in — existence
+**shadowed** by something cheaper that looks like it - an empty directory under a mountpoint, a
+localhost bind under a missing interface, a default config under a missing drop-in - existence
 checks pass and the system does the wrong thing quietly.
 
 Ask what the resource *is*, not whether it is *there*.

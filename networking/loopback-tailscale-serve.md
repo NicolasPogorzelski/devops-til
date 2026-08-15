@@ -7,7 +7,7 @@ Tailscale Serve sits in front, terminates TLS on the Tailnet interface,
 and proxies traffic to the loopback port over HTTP.
 
 ```
-Client (Tailnet) → Tailscale Serve (HTTPS) → 127.0.0.1:<port> (HTTP)
+Client (Tailnet) -> Tailscale Serve (HTTPS) -> 127.0.0.1:<port> (HTTP)
 ```
 
 Result:
@@ -42,18 +42,18 @@ tailscale serve --bg --https=443 http://127.0.0.1:3000
 |---|---|
 | `--bg` | Run in background, persists after terminal close |
 | `--https=<port>` | External port (TLS-terminated by Tailscale) |
-| `http://...` | Backend target — must be HTTP because the local service has no TLS |
+| `http://...` | Backend target - must be HTTP because the local service has no TLS |
 
 ## Three rules that prevent foot-guns
 
-1. **Always bind to `127.0.0.1`, never `0.0.0.0`** — prevents accidental LAN exposure.
-2. **Backend protocol is always `http://`** — Tailscale Serve already handles TLS;
+1. **Always bind to `127.0.0.1`, never `0.0.0.0`** - prevents accidental LAN exposure.
+2. **Backend protocol is always `http://`** - Tailscale Serve already handles TLS;
    if the backend speaks HTTPS too, the proxy fails with a TLS error.
-3. **One service per Serve port** — Tailscale Serve does not support subpath routing
-   (`/grafana` → A, `/prometheus` → B does not work). Assign unique ports per service
+3. **One service per Serve port** - Tailscale Serve does not support subpath routing
+   (`/grafana` -> A, `/prometheus` -> B does not work). Assign unique ports per service
    and document them.
 
-## Pitfall: HTTPS → HTTP mismatch
+## Pitfall: HTTPS -> HTTP mismatch
 
 **Symptom:** Tailscale Serve returns a TLS error or `connection refused`.
 
@@ -86,7 +86,7 @@ matters. Document the exception explicitly:
 | Media streaming (Jellyfin, Audiobookshelf) | High-bitrate LAN streaming, ~50 Mbit upstream limit | LAN reachable on `0.0.0.0:<port>` |
 | Bulk file uploads (Nextcloud) | Multi-GB uploads benefit from LAN speed | Apache TLS handles HTTPS; no Tailscale Serve |
 
-For these, security still relies on Tailscale-encrypted access for *remote* users —
+For these, security still relies on Tailscale-encrypted access for *remote* users -
 the LAN binding is a deliberate convenience exception, not a security gap.
 
 ## Considered alternatives

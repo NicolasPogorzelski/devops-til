@@ -3,7 +3,7 @@
 ## What they are
 
 A `.j2` file is a text file with Jinja2 placeholders and logic. Ansible renders it
-at run time — substituting variables from the inventory — and writes the result to
+at run time - substituting variables from the inventory - and writes the result to
 the target host. The source file stays in the repo without real IPs or secrets.
 
 Use case: generate a `prometheus.yml` from inventory so Prometheus targets and
@@ -71,7 +71,7 @@ Inside a Jinja2 template, use an `if` condition:
 {% endfor %}
 ```
 
-Note the closing order: `{% endif %}` before `{% endfor %}` — close inner blocks first.
+Note the closing order: `{% endif %}` before `{% endfor %}` - close inner blocks first.
 
 ## Custom host variables as template input
 
@@ -88,7 +88,7 @@ lxcs:
 
 Then in the template:
 ```jinja2
-{{ hostvars[host]['prometheus_label'] }}  # → nextcloud
+{{ hostvars[host]['prometheus_label'] }}  # -> nextcloud
 ```
 
 Define per-host variables in groups that list each node exactly once
@@ -100,7 +100,7 @@ Templates can combine hardcoded blocks with generated loops:
 
 ```jinja2
 scrape_configs:
-  # Static — special cases
+  # Static - special cases
   - job_name: "prometheus"
     static_configs:
       - targets: ["127.0.0.1:9090"]
@@ -109,7 +109,7 @@ scrape_configs:
     static_configs:
       - targets: ["127.0.0.1:9100"]
 
-  # Dynamic — from inventory
+  # Dynamic - from inventory
   {% for host in groups['lxcs'] %}
   {% if host != 'lxc200' %}
   - job_name: "node-{{ host }}-{{ hostvars[host]['prometheus_label'] }}"
@@ -146,21 +146,21 @@ whitespace in the output if not handled carefully.
 | `lstrip_blocks` | Removes leading spaces/tabs **before** `{%` | no |
 
 With both active, a line like `  {% for host in groups['lxcs'] %}` produces
-**nothing** in the output — the leading spaces are stripped by `lstrip_blocks`,
+**nothing** in the output - the leading spaces are stripped by `lstrip_blocks`,
 the trailing newline by `trim_blocks`.
 
 **Always set `lstrip_blocks: yes`** when the template contains `for`/`if` blocks
 and the output format is whitespace-sensitive (YAML, TOML, Python, etc.).
 
-Without it, each control tag line leaves a "ghost line" with just spaces — in YAML
+Without it, each control tag line leaves a "ghost line" with just spaces - in YAML
 this causes inconsistent indentation that may confuse parsers or produce invalid structure.
 
-Do not use `{%-` / `-%}` whitespace control as a substitute — it strips newlines
+Do not use `{%-` / `-%}` whitespace control as a substitute - it strips newlines
 from adjacent content lines, causing entries to run together.
 
 ### `trim_blocks` pitfall: inline `{% %}` at end of a content line
 
-`trim_blocks` applies whenever a `{% %}` tag is the **last thing on a line** —
+`trim_blocks` applies whenever a `{% %}` tag is the **last thing on a line** -
 including when it is appended to a content line (not on its own line).
 
 **Broken template:**
@@ -170,8 +170,8 @@ ExecStart=/usr/local/bin/node_exporter --web.listen-address={{ host }}:9100{% if
 Restart=on-failure
 ```
 
-When `textfile_dir` is empty: the `{% endif %}` is the last tag on the line →
-`trim_blocks` eats the newline → `Restart=on-failure` is appended directly to
+When `textfile_dir` is empty: the `{% endif %}` is the last tag on the line ->
+`trim_blocks` eats the newline -> `Restart=on-failure` is appended directly to
 `ExecStart` with no newline. Result: a broken systemd unit where two directives
 are merged onto one line.
 
@@ -185,7 +185,7 @@ Restart=on-failure
 
 - The `{% set %}...{% endif %}` line has no visible output; `trim_blocks` eating its
   newline is harmless.
-- `ExecStart` now ends with `{{ textfile_flag }}` — a **variable tag**, not a block tag.
+- `ExecStart` now ends with `{{ textfile_flag }}` - a **variable tag**, not a block tag.
   `trim_blocks` only applies to `{% %}` block tags, so the newline is preserved.
 
 ## References

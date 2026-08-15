@@ -13,7 +13,7 @@ default route anyway, and reported no error.
 
 A client preference references a server-side resource by opaque ID.
 The resource is deleted upstream. The client never revalidates the reference
-and never surfaces the dangling pointer — it just acts on it.
+and never surfaces the dangling pointer - it just acts on it.
 
 This is not Tailscale-specific. Same shape as a Terraform state entry pointing
 at a destroyed cloud resource, a systemd unit referencing a removed device,
@@ -35,8 +35,8 @@ route:
 ip rule show
 ```
 ```
-5270:  from all lookup 52          # Tailscale's table — wins
-32766: from all lookup main       # the real default route — never consulted
+5270:  from all lookup 52          # Tailscale's table - wins
+32766: from all lookup main       # the real default route - never consulted
 ```
 ```bash
 ip route show table 52            # exit-node default route lives here
@@ -47,7 +47,7 @@ Priority 5270 beats 32766, so every packet is handed to a peer that does not
 exist. They are dropped silently.
 
 `ExitNodeAllowLANAccess: true` keeps `192.168.0.0/24` reachable, which makes
-the router, printer, and homelab all work. That masks the diagnosis — it feels
+the router, printer, and homelab all work. That masks the diagnosis - it feels
 like a DNS or WAN problem rather than a routing problem.
 
 ## Diagnosis
@@ -81,7 +81,7 @@ Fields that matter:
 Then compare against reality:
 
 ```bash
-tailscale exit-node list | grep -i "<ExitNodeID>" || echo "NOT FOUND — stale pin"
+tailscale exit-node list | grep -i "<ExitNodeID>" || echo "NOT FOUND - stale pin"
 ```
 
 This is the decisive test. Absence is the finding.
@@ -99,7 +99,7 @@ pm: using backend prefs for "profile-XXXX": Prefs{ra=false dns=true want=true
 exit=nhFT86vct921CNTRL lan=true routes=[] ...}
 ```
 
-Identical across every boot proves the config did not change — so the
+Identical across every boot proves the config did not change - so the
 environment did. Useful for answering "but I didn't touch anything".
 
 **Trap:** `grep -c "<node-id>"` over the journal returns a high count and looks
@@ -138,7 +138,7 @@ curl -s --max-time 10 https://am.i.mullvad.net/connected
 You are connected to Mullvad (server de-fra-wg-202). Your IP address is ...
 ```
 
-Rescue command if a change kills connectivity — works offline, since the CLI
+Rescue command if a change kills connectivity - works offline, since the CLI
 only talks to the local unix socket:
 
 ```bash
@@ -159,7 +159,7 @@ touch /tmp/ts.cancel    # disarm
 ```
 
 `setsid` detaches from the terminal session, `nohup` blocks SIGHUP, `&`
-backgrounds it — all three are needed so the watchdog outlives the shell.
+backgrounds it - all three are needed so the watchdog outlives the shell.
 A cancel *file* polled once per second beats `kill`, because the PID of a
 `setsid` child is not reliably reachable from the caller.
 
@@ -191,7 +191,7 @@ tailscale up
 
 ## Immutable-OS note (Bazzite / Fedora Silverblue)
 
-`AutoUpdate.Apply: true` cannot work on an ostree system — `/usr` is read-only
+`AutoUpdate.Apply: true` cannot work on an ostree system - `/usr` is read-only
 and Tailscale ships in the image. The daemon retries hourly and fails:
 
 ```
@@ -208,7 +208,7 @@ Updates come via `rpm-ostree upgrade` with the rest of the image.
 ## Misleading correlation
 
 The outage appeared to be Wi-Fi-specific. It is not: Tailscale prefs are
-**per profile, not per interface** — there is no Wi-Fi/Ethernet distinction
+**per profile, not per interface** - there is no Wi-Fi/Ethernet distinction
 in them. The real correlate was *changing networks* (three different subnets
 in one evening: `192.168.179.0/24`, `192.168.0.0/24`, `10.222.249.0/24`),
 each triggering a reconnect that re-applied the dead pin.

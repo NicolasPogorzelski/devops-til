@@ -11,7 +11,7 @@ The database host trusts the local OS user via a `pg_hba.conf` line:
 `local all postgres ... peer`. Peer auth maps the *operating-system* identity to
 the database role: if you are the Linux `postgres` user on the Unix socket,
 Postgres lets you in as the `postgres` superuser without a password. So the role
-runs as `become_user: postgres` and connects locally — no admin password to store
+runs as `become_user: postgres` and connects locally - no admin password to store
 or leak. The `community.postgresql` modules pick up that local connection
 automatically.
 
@@ -48,14 +48,14 @@ Failed to set permissions on the temporary files Ansible needs to create when
 becoming an unprivileged user
 ```
 
-That ACL-mode string is Solaris/NFSv4 syntax — a sign the `setfacl` path wasn't
+That ACL-mode string is Solaris/NFSv4 syntax - a sign the `setfacl` path wasn't
 available. The fix is to make the role self-sufficient: install `acl` (and here
 `python3-psycopg2`, which the modules import) as a prerequisite task **before** the
-`become_user` block runs. Verify the root cause rather than guessing —
+`become_user` block runs. Verify the root cause rather than guessing -
 `command -v setfacl` on the target returned nothing.
 
 This applies to *any* role that becomes a service account (postgres, a deploy
-user, …), not just databases.
+user, ...), not just databases.
 
 ## Lesson 2 (transferable): don't co-locate a secret with the loop variable
 
@@ -67,7 +67,7 @@ postgres_tenants:
 ```
 
 with `no_log: true` only on the user-creation task. When an *earlier* task failed,
-Ansible printed the failed item — the whole dict, password in clear:
+Ansible printed the failed item - the whole dict, password in clear:
 
 ```
 failed: [lxc260] (item={"name": "test_db", "password": "9b8c...", ...})
@@ -91,7 +91,7 @@ task doesn't help the others. Two fixes, used together:
 2. **`no_log: true`** on the one task that *does* read the password (user
    creation). Belt and suspenders.
 
-And: a password that has appeared in a log is burned — rotate it
+And: a password that has appeared in a log is burned - rotate it
 (`ansible-vault encrypt_string` a fresh value), even for a throwaway.
 
 ## Test-tenant-first, then tear down
@@ -108,6 +108,6 @@ the repo matches reality.
 ## Related
 
 - [Walkthrough: Items #9 & #10](walkthrough-items-9-10.md)
-- [Privilege Escalation](privilege-escalation.md) — `become`, `become_user`
-- [Ansible Vault](ansible-vault.md) — `encrypt_string`, secret hygiene
-- [Roles](roles.md) — defaults, handlers, safe defaults
+- [Privilege Escalation](privilege-escalation.md) - `become`, `become_user`
+- [Ansible Vault](ansible-vault.md) - `encrypt_string`, secret hygiene
+- [Roles](roles.md) - defaults, handlers, safe defaults

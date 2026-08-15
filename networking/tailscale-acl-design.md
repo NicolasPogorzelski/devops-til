@@ -18,7 +18,7 @@ rather than between individual hosts.
 | Tier              | Examples                                       | Notes                                       |
 |-------------------|------------------------------------------------|---------------------------------------------|
 | `tag:admin`       | Personal laptop, admin VM                      | Full network access                         |
-| `tag:tier0`       | Hypervisor, storage VM                         | Foundation — accessible by tier1, tier2     |
+| `tag:tier0`       | Hypervisor, storage VM                         | Foundation - accessible by tier1, tier2     |
 | `tag:tier1`       | Application servers (Nextcloud, Paperless)     | Reach tier0 for storage; reachable by users |
 | `tag:tier2`       | User-facing endpoints                          | Reach tier1; reachable by clients           |
 | `tag:storage`     | The storage node specifically                  | Special: read-only mounts, restricted ports |
@@ -47,7 +47,7 @@ Before tags can be assigned, they must have an owner:
 
 `autogroup:admin` means "any user with admin role in the tailnet". The owner
 controls who can assign the tag to a node. For a single-operator homelab,
-all tags owned by `autogroup:admin` is correct — no delegation needed.
+all tags owned by `autogroup:admin` is correct - no delegation needed.
 
 ## Hosts aliases
 
@@ -63,10 +63,10 @@ Instead of using IPs in ACLs, define aliases:
 
 ACL rules then reference `hosts:storage` instead of the IP. Two benefits:
 
-1. IPs can change (re-registration, manual reset) — names are stable
+1. IPs can change (re-registration, manual reset) - names are stable
 2. Rules become readable: `dst: ["storage:445"]` is self-documenting
 
-## Rule structure — intra-tier vs cross-tier
+## Rule structure - intra-tier vs cross-tier
 
 Common pattern: allow within tier, restrict between tiers.
 
@@ -102,23 +102,23 @@ Common pattern: allow within tier, restrict between tiers.
 
 Rule reading:
 
-- **admin → everything**: explicit; admins can reach everything
-- **tier1 → tier1**: services in the same tier can talk freely
-- **tier1 → tier0:445,5432**: tier1 reaches storage SMB and database PG only
-- **client → tier2:443**: end-users reach user-facing services on HTTPS
-- **monitoring → all tiers:exporter ports**: scrape access, nothing else
+- **admin -> everything**: explicit; admins can reach everything
+- **tier1 -> tier1**: services in the same tier can talk freely
+- **tier1 -> tier0:445,5432**: tier1 reaches storage SMB and database PG only
+- **client -> tier2:443**: end-users reach user-facing services on HTTPS
+- **monitoring -> all tiers:exporter ports**: scrape access, nothing else
 
 The narrow ports on cross-tier rules are the value: monitoring can scrape
 node_exporter (9100) and postgres_exporter (9187) but not SSH or PostgreSQL
 itself. A compromised monitoring host cannot pivot into the database.
 
-## Pre-existing tunnels mask missing rules — DD#11
+## Pre-existing tunnels mask missing rules - DD#11
 
 **Symptom:** A new node is added with no specific ACL rules, but it can still
 reach existing services.
 
 **Cause:** Tailscale connections are persistent. When you change ACLs, *existing*
-TCP connections are not torn down — only *new* connection attempts are filtered.
+TCP connections are not torn down - only *new* connection attempts are filtered.
 A monitoring host that opened a connection to PostgreSQL before the ACL was
 tightened keeps that connection alive indefinitely.
 
@@ -143,18 +143,18 @@ Validate by establishing a new connection (`nc -zv` from a fresh shell, or
 restarting the service on the source side). Otherwise you confirm only that
 the old connection still works.
 
-## Access matrix — documentation pattern
+## Access matrix - documentation pattern
 
 ACL rules are read top-down by Tailscale, but humans read better as a matrix:
 
 |              | tier0 | tier1 | tier2 | database | monitoring |
 |--------------|-------|-------|-------|----------|------------|
-| admin        |   ✓   |   ✓   |   ✓   |    ✓     |     ✓      |
-| tier0        |   ✓   |       |       |          |            |
-| tier1        | 445,5432 | ✓ |       |   5432   |            |
-| tier2        |       | 443   |   ✓   |          |            |
+| admin        |     |     |     |        |          |
+| tier0        |     |       |       |          |            |
+| tier1        | 445,5432 | |       |   5432   |            |
+| tier2        |       | 443   |     |          |            |
 | client       |       |       | 443   |          |    9090    |
-| monitoring   | 9100  | 9100,9187 | | 9187     |     ✓      |
+| monitoring   | 9100  | 9100,9187 | | 9187     |          |
 
 This matrix lives in repo docs (`docs/platform/tailscale-acl.md`) and gets
 updated when rules change. Mismatch between matrix and JSON = stale doc =
@@ -174,16 +174,16 @@ Tailscale supports Mullvad as exit nodes. Limit which nodes can use it:
 ```
 
 Only nodes tagged `tag:client` can route their internet egress through Mullvad.
-Server tags don't get this — they should never need a third-party exit.
+Server tags don't get this - they should never need a third-party exit.
 
 ## ACL changelog as operational doc
 
 Maintain a `tailscale-acl-changelog.md` with one entry per ACL change:
 
 ```
-## 2026-04-15 — add monitoring scrape access for new postgres host
+## 2026-04-15 - add monitoring scrape access for new postgres host
 
-Added: tag:monitoring → tag:database:9187
+Added: tag:monitoring -> tag:database:9187
 Reason: postgres_exporter on lxc260 came online; needed scraping
 Impact: monitoring node can now scrape postgres metrics on lxc260
 ```
@@ -204,7 +204,7 @@ When adding a new service, the network onboarding step is:
 6. Add changelog entry
 7. After deploy: verify with `nc -zv` from each source tier
 
-Skipping the verification step is the most common operational error — see
+Skipping the verification step is the most common operational error - see
 the "pre-existing tunnels" pitfall above.
 
 ## Related

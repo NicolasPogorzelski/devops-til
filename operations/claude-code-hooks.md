@@ -36,9 +36,9 @@ Or with `python3` (always available):
 python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))"
 ```
 
-- `json.load(sys.stdin)` — parses the full JSON payload from stdin into a dict.
-- `.get('tool_input', {})` — safe key access: returns `{}` instead of crashing on a missing key.
-- `.get('command', '')` — extracts the command string; falls back to empty string if absent.
+- `json.load(sys.stdin)` - parses the full JSON payload from stdin into a dict.
+- `.get('tool_input', {})` - safe key access: returns `{}` instead of crashing on a missing key.
+- `.get('command', '')` - extracts the command string; falls back to empty string if absent.
 - Prefer python3 over raw `grep` on stdin: raw grep reads unstructured JSON text and breaks
   if the runtime unicode-escapes the string (e.g. `Co-Authored-By`).
 
@@ -60,16 +60,16 @@ Hooks can return JSON to control Claude's behavior:
 ```
 
 **`continue: false`** blocks the action (commit is not made, tool does not run).
-**`additionalContext`** injects text that Claude sees but the user does not — useful for enforcing
+**`additionalContext`** injects text that Claude sees but the user does not - useful for enforcing
 behavioral guidelines without visible interruption.
 
 ## Settings File Locations
 
 | File | Scope | Commit? |
 |---|---|---|
-| `~/.claude/settings.json` | Global — all projects | No (personal) |
-| `.claude/settings.json` | Project — all users | Yes |
-| `.claude/settings.local.json` | Project — this machine only | No — gitignore it |
+| `~/.claude/settings.json` | Global - all projects | No (personal) |
+| `.claude/settings.json` | Project - all users | Yes |
+| `.claude/settings.local.json` | Project - this machine only | No - gitignore it |
 
 Use `settings.local.json` for hooks that contain absolute paths (they vary per machine).
 Store a sanitized reference in the repo for reproducibility.
@@ -119,8 +119,8 @@ without blocking the entire Bash tool.
 
 Local hooks = early warning. Remote branch protection = unbypassable enforcement.
 
-Local hook on `git commit` → runs `validate-repo.sh` → blocks if it fails.
-GitHub Branch Protection → requires PR + passing CI → blocks force-push and direct push to main.
+Local hook on `git commit` -> runs `validate-repo.sh` -> blocks if it fails.
+GitHub Branch Protection -> requires PR + passing CI -> blocks force-push and direct push to main.
 
 Neither alone is sufficient:
 - Local hook can be bypassed with `--no-verify`.
@@ -128,7 +128,7 @@ Neither alone is sufficient:
 
 ## Stop Hook: systemMessage Pattern
 
-`Stop` fires when Claude's turn ends. The only supported output is `systemMessage` —
+`Stop` fires when Claude's turn ends. The only supported output is `systemMessage` -
 a visible banner shown to the user.
 
 **`additionalContext` via `hookSpecificOutput` is NOT valid for Stop.** It is only
@@ -149,10 +149,10 @@ from a Stop hook causes a JSON validation error and the hook is silently skipped
 }
 ```
 
-- `systemMessage` — shown as a visible banner in the UI at the end of Claude's turn.
-- `\n` inside the printf string — produces newlines in the rendered message.
-- `statusMessage` — text shown in the spinner while the hook command is running.
-- `Stop` has **no matcher** — there is no tool to match against.
+- `systemMessage` - shown as a visible banner in the UI at the end of Claude's turn.
+- `\n` inside the printf string - produces newlines in the rendered message.
+- `statusMessage` - text shown in the spinner while the hook command is running.
+- `Stop` has **no matcher** - there is no tool to match against.
 
 ## Hook Fatigue
 
@@ -183,14 +183,14 @@ Use it to inject repo state so Claude has context without being told explicitly.
 ```
 
 Line by line:
-- `subprocess.check_output(['git','log','--oneline','-5'], cwd='/path/to/repo')` — runs the git command as a list (no shell injection risk). `cwd` sets the working directory explicitly so the hook works regardless of where Claude Code was launched.
-- `.decode().strip()` — converts the bytes return value to a string and removes the trailing newline.
-- `chr(10)` — newline character via Python expression. Avoids shell quoting conflicts inside an already-quoted one-liner string.
-- `json.dumps({...})` — serializes the dict to valid JSON. `print()` writes it to stdout where the hook runtime reads it.
-- `hookEventName: 'SessionStart'` — required in the `hookSpecificOutput` envelope so the runtime routes it correctly.
-- `additionalContext` — injected into Claude's system context at session start. Not visible to the user.
+- `subprocess.check_output(['git','log','--oneline','-5'], cwd='/path/to/repo')` - runs the git command as a list (no shell injection risk). `cwd` sets the working directory explicitly so the hook works regardless of where Claude Code was launched.
+- `.decode().strip()` - converts the bytes return value to a string and removes the trailing newline.
+- `chr(10)` - newline character via Python expression. Avoids shell quoting conflicts inside an already-quoted one-liner string.
+- `json.dumps({...})` - serializes the dict to valid JSON. `print()` writes it to stdout where the hook runtime reads it.
+- `hookEventName: 'SessionStart'` - required in the `hookSpecificOutput` envelope so the runtime routes it correctly.
+- `additionalContext` - injected into Claude's system context at session start. Not visible to the user.
 
-`SessionStart` has no `matcher` — there is no tool to match against.
+`SessionStart` has no `matcher` - there is no tool to match against.
 
 This hook belongs in `settings.local.json` because the `cwd` path is machine-specific.
 
@@ -207,13 +207,13 @@ sed "s|<repo-path>|$REPO_PATH|g" templates/homelab-settings.local.json \
 ```
 
 For single-machine personal setups, hardcoding the absolute path directly in
-`settings.local.json` is acceptable — the placeholder pattern matters when sharing
+`settings.local.json` is acceptable - the placeholder pattern matters when sharing
 across team members or machines where the repo path differs.
 
 ## Hooks Do Not Hot-Reload
 
 A running session reads its hooks **at startup** and holds them in memory. Editing
-`settings.local.json` mid-session does **not** take effect until you reload — open `/hooks`
+`settings.local.json` mid-session does **not** take effect until you reload - open `/hooks`
 (the menu reloads config) or restart. The confusing symptom is that a hook you just "fixed"
 keeps firing with its old behaviour; the fix is correct on disk, it is simply not live yet.
 Always reload and re-verify before concluding a hook change didn't work.
@@ -223,10 +223,10 @@ Always reload and re-verify before concluding a hook change didn't work.
 `Stop` fires at the end of **every** assistant turn, not at session end. Two consequences bit a
 real setup:
 
-- A `git push origin HEAD` placed in a `Stop` hook ran on every turn — auto-pushing WIP commits
+- A `git push origin HEAD` placed in a `Stop` hook ran on every turn - auto-pushing WIP commits
   nobody asked to push.
 - A hook's stdout is parsed as JSON control output. `git push` emits human text ("Everything
-  up-to-date", "[new branch]", GitHub's PR hint) — **not** JSON — so the harness reported it as a
+  up-to-date", "[new branch]", GitHub's PR hint) - **not** JSON - so the harness reported it as a
   hook error *while the push still succeeded*. That is the exact "it errors but goes through
   anyway" symptom.
 
@@ -237,7 +237,7 @@ hook; and make `git push` a **deliberate** action, not an automatic one. A remin
 ## Scope commit gates with `if:`, not a substring
 
 A `PreToolUse`/`Bash` gate that decides with `case "$CMD" in *"git commit"*)` fires on **any**
-command that merely contains the string — a `grep`, an `echo`, a `git log` showing a commit
+command that merely contains the string - a `grep`, an `echo`, a `git log` showing a commit
 message. Use the harness filter `"if": "Bash(git commit *)"` on the hook instead: it does
-shell-aware matching (including sub-commands of `a && git commit …`) and only runs on real commit
+shell-aware matching (including sub-commands of `a && git commit ...`) and only runs on real commit
 invocations. See *Conditional Execution: the if Field* above.

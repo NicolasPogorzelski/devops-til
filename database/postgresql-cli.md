@@ -3,7 +3,7 @@
 ## Why a separate file from `postgresql-ops.md`
 
 `postgresql-ops.md` is about *configuring* PostgreSQL: `pg_hba.conf`, auth methods,
-backup design. This file is about *operating* a running database from the shell —
+backup design. This file is about *operating* a running database from the shell -
 the commands you run when you're investigating something or doing maintenance.
 
 ## psql meta-commands
@@ -43,10 +43,10 @@ Key columns:
 
 | Column        | Meaning                                                                                |
 |---------------|----------------------------------------------------------------------------------------|
-| `pid`         | Backend process ID — needed to terminate the connection                                |
+| `pid`         | Backend process ID - needed to terminate the connection                                |
 | `state`       | `active` (running query), `idle in transaction` (open tx), `idle` (just sitting there) |
-| `query_start` | When the current query started — long durations indicate stuck or expensive queries    |
-| `wait_event`  | What the backend is waiting for (lock, I/O, etc.) — `NULL` means actively running      |
+| `query_start` | When the current query started - long durations indicate stuck or expensive queries    |
+| `wait_event`  | What the backend is waiting for (lock, I/O, etc.) - `NULL` means actively running      |
 
 `idle in transaction` is the dangerous state: a client opened a transaction
 and walked away, holding locks. Those connections must be terminated to unblock
@@ -71,7 +71,7 @@ SELECT pg_terminate_backend(pid)
    AND pid != pg_backend_pid();
 ```
 
-The `pid != pg_backend_pid()` clause excludes your own session — otherwise you
+The `pid != pg_backend_pid()` clause excludes your own session - otherwise you
 disconnect yourself and the next statement (the `DROP DATABASE`) never runs.
 
 ## Dropping a database, the right way
@@ -83,7 +83,7 @@ sudo -u postgres dropdb olddb
 Why `dropdb` instead of `psql -c "DROP DATABASE olddb;"`:
 
 - `dropdb` is a thin wrapper but it handles edge cases (existence check with `--if-exists`, force option `--force` in PG13+ that auto-terminates connections).
-- Running as the `postgres` OS user via `sudo -u postgres` uses **peer authentication** (auth method `peer` in `pg_hba.conf`) — the OS user maps directly to the DB superuser, no password prompt.
+- Running as the `postgres` OS user via `sudo -u postgres` uses **peer authentication** (auth method `peer` in `pg_hba.conf`) - the OS user maps directly to the DB superuser, no password prompt.
 
 ```bash
 sudo -u postgres dropdb --if-exists --force olddb
@@ -111,7 +111,7 @@ To verify the dump file is non-empty before trusting it:
 zcat /backups/pg-all-20260415.sql.gz | head -50
 ```
 
-The header includes a `SET` block and `\connect` — if you see binary garbage or
+The header includes a `SET` block and `\connect` - if you see binary garbage or
 nothing, the dump is corrupt and the file is unusable.
 
 ## Verification queries after restore
@@ -130,7 +130,7 @@ SELECT schemaname, relname, n_live_tup
 ```
 
 `n_live_tup` is an estimate (updated by autovacuum), but it's good enough to
-distinguish "table is empty" from "table has data". Don't trust it for exact counts —
+distinguish "table is empty" from "table has data". Don't trust it for exact counts -
 use `SELECT count(*)` for that.
 
 ## Connection-string format
@@ -143,10 +143,10 @@ postgresql://<user>:<password>@<host>:<port>/<database>?<param>=<value>
 
 | Component   | Notes                                                                                        |
 |-------------|----------------------------------------------------------------------------------------------|
-| `user`      | URL-encode special characters (`@` → `%40`, `:` → `%3A`)                                     |
+| `user`      | URL-encode special characters (`@` -> `%40`, `:` -> `%3A`)                                     |
 | `password`  | Same. Avoid passwords with reserved chars; use a `~/.pgpass` file when possible              |
 | `host`      | Hostname, IP, or socket path. `host=/var/run/postgresql` for Unix-socket connections         |
-| `port`      | Default 5432 — omit if standard                                                              |
+| `port`      | Default 5432 - omit if standard                                                              |
 | `database`  | Database name. Required for most clients                                                     |
 | Parameters  | `sslmode=require`, `application_name=myapp`, `connect_timeout=10`                            |
 

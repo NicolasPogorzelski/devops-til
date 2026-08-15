@@ -7,7 +7,7 @@ executable (`/bin/bash`, `/usr/sbin/tailscaled`) and shared library is an ELF fi
 
 The file starts with a magic number (`\x7fELF`) that identifies it as a valid ELF binary.
 If a binary is partially written (e.g. download interrupted mid-write), the magic number
-or structure is missing — the kernel refuses to execute it.
+or structure is missing - the kernel refuses to execute it.
 
 ## How to detect a corrupt binary
 
@@ -25,7 +25,7 @@ file /usr/sbin/tailscaled
 /usr/sbin/tailscaled: data
 ```
 
-`data` means the file has no recognizable format — it was written incompletely.
+`data` means the file has no recognizable format - it was written incompletely.
 
 ## How corruption happens
 
@@ -42,11 +42,11 @@ Common victims during interrupted apt upgrades:
 
 | Symptom | Cause |
 |---|---|
-| SSH connects but `echo test` returns `Exec format error` | `bash` binary corrupt — shell cannot start |
+| SSH connects but `echo test` returns `Exec format error` | `bash` binary corrupt - shell cannot start |
 | `systemctl status tailscaled` shows `status=203/EXEC` | tailscaled binary corrupt |
 | `dpkg-deb: error: not a Debian format archive` | `.deb` file corrupt in apt cache |
 
-## Fix — reinstall the package
+## Fix - reinstall the package
 
 ```bash
 apt-get install --reinstall <package>
@@ -60,7 +60,7 @@ apt-get install --reinstall tailscale
 apt-get install --reinstall bash
 ```
 
-## Fix — corrupt .deb in apt cache
+## Fix - corrupt .deb in apt cache
 
 If the `.deb` file itself is corrupt (partial download), apt will refuse to install it.
 Clear the cache so apt re-downloads:

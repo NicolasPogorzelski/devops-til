@@ -2,7 +2,7 @@
 
 ## What they are and when to use them
 
-Ad-hoc commands run a single Ansible module against one or more hosts — no playbook
+Ad-hoc commands run a single Ansible module against one or more hosts - no playbook
 file needed. They're the right tool when you want to **verify live state** before
 writing a playbook, make a one-off change across the fleet, or debug why a playbook
 is behaving unexpectedly.
@@ -30,7 +30,7 @@ ansible <host-pattern>  -m <module>  -a "<arguments>"  [options]
 
 ## Common modules for live verification
 
-### `command` — safe subprocess execution
+### `command` - safe subprocess execution
 
 ```bash
 # Read a file on a remote node
@@ -43,10 +43,10 @@ ansible lxc200 -m command -a "systemctl status prometheus"
 ansible vm100 -m command -a "docker ps --format '{{.Names}} {{.Status}}'"
 ```
 
-`command` does not invoke a shell — no pipes, no redirects, no variable expansion.
+`command` does not invoke a shell - no pipes, no redirects, no variable expansion.
 Use it by default because it's safer and easier to predict.
 
-### `shell` — when you need shell features
+### `shell` - when you need shell features
 
 ```bash
 # Pipe output
@@ -56,25 +56,25 @@ ansible vm102 -m shell -a "df -h | grep /mnt/mergerfs"
 ansible lxc260 -m shell -a "ls -la /var/lib/postgresql/"
 ```
 
-`shell` runs through `/bin/sh`. Needed for pipes, globbing, redirects — not for plain commands.
+`shell` runs through `/bin/sh`. Needed for pipes, globbing, redirects - not for plain commands.
 
-### `ping` — connectivity check (not ICMP)
+### `ping` - connectivity check (not ICMP)
 
 ```bash
 ansible all -m ping
 # Returns pong on success, verifies SSH + Python + user mapping
 ```
 
-`ansible.builtin.ping` verifies the full Ansible connection stack — SSH auth, Python
+`ansible.builtin.ping` verifies the full Ansible connection stack - SSH auth, Python
 interpreter reachable, module execution works. It is NOT an ICMP ping.
 
-### `copy` — one-off file push
+### `copy` - one-off file push
 
 ```bash
 ansible proxmox -m copy -a "src=/tmp/test.conf dest=/tmp/test.conf owner=root mode=0644" --become
 ```
 
-Same semantics as the `copy` module in a playbook. Idempotent — no change if
+Same semantics as the `copy` module in a playbook. Idempotent - no change if
 content matches.
 
 ## Live-state verification pattern
@@ -95,7 +95,7 @@ The flow:
 1. Read the doc to form a hypothesis ("snapraid sync runs at 02:00")
 2. Run ad-hoc command to verify live state
 3. If they differ, find out which is correct (check script comments, changelog)
-4. Update whichever is wrong — usually the doc
+4. Update whichever is wrong - usually the doc
 
 This pattern catches the failure mode where a doc was written once and never
 updated when the live config changed.
@@ -118,7 +118,7 @@ user). Reading `/etc/cron.d/` usually works; writing to `/etc/` or reading sensi
 files like `/etc/shadow` does not.
 
 ```bash
-# Wrong — no permission to write
+# Wrong - no permission to write
 ansible proxmox -m copy -a "src=homelab-setwake.sh dest=/usr/local/sbin/homelab-setwake.sh mode=0755"
 
 # Correct

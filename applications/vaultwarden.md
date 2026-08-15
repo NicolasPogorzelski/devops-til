@@ -4,7 +4,7 @@
 
 Vaultwarden is a Rust re-implementation of the Bitwarden server API. It is
 API-compatible with the official Bitwarden clients (browser extensions, mobile
-apps, desktop apps) but has a fraction of the resource footprint — making it
+apps, desktop apps) but has a fraction of the resource footprint - making it
 the right choice for self-hosting.
 
 Default storage is SQLite. PostgreSQL and MySQL are supported but require
@@ -48,7 +48,7 @@ echo -n "your-very-long-secret" | argon2 "$(openssl rand -base64 32)" -e -id -t 
 These match the OWASP-recommended Argon2id parameters for password storage.
 
 Storing only the hash means even reading the env file does not directly leak
-the admin password — an attacker would have to crack it.
+the admin password - an attacker would have to crack it.
 
 ## Generating other secrets
 
@@ -105,19 +105,19 @@ healthcheck:
 
 `-fsS`: `-f` fail on HTTP error, `-s` silent (no progress), `-S` show errors despite silent.
 
-## SQLite on CIFS — known tech debt
+## SQLite on CIFS - known tech debt
 
 Vaultwarden defaults to SQLite. The DB file lives in the bind-mounted `/data`.
 If `/data` is on a CIFS/SMB share (e.g., to consolidate backups), you will
 hit `database is locked` errors under any concurrent access.
 
 **Architectural rule:** the SQLite file *must* be on local block storage.
-Backups can be on CIFS — they are write-once snapshots, not concurrent reads/writes.
+Backups can be on CIFS - they are write-once snapshots, not concurrent reads/writes.
 
 ```yaml
 volumes:
-  - /var/lib/vaultwarden/data:/data           # local — DB lives here
-  - /mnt/smb/backups/vaultwarden:/backups:ro  # CIFS — read-only backup target
+  - /var/lib/vaultwarden/data:/data           # local - DB lives here
+  - /mnt/smb/backups/vaultwarden:/backups:ro  # CIFS - read-only backup target
 ```
 
 If you have an existing install with the DB on CIFS, the migration is:

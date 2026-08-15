@@ -12,13 +12,13 @@ A documentation repo that *enforces* its own rules in CI catches drift before me
 
 A single shell script (`scripts/validate-repo.sh`) runs all structural checks.
 A GitHub Actions workflow runs the same script on every push and PR.
-The script also runs locally before commit — same code path in both places,
+The script also runs locally before commit - same code path in both places,
 so contributors find issues without waiting for CI.
 
 ```
-scripts/validate-repo.sh   ← single source of truth for repo rules
-.github/workflows/*.yml    ← runs the script on push/PR
-local pre-commit habit     ← runs the script before pushing
+scripts/validate-repo.sh   <- single source of truth for repo rules
+.github/workflows/*.yml    <- runs the script on push/PR
+local pre-commit habit     <- runs the script before pushing
 ```
 
 ## Categories of checks worth automating
@@ -28,13 +28,13 @@ local pre-commit habit     ← runs the script before pushing
 - Empty markdown files (a `*.md` with zero bytes is almost always a mistake)
 - Broken internal links (`./foo.md` referenced but file does not exist)
 - Files outside the allowed top-level directory list
-- Leftover git merge conflict markers (`^<<<<<<< `, `^=======$`, `^>>>>>>> `) —
+- Leftover git merge conflict markers (`^<<<<<<< `, `^=======$`, `^>>>>>>> `) -
   a botched merge resolution can commit these into tracked files. Match the divider
   as a whole line (`=======$`) so markdown rules and setext underlines don't false-positive,
   and require the trailing space on `<<<<<<< ` / `>>>>>>> ` so shell redirects don't match.
 
 > **The gap is the check you don't have yet.** A stray `<<<<<<< HEAD` sat in a
-> committed `CLAUDE.md` for weeks — `validate-repo.sh` was green the whole time because
+> committed `CLAUDE.md` for weeks - `validate-repo.sh` was green the whole time because
 > no check looked for it. It surfaced only in a manual pre-milestone audit. The fix is
 > two-part: remove the marker *and* add the check, so the same class can never slip
 > through silently again. Every "how did this get committed?" finding should leave
@@ -57,8 +57,8 @@ later when someone needs the runbook in an incident.
 
 For repos that mix sanitized examples with sensitive originals:
 
-- Reject bare Tailscale IPs (`100.x.y.z`) — must use `<tailscale-ip-nodename>` placeholder
-- Reject bare tailnet IDs (`*.ts.net`) — must use `<tailnet-id>` placeholder
+- Reject bare Tailscale IPs (`100.x.y.z`) - must use `<tailscale-ip-nodename>` placeholder
+- Reject bare tailnet IDs (`*.ts.net`) - must use `<tailnet-id>` placeholder
 - Reject committed private keys / certs (`*.pem`, `*.key`, `*.crt`, `*.p12`, `*.pfx`)
 - Reject committed `.env` files (only `.env.example` is allowed)
 
@@ -119,14 +119,14 @@ jobs:
           ./scripts/validate-repo.sh
 ```
 
-Exit code from the script is the build status. Non-zero = red ❌, zero = green ✅.
+Exit code from the script is the build status. Non-zero = red , zero = green .
 
-## Limits — what validation cannot catch
+## Limits - what validation cannot catch
 
 - **Truth of content.** A doc can pass every structural check while saying
   factually wrong things. Validation enforces shape, not accuracy.
 - **Runtime artifacts.** A `.example` file may exist while the materialized
-  config file does not — the validator can't see the running system.
+  config file does not - the validator can't see the running system.
 - **Drift between code and docs.** A service doc can describe a configuration
   the actual `docker-compose.yml` no longer matches.
 
@@ -137,8 +137,8 @@ For these, the answer is human review (PRs, periodic doc sweeps), not more check
 Structural checks (empty files, bad links, forbidden IPs) are self-contained: the
 validator's own `grep`/`find` always run. But a check that invokes an **external
 linter** inherits that tool's absence. Three commits once passed the local pre-commit
-hook and turned CI red, because the hook ran `validate-repo.sh` — which had no
-Ansible-aware check at all — while CI ran `ansible-lint` separately. Adding an
+hook and turned CI red, because the hook ran `validate-repo.sh` - which had no
+Ansible-aware check at all - while CI ran `ansible-lint` separately. Adding an
 `ansible-lint` check to the validator closes that gap, but introduces a subtler one:
 if `ansible-lint` isn't installed, the check can't run.
 
@@ -158,7 +158,7 @@ fi
 Design decisions worth keeping:
 
 - **Print `SKIP` loudly.** A skipped check that says nothing is the
-  [inert-gate failure class](ci-quality-gates.md) — it looks like coverage. A visible
+  [inert-gate failure class](ci-quality-gates.md) - it looks like coverage. A visible
   `SKIP:` line tells the reader the check *chose* not to run and why.
 - **The install is a documented prerequisite.** A pre-commit lint gate is only real if
   the tool is present; note it in the repo's setup docs and pin it to CI's version
@@ -166,7 +166,7 @@ Design decisions worth keeping:
   against a different rule set than CI enforces.
 - **It's a pre-commit net, not a second CI stage.** Scope it to the diff
   (`git diff --cached` with a `git diff HEAD` fallback for `commit -a`). Under CI it
-  self-skips — `actions/checkout` leaves a clean tree, so there's no diff — which is
+  self-skips - `actions/checkout` leaves a clean tree, so there's no diff - which is
   correct, because the dedicated CI workflow already lints every push.
 - **`--nocolor` when capturing output.** The tool writes to a captured variable, not a
   TTY; without it, ANSI colour and OSC-8 hyperlink escapes end up as garbage in the

@@ -4,9 +4,9 @@
 
 Three things, in order of importance:
 
-1. **Scrape configuration** — what endpoints to pull metrics from
-2. **Rule files** — alert and recording rules to load
-3. **Alertmanager target** — where to send firing alerts
+1. **Scrape configuration** - what endpoints to pull metrics from
+2. **Rule files** - alert and recording rules to load
+3. **Alertmanager target** - where to send firing alerts
 
 Prometheus is intentionally simple: pull-based scraping, single-binary, no
 push gateway in the default flow. The config file is the entire control surface.
@@ -45,7 +45,7 @@ scrape_configs:
 `15s` is the conventional default. Faster (5s) gives sharper graphs but doubles
 storage and CPU. Slower (60s) misses short spikes. Don't change without a reason.
 
-`evaluation_interval` should usually equal `scrape_interval` — evaluating rules
+`evaluation_interval` should usually equal `scrape_interval` - evaluating rules
 faster than data arrives wastes CPU; slower delays alerts.
 
 ## `rule_files`
@@ -56,15 +56,15 @@ rule_files:
   - "rules/postgres/*.yml"
 ```
 
-Glob patterns work. Use them — flat single-file rule sets become unmanageable
+Glob patterns work. Use them - flat single-file rule sets become unmanageable
 past ~20 rules. Group rules by domain (one file per service or concern):
 
 ```
 rules/
-  node.yml          — host-level: CPU, memory, disk, filesystem
-  postgres.yml      — DB connections, replication lag, deadlocks
-  snapraid.yml      — sync age, scrub age, parity errors
-  smart.yml         — disk SMART status
+  node.yml          - host-level: CPU, memory, disk, filesystem
+  postgres.yml      - DB connections, replication lag, deadlocks
+  snapraid.yml      - sync age, scrub age, parity errors
+  smart.yml         - disk SMART status
 ```
 
 Prometheus reloads rule files on `SIGHUP` or via `/-/reload` if `--web.enable-lifecycle`
@@ -86,12 +86,12 @@ alerting:
 |----------------|---------------------------------------------------------------------------|
 | `static_configs` | Hard-coded list. For a homelab with a single Alertmanager, this is right |
 | `timeout`      | If Alertmanager is slow, drop the alert delivery rather than block scrapes |
-| `api_version`  | `v2` is current. Old configs may say `v1` — upgrade                       |
+| `api_version`  | `v2` is current. Old configs may say `v1` - upgrade                       |
 
-Alternatives include service discovery (Consul, file-based, Kubernetes) — overkill
+Alternatives include service discovery (Consul, file-based, Kubernetes) - overkill
 for static infrastructure.
 
-## `scrape_configs` — job naming convention
+## `scrape_configs` - job naming convention
 
 ```yaml
 scrape_configs:
@@ -140,7 +140,7 @@ scrape_configs:
 | `metrics_path`   | Non-default endpoint (default: `/metrics`)                               |
 | `scheme`         | `https` for secured exporters                                            |
 | `params`         | Query-string parameters appended to the scrape URL                       |
-| `relabel_configs`| Rewrite labels before storage. Powerful but cryptic — use sparingly      |
+| `relabel_configs`| Rewrite labels before storage. Powerful but cryptic - use sparingly      |
 
 ## Storage flags (command line, not yaml)
 
@@ -168,7 +168,7 @@ command:
 curl -X POST http://localhost:9090/-/reload
 ```
 
-Requires `--web.enable-lifecycle`. The reload is hot — no scrape gaps, no metric
+Requires `--web.enable-lifecycle`. The reload is hot - no scrape gaps, no metric
 loss. If the new config has a syntax error, the reload fails and the old config
 keeps running.
 
@@ -190,9 +190,9 @@ curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job,
 Each target should report `health: "up"`. `lastError` is the first place to look
 when something is `down`. Common errors:
 
-- `connection refused` — exporter is dead or wrong port
-- `EOF` — exporter crashed mid-scrape
-- `no such host` — DNS issue (check MagicDNS / `/etc/hosts`)
+- `connection refused` - exporter is dead or wrong port
+- `EOF` - exporter crashed mid-scrape
+- `no such host` - DNS issue (check MagicDNS / `/etc/hosts`)
 
 ## Related
 

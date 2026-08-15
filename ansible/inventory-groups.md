@@ -106,7 +106,7 @@ Resolution order (highest priority first):
 4. Group-specific YAML files in `group_vars/<groupname>.yml`
 5. Inventory-wide `all` vars
 
-**Mental model — collect-and-rank, not fallback-search.** Ansible does *not*
+**Mental model - collect-and-rank, not fallback-search.** Ansible does *not*
 look in one place, find it empty, then search the next. It loads *all* sources
 up front and applies a fixed precedence ranking when the same variable name is
 defined in more than one place: more-specific wins (host > group > all). So a
@@ -122,12 +122,12 @@ Because referencing an *undefined* variable is a **fatal error**
 fleet-wide playbook should define a safe default for any list it loops over:
 
 ```yaml
-# roles/<role>/defaults/main.yml   (lowest precedence — overridden by anything)
+# roles/<role>/defaults/main.yml   (lowest precedence - overridden by anything)
 compose_projects: []
 ```
 
-An empty list makes `loop: "{{ compose_projects }}"` run **0 iterations** —
-harmlessly skipped — instead of crashing on hosts that never set the variable.
+An empty list makes `loop: "{{ compose_projects }}"` run **0 iterations** -
+harmlessly skipped - instead of crashing on hosts that never set the variable.
 This is exactly the `breakglass_pubkeys: []` pattern in
 `roles/breakglass/defaults/main.yml`.
 
@@ -169,7 +169,7 @@ inventory/
 Ansible automatically loads these files. The naming convention is fixed:
 the file basename must match the host or group name exactly.
 
-This is also where vault-encrypted variables live — `group_vars/all/vault.yml`
+This is also where vault-encrypted variables live - `group_vars/all/vault.yml`
 (encrypted) alongside `group_vars/all/main.yml` (plain) lets you split
 secrets from non-secrets cleanly.
 
@@ -177,8 +177,8 @@ secrets from non-secrets cleanly.
 
 Real inventories contain real IPs (or FQDNs). For a public-facing repo:
 
-- `inventory/hosts.yml` — gitignored, contains real values
-- `inventory/hosts.yml.example` — committed, has placeholders
+- `inventory/hosts.yml` - gitignored, contains real values
+- `inventory/hosts.yml.example` - committed, has placeholders
 
 `.gitignore`:
 ```

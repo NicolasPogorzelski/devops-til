@@ -13,7 +13,7 @@ The naive rule is "cron is fine for simple periodic jobs". That rule has a hidde
 **the machine is always on at the scheduled time.**
 
 On a host with a scheduled overnight shutdown, a daily `0 3 * * *` cron job runs on exactly the
-nights the machine happens to stay up. It is not skipped loudly — cron has no concept of a missed
+nights the machine happens to stay up. It is not skipped loudly - cron has no concept of a missed
 run, so there is nothing to log, nothing to alert on, and nothing to retry. On the platform this
 repo documents, that silently killed PostgreSQL backups for 26 days and cost SnapRAID an unknown
 number of syncs. The four dumps that existed were the accidents, not the schedule.
@@ -54,14 +54,14 @@ out?**"
 ```
 
 Common shortcuts:
-- `*/15 * * * *` — every 15 minutes
-- `0 * * * *` — every hour, on the hour
-- `0 2 * * *` — daily at 02:00
-- `0 3 * * 0` — Sundays at 03:00
-- `0 3 1 * *` — first of each month at 03:00
+- `*/15 * * * *` - every 15 minutes
+- `0 * * * *` - every hour, on the hour
+- `0 2 * * *` - daily at 02:00
+- `0 3 * * 0` - Sundays at 03:00
+- `0 3 1 * *` - first of each month at 03:00
 
 Pre-defined macros (some cron implementations):
-- `@reboot` — at boot
+- `@reboot` - at boot
 - `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`
 
 ## Per-user vs system crontabs
@@ -81,7 +81,7 @@ Format difference: `/etc/cron.d/<file>` and `/etc/crontab` need an extra column 
 0 3 1 * *   root   /usr/local/sbin/snapraid-maintenance.sh scrub
 ```
 
-User crontabs (`crontab -e`) don't have this column — the user is implied.
+User crontabs (`crontab -e`) don't have this column - the user is implied.
 
 ## Programmatic crontab installation
 
@@ -96,7 +96,7 @@ echo "0 3 * * * /usr/local/sbin/pg-backup.sh" | crontab -u postgres -
 The `-` at the end of `crontab -u user -` means "read crontab from stdin". The first form
 **replaces** the user's crontab, the second form preserves existing entries.
 
-For idempotency in scripts, prefer drop-in files in `/etc/cron.d/` — overwriting a single file
+For idempotency in scripts, prefer drop-in files in `/etc/cron.d/` - overwriting a single file
 is simpler than parsing existing crontab content.
 
 ## When `/etc/cron.d/` over user crontab
@@ -106,7 +106,7 @@ is simpler than parsing existing crontab content.
 | Job is system maintenance (root or service user) | Job is user-specific (their backups, their reminders) |
 | Config should be in version control / Ansible | Manual tweaks expected by the user |
 | Multiple jobs share a service identity | Single ad-hoc job |
-| Easy to deploy via `install -m 0644` | — |
+| Easy to deploy via `install -m 0644` | - |
 
 Drop-in files survive package upgrades cleanly and play well with config management tools.
 
@@ -127,7 +127,7 @@ paths in the command itself (more verbose but harder to break).
 
 ## Capture cron output
 
-Cron emails failures by default if a local mail transport (postfix/sendmail) is configured —
+Cron emails failures by default if a local mail transport (postfix/sendmail) is configured -
 in a homelab, usually nothing is. Without mail, output is silently dropped.
 
 Two patterns to capture output:
@@ -161,7 +161,7 @@ runs longer than expected). Two patterns to prevent this:
 
 | Flag | Effect |
 |---|---|
-| `-n` | Non-blocking — exit immediately if the lock is held |
+| `-n` | Non-blocking - exit immediately if the lock is held |
 | `-c '<cmd>'` | Run the command with the lock held |
 
 If the previous run is still running, the new one is skipped. No queue, no overlap.
@@ -187,7 +187,7 @@ A typical homelab cadence borrowed from this platform:
 | **Weekly (manual review)** | `snapraid status`, container restart counts, disk space trend |
 | **Monthly (automated)** | SnapRAID scrub |
 | **Monthly (manual)** | SMART health review, restore-test spot check |
-| **After major changes** | Reboot-safe validation: storage → services → monitoring |
+| **After major changes** | Reboot-safe validation: storage -> services -> monitoring |
 
 Automate everything that runs more than weekly. Manual review tasks become checklists.
 
@@ -224,7 +224,7 @@ WantedBy=timers.target
 |---|---|
 | `OnCalendar=` | Schedule in systemd's calendar syntax (similar to cron) |
 | `Persistent=true` | If the system was off at the scheduled time, run on next boot |
-| `RandomizedDelaySec=300` | Spread load by adding random 0–300s delay — useful when many hosts run a job at the same time |
+| `RandomizedDelaySec=300` | Spread load by adding random 0-300s delay - useful when many hosts run a job at the same time |
 
 Activate:
 ```bash
@@ -235,18 +235,18 @@ journalctl -u pg-backup.service    # see job output
 ```
 
 The `Persistent=true` behavior is the killer feature: a laptop that was off at 03:00 will run
-the missed backup when it boots back up. Cron has no equivalent — missed runs are lost.
+the missed backup when it boots back up. Cron has no equivalent - missed runs are lost.
 
 ### The flip side: on a machine that sleeps, `Persistent=true` makes it a boot-time job
 
-If the machine is *routinely* down at the scheduled hour — a host that shuts down
-nightly and wakes by RTC, say — then the slot is missed on **every** cycle, and
+If the machine is *routinely* down at the scheduled hour - a host that shuts down
+nightly and wakes by RTC, say - then the slot is missed on **every** cycle, and
 the catch-up run fires within seconds of boot, every time. The schedule written
 in the unit becomes decorative: `OnCalendar=*-*-* 04:30:00` on a host that sleeps
 from 01:00 to 08:45 does not run at 04:30 ever. It runs at 08:45, during boot.
 
 That is usually harmless for a backup. It is not harmless for anything with a
-startup dependency, because the job has silently moved into the boot window —
+startup dependency, because the job has silently moved into the boot window -
 the one context where the network, an overlay VPN, or a remote mount may not be
 ready yet. Nobody made that decision; it fell out of combining a fixed hour with
 a sleeping machine.
@@ -254,12 +254,12 @@ a sleeping machine.
 Observed 2026-07-28: a certificate-renewal timer set to 04:30 with
 `Persistent=true` ran at boot on every wake-up and failed every time, because it
 asks the VPN daemon for a value that does not exist yet that early. It had
-therefore never renewed anything. Nothing surfaced for months — the certificate
+therefore never renewed anything. Nothing surfaced for months - the certificate
 was simply still valid.
 
 **Rule of thumb:** before setting `Persistent=true`, ask when the machine is
 actually up. If the scheduled time falls in its downtime, treat the job as a
-boot-time job and give it the readiness gates a boot-time job needs — poll for
+boot-time job and give it the readiness gates a boot-time job needs - poll for
 what it depends on rather than trusting `After=`. Checking is one command:
 
 ```bash
@@ -270,7 +270,7 @@ systemctl list-timers <name> --all --no-pager
 ### Calendar timers vs monotonic timers
 
 `Persistent=` applies **only to `OnCalendar=` timers**. systemd silently ignores it on a monotonic
-timer, so writing it there is not harmless — it is a false claim in the config that the next reader
+timer, so writing it there is not harmless - it is a false claim in the config that the next reader
 has to disprove.
 
 | | Calendar timer | Monotonic timer |
@@ -281,11 +281,11 @@ has to disprove.
 | `Persistent=` | Meaningful | **Ignored** |
 
 Use monotonic for pollers and watchdogs. A health check missed while the machine was off has
-nothing to catch up on — the thing it watches was not running either. `OnBootSec=` additionally
+nothing to catch up on - the thing it watches was not running either. `OnBootSec=` additionally
 buys the dependency graph time to settle: a watchdog that restarts a container should not fire
 into a half-started Docker daemon.
 
-### `Persistent=true` does not fire on first start — measured, not assumed
+### `Persistent=true` does not fire on first start - measured, not assumed
 
 Enabling a `Persistent=true` calendar timer for the first time does **not** immediately trigger
 its service. systemd keeps the last-trigger time in a stamp file under `/var/lib/systemd/timers/`.
@@ -299,7 +299,7 @@ ls -l --time-style=full-iso /var/lib/systemd/timers/
 ```
 
 Right after a first `systemctl enable --now foo.timer`: `LastTriggerUSec=` is empty and the
-service's `ActiveEnterTimestamp=` is empty — it never ran. Catch-up only applies to slots missed
+service's `ActiveEnterTimestamp=` is empty - it never ran. Catch-up only applies to slots missed
 *after* the first stamp exists.
 
 This matters when the job is expensive. Deploying a `Persistent=true` SnapRAID sync timer and a
@@ -309,7 +309,7 @@ scratch unit before rolling out, not to assume from the man page's wording.
 
 ### One template unit for N schedules
 
-When two timers run the same script with different arguments, use a **template unit** — a unit
+When two timers run the same script with different arguments, use a **template unit** - a unit
 file whose name ends in `@`. The instance name after the `@` is available as `%i`.
 
 ```ini
@@ -338,13 +338,13 @@ systemctl show snapraid-maintenance@sync.service -p ExecStart
 ```
 
 `Unit=` in the `[Timer]` section is what breaks the default naming convention (timer `foo.timer`
-→ service `foo.service`). Without it, `snapraid-sync.timer` would look for a nonexistent
+-> service `foo.service`). Without it, `snapraid-sync.timer` would look for a nonexistent
 `snapraid-sync.service`.
 
 ### Escape sequences in `ExecStart=`
 
 systemd applies C-style escape processing to `ExecStart=` arguments. A backslash that is not part
-of a sequence it recognises is passed through **and a warning is logged** — the value works, but
+of a sequence it recognises is passed through **and a warning is logged** - the value works, but
 by way of an unspecified fallback:
 
 ```
@@ -359,7 +359,7 @@ systemd-analyze verify /etc/systemd/system/node_exporter.service
 ```
 
 The documented way to emit a literal backslash is to double it (`\\.`). To confirm what the
-process actually received — not what the unit file says — read its argv directly:
+process actually received - not what the unit file says - read its argv directly:
 
 ```bash
 tr '\0' ' ' < /proc/$(pgrep -x node_exporter)/cmdline; echo
@@ -381,7 +381,7 @@ crontab -l -u root | sed -E '/jellyfin-cuda-watchdog/d' | crontab -u root -
 
 **Use `sed -E '/pat/d'`, not `grep -vE pat`.** `grep` exits 1 when it prints no lines. On a
 crontab whose only entry is the one being removed, printing nothing is exactly what success looks
-like — and under `set -o pipefail` (or Ansible's `shell` with `pipefail`) that correct run is
+like - and under `set -o pipefail` (or Ansible's `shell` with `pipefail`) that correct run is
 reported as a failure. `sed` exits 0 regardless of how many lines it emitted.
 
 Make the filter match the comment above the entry as well, or a stale comment survives its command:
@@ -394,7 +394,7 @@ sed -E '/scan-paperless-inbox|Paperless Inbox External Storage/d'
 
 `rtcwake` programs the hardware Real-Time Clock (RTC) to wake the system from a
 powered-off or suspended state at a specific time. The RTC runs independently of
-the OS — it keeps ticking even when the machine is fully off.
+the OS - it keeps ticking even when the machine is fully off.
 
 ```bash
 # Program wakeup for a specific Unix timestamp (no sleep, just set the alarm)
@@ -406,21 +406,21 @@ rtcwake -m show -v
 
 | Flag | Meaning |
 |---|---|
-| `-m no` | Don't suspend/sleep — only program the alarm, then return |
+| `-m no` | Don't suspend/sleep - only program the alarm, then return |
 | `-m show` | Show the current alarm state without modifying it |
 | `-t <timestamp>` | Wake at this Unix epoch timestamp (UTC) |
-| `-v` | Verbose — shows RTC time, system time, and alarm time |
+| `-v` | Verbose - shows RTC time, system time, and alarm time |
 
 **Important: rtcwake always uses UTC timestamps.** Even if your system is in a
 local timezone, `-t` expects seconds since epoch in UTC. Use `date -d "tomorrow
-07:30" +%s` to generate the correct value — `date` converts local time to epoch
+07:30" +%s` to generate the correct value - `date` converts local time to epoch
 correctly.
 
 **Verify the alarm is set:**
 ```bash
 rtcwake -m show -v
 # Look for: alarm: on  Thu May 21 05:30:00 2026
-# That's UTC — add your UTC offset to get local time (e.g. +2h CEST = 07:30 local)
+# That's UTC - add your UTC offset to get local time (e.g. +2h CEST = 07:30 local)
 ```
 
 ### Day-of-week aware wakeup script
@@ -429,7 +429,7 @@ Combine with cron for a scheduled shutdown/wakeup cycle with different times per
 weekday:
 
 ```bash
-# /usr/local/sbin/homelab-setwake.sh — run at 00:45 before 01:00 shutdown
+# /usr/local/sbin/homelab-setwake.sh - run at 00:45 before 01:00 shutdown
 TOMORROW=$(date -d tomorrow +%u)  # 1=Mon ... 7=Sun
 case $TOMORROW in
     2|3)  WAKE_TIME=$(date -d "tomorrow 16:00" +%s) ;;  # Tue/Wed: late start
@@ -440,7 +440,7 @@ rtcwake -m no -t "$WAKE_TIME"
 
 `date +%u` returns ISO weekday number: 1 = Monday, 7 = Sunday.
 `date -d "tomorrow 16:00"` resolves to tomorrow at 16:00 in the local timezone,
-then `+%s` converts to UTC epoch — which is exactly what `rtcwake -t` needs.
+then `+%s` converts to UTC epoch - which is exactly what `rtcwake -t` needs.
 
 ### The cron pair (Proxmox host scheduled shutdown example)
 
@@ -461,7 +461,7 @@ When a cron job silently doesn't run, work through this stack:
 **1. Are any jobs scheduled at all?**
 ```bash
 crontab -l
-# "no crontab for root" → nothing is scheduled, no job will ever run
+# "no crontab for root" -> nothing is scheduled, no job will ever run
 ```
 
 **2. Is the cron daemon running?**
@@ -497,8 +497,8 @@ Useful to confirm both *when* the system booted and *when* the previous session 
 |---|---|
 | `no crontab for root` | Jobs were scripted but never added to crontab |
 | Job exists, daemon runs, still no execution | Script not executable (`chmod +x`) |
-| Job runs but does nothing | Wrong PATH — binary not found; use absolute paths |
-| Output missing | cron mails output; without MTA it's silently dropped — redirect to log or `logger` |
+| Job runs but does nothing | Wrong PATH - binary not found; use absolute paths |
+| Output missing | cron mails output; without MTA it's silently dropped - redirect to log or `logger` |
 
 ## Related
 

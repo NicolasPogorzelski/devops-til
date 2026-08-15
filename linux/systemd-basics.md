@@ -38,10 +38,10 @@ systemctl daemon-reload
 ## Reading service status output
 
 ```
-Active: active (running) since ...    → running normally
-Active: activating (auto-restart)     → crashed, systemd is restarting it
-Active: failed                        → crashed, not restarting
-Loaded: loaded (...; disabled; ...)   → unit file exists but won't start on boot
+Active: active (running) since ...    -> running normally
+Active: activating (auto-restart)     -> crashed, systemd is restarting it
+Active: failed                        -> crashed, not restarting
+Loaded: loaded (...; disabled; ...)   -> unit file exists but won't start on boot
 ```
 
 `status=203/EXEC` in the status output means the binary could not be executed
@@ -68,7 +68,7 @@ journalctl --vacuum-time=7d      # keep only last 7 days
 
 A nasty discovery during the KE-8 incident investigation: the journal for the days
 around the incident was **simply gone**. `journalctl --list-boots` jumped straight from
-an old boot to the current one — the boots in between had no logs at all. Forensics
+an old boot to the current one - the boots in between had no logs at all. Forensics
 fell back to `wtmp`, `apt`/`dpkg` text logs, Docker JSON logs, and Prometheus instead.
 
 Root cause to check: journald's storage mode.
@@ -83,12 +83,12 @@ The `Storage=` directive in `/etc/systemd/journald.conf` decides where logs live
 
 | `Storage=` | Behavior |
 |---|---|
-| `volatile` | Logs only in `/run/log/journal` (RAM) — **wiped on every reboot** |
-| `persistent` | Logs in `/var/log/journal` (disk) — survive reboots |
+| `volatile` | Logs only in `/run/log/journal` (RAM) - **wiped on every reboot** |
+| `persistent` | Logs in `/var/log/journal` (disk) - survive reboots |
 | `auto` (default) | Persistent **only if** `/var/log/journal/` already exists; otherwise volatile |
 
 The trap is `auto`: people assume "auto = it figures it out and keeps my logs." It does
-**not** — if the `/var/log/journal` directory is missing, `auto` silently behaves like
+**not** - if the `/var/log/journal` directory is missing, `auto` silently behaves like
 `volatile` and every reboot throws the logs away. The directory's mere existence is the
 switch.
 
@@ -102,21 +102,21 @@ systemd-tmpfiles --create --prefix /var/log/journal   # apply correct ownership/
 systemctl restart systemd-journald
 ```
 
-- `mkdir -p /var/log/journal` — creating the directory flips `auto` into persistent
+- `mkdir -p /var/log/journal` - creating the directory flips `auto` into persistent
   mode; `-p` is harmless if it already exists.
-- `systemd-tmpfiles --create --prefix /var/log/journal` — sets the
+- `systemd-tmpfiles --create --prefix /var/log/journal` - sets the
   systemd-mandated ownership (`root:systemd-journal`) and permissions; doing it by hand
   risks journald refusing to use a wrongly-owned directory.
-- `systemctl restart systemd-journald` — reloads the daemon so it picks up the new
+- `systemctl restart systemd-journald` - reloads the daemon so it picks up the new
   storage location.
 
 Also relevant to "logs vanished": even with persistent storage, retention is bounded by
 `SystemMaxUse=` (default ~10% of the filesystem) and `MaxRetentionSec=`. Logs can be
-persistent yet still rotated out faster than you expect on a busy node — worth checking
+persistent yet still rotated out faster than you expect on a busy node - worth checking
 both `Storage=` *and* the size caps when logs are missing.
 
 > Lesson logged as tech debt: vm100/vm102 had `/var/log/journal` present yet still lost
-> boots — so the next step is to confirm `Storage=` and the `SystemMaxUse=`/retention
+> boots - so the next step is to confirm `Storage=` and the `SystemMaxUse=`/retention
 > caps, not assume the directory alone is sufficient.
 
 ## systemd mount units
@@ -128,7 +128,7 @@ Naming convention: the mount path `/mnt/nextcloud` becomes `mnt-nextcloud.mount`
 (slashes replaced with dashes, leading slash removed).
 
 Automount units (`mnt-nextcloud.automount`) mount on first access and unmount
-after an idle timeout — useful for network shares that may be temporarily unavailable.
+after an idle timeout - useful for network shares that may be temporarily unavailable.
 
 ## Enable a unit at boot
 
@@ -140,10 +140,10 @@ systemctl enable tailscaled
 If a unit is `active (running)` but `disabled`, it started manually or by dependency
 but will not start automatically after reboot.
 
-## Service `Type=` — what "started" actually means
+## Service `Type=` - what "started" actually means
 
 The `[Service]` `Type=` directive tells systemd how to detect that a unit is
-running. This affects `After=` ordering — a dependent unit starts only when
+running. This affects `After=` ordering - a dependent unit starts only when
 this one is "active".
 
 | `Type=`     | "Active" means                                                       | Use for                              |
@@ -167,7 +167,7 @@ RemainAfterExit=yes
 to "inactive" and `WantedBy=multi-user.target` may re-trigger it later. With it,
 the unit stays "active" after exit, marking "this work is done".
 
-## `WantedBy=` — what "enabled" hooks into
+## `WantedBy=` - what "enabled" hooks into
 
 ```ini
 [Install]
@@ -179,7 +179,7 @@ WantedBy=multi-user.target
 
 ```
 /etc/systemd/system/multi-user.target.wants/foo.service
-   → /etc/systemd/system/foo.service
+   -> /etc/systemd/system/foo.service
 ```
 
 When `multi-user.target` is reached during boot, every `.service` in its
@@ -193,9 +193,9 @@ When `multi-user.target` is reached during boot, every `.service` in its
 
 For server services: `WantedBy=multi-user.target` is right. For services that
 need network: also `After=network-online.target` + `Wants=network-online.target`
-in `[Unit]` — `WantedBy` and `After` solve different problems (hook-point vs ordering).
+in `[Unit]` - `WantedBy` and `After` solve different problems (hook-point vs ordering).
 
-## Drop-in overrides — `/etc/systemd/system/<unit>.d/*.conf`
+## Drop-in overrides - `/etc/systemd/system/<unit>.d/*.conf`
 
 The right way to modify a packaged unit: drop-in files. They merge with the
 upstream unit at runtime; you never touch `/lib/systemd/system/<unit>.service`.
@@ -218,7 +218,7 @@ systemctl cat ssh.service        # upstream + every drop-in concatenated
 systemctl show ssh.service       # effective resolved values, one per line
 ```
 
-`systemctl edit --full` is the wrong default — it copies the entire upstream
+`systemctl edit --full` is the wrong default - it copies the entire upstream
 unit to `/etc`, breaking future package upgrades that update the upstream file.
 Use it only when reordering or removing existing directives makes a drop-in
 impossible.
@@ -226,7 +226,7 @@ impossible.
 For deeper restart-policy and race-condition handling, see
 [systemd Service Hardening](systemd-service-hardening.md).
 
-## `RestartPreventExitStatus=` — when restart policies seem ignored
+## `RestartPreventExitStatus=` - when restart policies seem ignored
 
 A common surprise: `Restart=on-failure` is set, but the unit doesn't restart
 after a failure. Cause: the upstream unit ships a `RestartPreventExitStatus=`
@@ -245,14 +245,14 @@ RestartPreventExitStatus=
 ```
 
 The empty value overrides the upstream non-empty list. Do this only when you
-*want* restart on every failure — for race-condition-vulnerable services,
+*want* restart on every failure - for race-condition-vulnerable services,
 this is correct.
 
 ## When the running process does not match the unit file
 
 A diagnosis that keeps going wrong: reading a config file and concluding what is
 running. The config is a statement of *intent*. Only the process tells you what
-is actually in effect, and the two drift apart more often than expected — a unit
+is actually in effect, and the two drift apart more often than expected - a unit
 edited without `daemon-reload`, a service started by hand, or a second unit
 nobody remembers enabling.
 
@@ -275,7 +275,7 @@ systemctl list-unit-files | grep -i <name>   # every unit, enabled or not
   the absolute start time, which is what lets you compare a process against the
   mtime of the config that supposedly produced it.
 - `systemctl status <pid>` accepts a PID as well as a unit name and resolves it
-  to the owning unit — the fastest way to identify a process you did not expect.
+  to the owning unit - the fastest way to identify a process you did not expect.
 - `systemctl cat` is the honest view of a unit: the file plus every drop-in,
   concatenated with `# /path` markers. Guessing which files exist is how drop-ins
   get missed.
@@ -284,7 +284,7 @@ systemctl list-unit-files | grep -i <name>   # every unit, enabled or not
   stray daemon.
 
 `systemctl disable --now <unit>` stops it and removes the `WantedBy` symlink, but
-leaves the unit file in place. That is reversible on purpose — and it means a
+leaves the unit file in place. That is reversible on purpose - and it means a
 later `enable` brings the problem back. Delete the file when the decision is
 final.
 
@@ -293,4 +293,4 @@ final.
 - [Proxmox: LXC & VM Management](../proxmox/lxc-vm-management.md)
 - [systemd Service Hardening](systemd-service-hardening.md)
 - [Cron and Scheduling](cron-and-scheduling.md)
-- [Proxmox: Tailscale in unprivileged LXCs](../proxmox/lxc-tailscale-tun.md) — where this bit
+- [Proxmox: Tailscale in unprivileged LXCs](../proxmox/lxc-tailscale-tun.md) - where this bit

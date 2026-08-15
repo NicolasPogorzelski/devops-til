@@ -8,12 +8,12 @@ backups don't cover the actual risk.
 
 | Threat                              | Local snapshot | Off-host copy | Off-site immutable |
 |-------------------------------------|:--------------:|:-------------:|:------------------:|
-| Application bug deletes data        |       ✓        |       ✓       |         ✓          |
-| Filesystem corruption               |       ✗        |       ✓       |         ✓          |
-| Single-host hardware failure        |       ✗        |       ✓       |         ✓          |
-| Site loss (fire, theft)             |       ✗        |       ✗       |         ✓          |
-| Ransomware encrypts everything online|      ✗        |       ✗       |         ✓          |
-| Operator error (rm -rf /)           |       ✗        |    partial    |         ✓          |
+| Application bug deletes data        |              |             |                  |
+| Filesystem corruption               |              |             |                  |
+| Single-host hardware failure        |              |             |                  |
+| Site loss (fire, theft)             |              |             |                  |
+| Ransomware encrypts everything online|             |             |                  |
+| Operator error (rm -rf /)           |              |    partial    |                  |
 
 A "complete" backup story has all three layers. Skipping one means accepting
 the threats in that column.
@@ -29,7 +29,7 @@ The classical guideline: **3 copies of data, on 2 media types, 1 off-site**.
 For homelab: original + on-host backup is one layer; CIFS-replicated to NAS is
 the second; restic to a remote object-store is the third.
 
-## Off-site with immutability — restic + append-only
+## Off-site with immutability - restic + append-only
 
 Restic is a deduplicating backup tool. It encrypts before upload, deduplicates
 across snapshots, and supports many backends (S3, B2, REST, SFTP).
@@ -55,7 +55,7 @@ a self-hosted REST server, it's `--append-only` mode.
 
 Why this matters: if an attacker gets onto your backup-source host, they have
 the restic password. With normal credentials they can run `restic forget --prune`
-and erase all history. With append-only credentials, they can't — the worst
+and erase all history. With append-only credentials, they can't - the worst
 they can do is upload garbage. Old snapshots remain restorable.
 
 Pruning (the necessary operation that actually frees backend space) runs
@@ -69,9 +69,9 @@ realistically need to recover?":
 | Backup tier       | Typical retention                                            |
 |-------------------|--------------------------------------------------------------|
 | Database dumps    | 7 daily, 4 weekly, 6 monthly                                 |
-| Application data  | Same — point-in-time recovery aligned with DB                |
-| Media files       | Less aggressive — they don't change. 1 monthly is often enough |
-| System configs    | Forever — they're tiny and infinitely useful                 |
+| Application data  | Same - point-in-time recovery aligned with DB                |
+| Media files       | Less aggressive - they don't change. 1 monthly is often enough |
+| System configs    | Forever - they're tiny and infinitely useful                 |
 
 Restic implements this via tag policies:
 
@@ -83,7 +83,7 @@ restic forget \
   --prune
 ```
 
-The `--keep-X` flags are not "delete older than X" — they're "keep one snapshot
+The `--keep-X` flags are not "delete older than X" - they're "keep one snapshot
 per period for the last N periods". A snapshot can satisfy multiple keep-rules
 (today's snapshot is "today's daily" *and* "this week's weekly").
 
@@ -91,7 +91,7 @@ per period for the last N periods". A snapshot can satisfy multiple keep-rules
 as forgotten in the index but data blobs remain. Run prune separately with
 full credentials from a dedicated host.
 
-## Local backup — find -mtime retention
+## Local backup - find -mtime retention
 
 For simple local backup retention without restic:
 
@@ -101,8 +101,8 @@ find /backups -name "*.sql.gz" -mtime +14 -delete
 
 | Flag              | Meaning                                                              |
 |-------------------|----------------------------------------------------------------------|
-| `-name "*.sql.gz"`| Match files by glob — don't delete unrelated files in the same dir   |
-| `-mtime +14`      | Modified more than 14 days ago. **`+` is critical** — without it, you delete files modified *exactly* 14 days ago |
+| `-name "*.sql.gz"`| Match files by glob - don't delete unrelated files in the same dir   |
+| `-mtime +14`      | Modified more than 14 days ago. **`+` is critical** - without it, you delete files modified *exactly* 14 days ago |
 | `-delete`         | Action: remove. Run without `-delete` first to preview                |
 
 Always preview first:
@@ -117,7 +117,7 @@ For "older than this specific date" use `-newermt` with a reference timestamp.
 
 ## Restore is the only test that matters
 
-A backup that has never been restored is not a backup — it's a hopeful file.
+A backup that has never been restored is not a backup - it's a hopeful file.
 
 | Restore test cadence  | What to verify                                                |
 |-----------------------|---------------------------------------------------------------|
@@ -141,10 +141,10 @@ be full before you trust the backup story.
 
 Document explicitly what is *not* backed up. Common omissions:
 
-- Container images (re-pullable from registries — usually fine to skip)
-- TLS private keys (regenerable via `tailscale cert` or Let's Encrypt — fine)
-- OS state (re-installable from configuration — fine if config is in IaC)
-- **Secrets/env files** (often forgotten — must be backed up if not in a vault)
+- Container images (re-pullable from registries - usually fine to skip)
+- TLS private keys (regenerable via `tailscale cert` or Let's Encrypt - fine)
+- OS state (re-installable from configuration - fine if config is in IaC)
+- **Secrets/env files** (often forgotten - must be backed up if not in a vault)
 
 The "fine to skip" items rely on external assumptions (registry availability,
 ACME working). When the assumption breaks during recovery, the absence becomes

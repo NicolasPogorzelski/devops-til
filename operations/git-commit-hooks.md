@@ -13,9 +13,9 @@ Common hook events:
 | `pre-commit` | before the commit is created | run linters, tests |
 | `pre-push` | before `git push` | run tests, block force-push |
 
-## Where hooks live — and why this matters
+## Where hooks live - and why this matters
 
-Hooks are stored in `.git/hooks/`. This directory is **never committed and never pushed** — `.git/` is git's internal state, not part of the repository content.
+Hooks are stored in `.git/hooks/`. This directory is **never committed and never pushed** - `.git/` is git's internal state, not part of the repository content.
 
 Consequence: hooks are machine-local. A fresh clone has empty `.git/hooks/`.
 
@@ -30,9 +30,9 @@ To version-control a hook script while keeping it activatable locally:
 ln -sf ../../scripts/commit-msg-lint.sh .git/hooks/commit-msg
 ```
 
-- `ln -s` — symbolic link (pointer to a path, not a copy)
-- `../../` — relative path from `.git/hooks/` up to the repo root
-- `-f` — overwrite if a hook already exists
+- `ln -s` - symbolic link (pointer to a path, not a copy)
+- `../../` - relative path from `.git/hooks/` up to the repo root
+- `-f` - overwrite if a hook already exists
 
 The script is committed and versioned. The symlink is local. When the script changes, the hook automatically uses the new version.
 
@@ -63,10 +63,10 @@ if ! echo "$SUBJECT" | grep -qP "$PATTERN"; then
 fi
 ```
 
-- `head -1` — only check the subject line; the body is not validated
-- `grep -qP` — quiet match with PCRE (`-P`); non-zero exit if no match
-- `>&2` — error output goes to stderr; git displays stderr to the user
-- `exit 1` — non-zero exit aborts the commit
+- `head -1` - only check the subject line; the body is not validated
+- `grep -qP` - quiet match with PCRE (`-P`); non-zero exit if no match
+- `>&2` - error output goes to stderr; git displays stderr to the user
+- `exit 1` - non-zero exit aborts the commit
 
 ## Bypassing hooks
 
@@ -86,7 +86,7 @@ git commit --no-verify
 | CI pipeline | catches issues before merge | no (blocks PR) |
 
 Local hooks give fast feedback. CI is the real enforcement point.
-Run the same check in both places — local for speed, CI for reliability.
+Run the same check in both places - local for speed, CI for reliability.
 
 ## Professional tooling
 

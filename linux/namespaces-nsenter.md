@@ -22,7 +22,7 @@ Each LXC container runs as a process on the Proxmox host with its own set of nam
 From inside the container, it looks like a separate system. From the host, the container
 is just a PID with namespaces attached.
 
-## nsenter — entering a namespace from the host
+## nsenter - entering a namespace from the host
 
 `nsenter` lets you run a command inside an existing namespace without being inside the
 container itself. Useful for operations that are blocked inside the container (like fstrim).
@@ -48,19 +48,19 @@ lxc-info -n 200 | awk '/^PID:/{print $2}'
 pct status 200   # shows running state
 ```
 
-## Practical example — fstrim inside a container
+## Practical example - fstrim inside a container
 
 ```bash
 PID=$(lxc-info -n 200 | awk '/^PID:/{print $2}')
 nsenter -t $PID --mount -- fstrim -v /
 ```
 
-This runs `fstrim` in the mount namespace of LXC 200 — the command sees the container's
+This runs `fstrim` in the mount namespace of LXC 200 - the command sees the container's
 filesystem, but runs with host-level privileges (bypassing the FITRIM ioctl restriction).
 
 ## Why FITRIM is blocked inside LXC
 
-LXC security profiles block the `FITRIM` ioctl by default. This is a hardening measure —
+LXC security profiles block the `FITRIM` ioctl by default. This is a hardening measure -
 containers should not be able to directly control block device behavior on shared storage.
 The host can bypass this restriction using `nsenter` because it runs outside the namespace.
 
