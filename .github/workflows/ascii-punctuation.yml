@@ -1,0 +1,39 @@
+name: ASCII punctuation
+
+# Notes here are read in terminals, greps and diffs, where typographic punctuation
+# renders inconsistently across fonts and is awkward to search for, since several
+# look-alike codepoints exist. Without a check the convention lasts until the next
+# time somebody pastes from a rendered page.
+#
+# Exempt, because they are content rather than decoration: German letters, the
+# degree sign, the section sign, and the box-drawing characters used in diagrams.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ascii:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        # Pinned to a commit SHA: a major-version tag is a moving reference the
+        # upstream owner can repoint at any commit.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reject typographic punctuation
+        run: |
+          pattern='(?![\x{2500}-\x{257F}\x{00A7}\x{00B0}\x{00E4}\x{00F6}\x{00FC}\x{00C4}\x{00D6}\x{00DC}\x{00DF}])[^\x00-\x7F]'
+          hits="$(grep -rnoP "$pattern" \
+                    --include='*.md' --include='*.sh' --include='*.yml' \
+                    --include='*.yaml' --include='*.conf' --include='*.py' \
+                    . || true)"
+          if [ -n "$hits" ]; then
+            echo "Non-ASCII punctuation found. Use -, \", ..., ->, x instead:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Clean."
