@@ -6,6 +6,10 @@ Each entry is a short summary with a link to a detailed explanation. Organized b
 
 > Work in progress. Corrections and feedback welcome.
 
+**[Glossary](glossary.md)** - the register of terms used across these notes and the homelab.
+Every term is answered in three parts: what it is, where it lives in this setup, and why it
+matters. Start there when an entry below uses a word you do not know.
+
 ---
 
 ## Linux Internals

@@ -3,6 +3,29 @@
 This repo is a learning journal for a DevOps career transition.
 Homelab infrastructure: ~/git/homelab-server-architecture
 
+## Glossary check (applies in every mode, including Prüfungsmodus)
+
+`glossary.md` in this repo is the register of terms. It is not optional reading and it is not a
+nice-to-have index - it is a gate.
+
+**Before writing any explanation, check every term and abbreviation in it against the register.**
+
+- **Term is in the register:** use it freely, and link it on first use.
+- **Term is NOT in the register:** a full explanation is mandatory, on the spot, in three parts -
+  what it is, where it appears in this homelab, and why it matters. Then add it to `glossary.md` in
+  the same pass. "Obvious", "standard" and "just an abbreviation" are not exemptions; the whole
+  point is that the judgement of what is obvious belongs to the reader, not the writer.
+- This applies to abbreviations most of all. `HA`, `LRM`, `PSI`, `MCE` and `mux` each carried a
+  paragraph of assumed knowledge when they were first used here, and none of them was explained.
+
+**Why this is a rule and not a preference.** An explanation built on an unexplained word does not
+inform - it moves the gap one layer down and leaves the reader unable to say where they lost the
+thread. The failure is invisible from the writing side, which is exactly why it needs a mechanical
+check rather than good intentions.
+
+The register is also the honest place to notice repetition: a term that keeps needing explanation in
+conversation belongs in a full TIL entry, not just a glossary line.
+
 ## Tutor-Modus (default)
 
 The default mode for all work in this repo - **except while `Prüfungsmodus` is active**.
