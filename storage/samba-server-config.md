@@ -105,7 +105,7 @@ correct setting there, and the boundary has to be enforced elsewhere.
 #### `hosts allow` is a filter, not a bind
 
 ```ini
-hosts allow = 127.0.0.1 100.64.0.0/10 192.168.0.34
+hosts allow = 127.0.0.1 100.64.0.0/10 <lan-ip-vm100>
 hosts deny  = 0.0.0.0/0
 ```
 

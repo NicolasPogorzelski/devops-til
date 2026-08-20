@@ -65,7 +65,7 @@ table inet smb_guard {
     meta nfproto ipv6 tcp dport 445 counter drop
 
     # IPv4: only the two hosts that actually consume the service. Counters are the audit trail.
-    ip saddr { 192.168.0.34, 192.168.0.50 } tcp dport 445 counter accept
+    ip saddr { <lan-ip-vm100>, <lan-ip-proxmox> } tcp dport 445 counter accept
     tcp dport 445 counter drop
   }
 }
@@ -102,7 +102,7 @@ nft list table inet smb_guard      # rules + counters
 ```
 
 ```
-ip saddr { 192.168.0.34, 192.168.0.50 } tcp dport 445 counter packets 99 bytes 26348 accept
+ip saddr { <lan-ip-vm100>, <lan-ip-proxmox> } tcp dport 445 counter packets 99 bytes 26348 accept
 tcp dport 445 counter packets 3 bytes 180 drop
 ```
 

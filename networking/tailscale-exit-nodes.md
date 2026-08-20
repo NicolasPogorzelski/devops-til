@@ -46,7 +46,7 @@ With an exit node set, table 52 holds a default route via `tailscale0`.
 Priority 5270 beats 32766, so every packet is handed to a peer that does not
 exist. They are dropped silently.
 
-`ExitNodeAllowLANAccess: true` keeps `192.168.0.0/24` reachable, which makes
+`ExitNodeAllowLANAccess: true` keeps the local subnet reachable, which makes
 the router, printer, and homelab all work. That masks the diagnosis - it feels
 like a DNS or WAN problem rather than a routing problem.
 
@@ -209,9 +209,8 @@ Updates come via `rpm-ostree upgrade` with the rest of the image.
 
 The outage appeared to be Wi-Fi-specific. It is not: Tailscale prefs are
 **per profile, not per interface** - there is no Wi-Fi/Ethernet distinction
-in them. The real correlate was *changing networks* (three different subnets
-in one evening: `192.168.179.0/24`, `192.168.0.0/24`, `10.222.249.0/24`),
-each triggering a reconnect that re-applied the dead pin.
+in them. The real correlate was *changing networks* - three different subnets in one
+evening, each triggering a reconnect that re-applied the dead pin.
 
 Generalisation: "it only happens on X" is a hypothesis about a variable you
 noticed, not about the variable that matters. Check whether the suspected

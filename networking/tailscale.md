@@ -110,7 +110,7 @@ Check which path is in use - do not guess:
 
 ```bash
 tailscale ping storage
-# pong from storage (100.75.x.y) via 192.168.0.154:41641 in 2ms
+# pong from storage (100.x.y.z) via <lan-ip-vm102>:41641 in 2ms
 #                                    ^^^^^^^^^^^^^^^^^^^^ the LAN address = direct
 ```
 

@@ -26,6 +26,25 @@ check rather than good intentions.
 The register is also the honest place to notice repetition: a term that keeps needing explanation in
 conversation belongs in a full TIL entry, not just a glossary line.
 
+## Sanitization (applies in every mode)
+
+This repository is public. Notes are written while working on a real homelab, so
+real addresses arrive in pasted command output without anyone deciding to publish
+them - which is exactly how five files ended up carrying the hypervisor's LAN
+address, one of them inside a firewall rule, until an audit on 2026-08-20.
+
+- LAN addresses use placeholders: `<lan-ip-proxmox>`, `<lan-ip-vm100>`, `<lan-ip-vm102>`.
+- Tailscale addresses use `<tailscale-ip-nodename>`; tailnet names use `<tailnet-id>`.
+  The range literal `100.64.0.0/10` is public documentation and stays.
+- Invented examples use the ranges RFC 5737 reserves for documentation -
+  `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24` - so the check needs no
+  allowlist and has no exception to rot around.
+- Nothing here is exploitable; RFC 1918 addresses are not routable from outside.
+  What the rule protects is consistency with the sister repository, which has
+  enforced the same placeholders for months.
+
+Enforced by `.github/workflows/no-real-addresses.yml` on every push.
+
 ## Tutor-Modus (default)
 
 The default mode for all work in this repo - **except while `Prüfungsmodus` is active**.

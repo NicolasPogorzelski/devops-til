@@ -1,0 +1,59 @@
+name: No real addresses
+
+# These notes are written while working on a real homelab, so real addresses end
+# up in pasted command output without anyone deciding to publish them. The sister
+# repository has enforced placeholders for months; this one had the same rule as
+# an intention and five files that broke it, including the hypervisor's own LAN
+# address inside a firewall rule.
+#
+# Nothing here is exploitable - RFC 1918 addresses are not routable from outside,
+# and the Tailscale range is public knowledge. What the check protects is the
+# consistency: a reader who finds placeholders in one repository and real values
+# in the other learns something about the discipline, not about the network.
+#
+# Use placeholders instead: <lan-ip-proxmox>, <lan-ip-vm100>, <lan-ip-vm102>,
+# <tailscale-ip-nodename>, <tailnet-id>. For invented examples use the ranges
+# reserved for documentation by RFC 5737 - 192.0.2.0/24, 198.51.100.0/24,
+# 203.0.113.0/24 - so that no allowlist is needed and the check has no exceptions
+# to rot around.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  addresses:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        # Pinned to a commit SHA: a major-version tag is a moving reference the
+        # upstream owner can repoint at any commit.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reject private and Tailscale addresses
+        run: |
+          # RFC 1918: 10/8, 172.16/12, 192.168/16.
+          rfc1918='\b(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}\b'
+          # Tailscale hands out 100.64.0.0/10, i.e. 100.64.x.x through 100.127.x.x.
+          # The range literal itself is documentation, not an address, so it is
+          # subtracted below rather than carved out of the pattern.
+          tailscale='\b100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\.[0-9]{1,3}\.[0-9]{1,3}\b'
+          tailnet='\b[a-z0-9-]+\.ts\.net\b'
+
+          hits="$(grep -rnoE "${rfc1918}|${tailscale}|${tailnet}" \
+                    --include='*.md' --include='*.sh' --include='*.yml' \
+                    --include='*.yaml' --include='*.conf' --include='*.py' \
+                    --exclude-dir=.git . || true)"
+
+          # The published range literal and the documented placeholder tailnet.
+          hits="$(printf '%s\n' "$hits" | grep -vE ':100\.64\.0\.0$|:abc123\.ts\.net$' || true)"
+
+          if [ -n "$hits" ]; then
+            echo "Real addresses found. Use placeholders, or RFC 5737 ranges for examples:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Clean."

@@ -31,7 +31,7 @@ it. The system looks healthy; the share is just silently absent.
 
 ```
 mnt-smb-books\x2drw.mount: failed
-mount error(113): could not connect to 192.168.0.154 - Unable to find suitable address.
+mount error(113): could not connect to <lan-ip-vm102> - Unable to find suitable address.
 ```
 
 `113` = `EHOSTUNREACH`. The mount fired before the route to the SMB server was
