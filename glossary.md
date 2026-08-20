@@ -118,6 +118,26 @@ guests to - while it does bring its full set of consequences, above all self-fen
 here is deliberately recovery-oriented rather than highly available: the design accepts downtime and
 invests in being able to come back.
 
+## idempotency
+
+**What it is.** The property of an operation that leaves the same end state however often it runs.
+Once or five times, the machine looks identical afterwards. It is not the same as "harmless to
+repeat": a script that appends a line on every run does no damage, but it is not idempotent, because
+the fifth run leaves five lines.
+
+**Here.** It is the design principle behind every Ansible module this repository uses -
+`ansible.builtin.user`, `copy` and `authorized_key` all read the current state before writing - and
+it is what makes `--check --diff` meaningful at all. Hand-written scripts on this fleet are held to
+the same bar: the lxc250 bootstrap script appends the SSH key only when `grep -qxF` does not already
+find it, and writes the sudoers file only when it differs.
+
+**Why it matters.** The whole verification habit rests on it. "Run it again and see whether anything
+changes" is only a test when unchanged input means unchanged output; a `changed=0` from a re-run is
+then evidence that the live state matches the declared one. Where idempotency breaks, repetition
+accumulates silently - two identical `authorized_keys` lines, two cron entries, two exporter units.
+This platform has already paid for that once, with the second hand-written `tailscaled` unit on
+lxc220 that started a duplicate daemon at every boot.
+
 ## kernel oops
 
 **What it is.** A kernel-detected fault - it dereferenced a bad pointer, or hit an inconsistent
@@ -133,6 +153,24 @@ than *degraded*. That is precisely what happened here: the first oops corrupted 
 [slab](#slab-allocator) freelist, and every later allocation from that cache faulted in turn. The
 sysctl `kernel.panic_on_oops` decides whether the machine keeps limping or stops immediately - see
 [sysctl](#sysctl).
+
+## kex (SSH key exchange)
+
+**What it is.** The first phase of every SSH connection, before authentication. Both sides send a
+version identification string, agree on algorithms, and derive a shared session key. Only once that
+succeeds does anything else travel the wire - user names, keys, and the command itself. OpenSSH names
+its functions after it, which is why client errors from this phase read
+`kex_exchange_identification`.
+
+**Here.** It is the phase a failed connection to the hypervisor died in on 2026-08-20, and the reason
+that failure left no trace on the host: `sshd` had not yet forked the per-connection `sshd-session`
+process that writes the `Accepted publickey` line. The client-side message was the only evidence.
+
+**Why it matters.** It tells you how far a failed SSH attempt got, which is usually the whole
+question. An error naming kex means no authentication was attempted and no remote command ran - so
+whatever the command would have done, it did not do. A failure after kex is the opposite case and
+deserves the opposite assumption. Distinguishing the two is the difference between "nothing happened"
+and "something half happened".
 
 ## LRM and CRM (Local / Cluster Resource Manager)
 
@@ -173,6 +211,45 @@ errors, bus faults. The kernel decodes and logs them.
 memory, a memory fault produces no MCE, so silence is not evidence of health. This is the same shape
 as `smartctl -H PASSED` on a disk with 7680 unreadable sectors: a check that cannot fail is not a
 check.
+
+## pct (Proxmox Container Toolkit)
+
+**What it is.** The Proxmox command-line tool for LXC containers, addressed by numeric ID:
+`pct start 250`, `pct exec 250 -- <command>`, `pct push`, `pct reboot`, `pct fstrim`. It runs on the
+hypervisor, not inside the guest.
+
+**Here.** It is the break-glass route into every container. `pct exec 250 -- bash` is the documented
+fallback during the 30-60 s window after boot in which lxc250's sshd has no Tailscale address to bind
+to; `pct fstrim` is what reclaims thin-pool blocks that a container cannot reclaim itself;
+`pct reboot 210` was what repaired Nextcloud's bind mount after the share appeared underneath it.
+
+**Why it matters.** It reaches the guest through the host kernel's namespaces, bypassing the guest's
+network, its sshd and its hardening entirely. That is precisely why it is the recovery path when
+hardening has locked the door - and why it leaves no trace in the container's own audit trail. One
+caution from [KE-21](../homelab-server-architecture/docs/platform/known-errors.md#ke-21): a series of
+deeply nested `pct exec` one-liners immediately preceded the kernel oops. Causation was never
+established and the memory in this machine has no [ECC](#ecc-error-correcting-code-memory), so the
+correlation is all there is. It is still the reason live fleet commands are now copied up as script
+files instead of being nested four levels deep in quotes.
+
+## PerSourcePenalties (OpenSSH)
+
+**What it is.** A rate-limiting mechanism in `sshd`, on by default since OpenSSH 9.8. It records
+source addresses whose connections end badly - authentication failure, a crash, exceeding the login
+grace time, disconnecting without authenticating - and refuses further connections from that address
+for a growing period. The defaults on this platform read
+`crash:90 authfail:5 noauth:1 grace-exceeded:10 max:600 min:15`, in seconds of penalty per event.
+
+**Here.** The Proxmox host runs OpenSSH 10.0p2 with the stock settings, so this is active without
+anyone having configured it. It is one of two candidate explanations for a connection that was reset
+during [kex](#kex-ssh-key-exchange) on 2026-08-20 while connections a minute earlier and a minute
+later succeeded.
+
+**Why it matters.** A penalised connection is refused before `sshd` forks the process that does the
+logging, so at the default `LogLevel INFO` the rejection appears nowhere in the journal. A gap in the
+log is therefore not evidence that nothing was attempted, and troubleshooting an intermittent SSH
+failure by reading the server's log alone can point at exactly the wrong layer. Raising `LogLevel` to
+`VERBOSE` is what makes the mechanism visible.
 
 ## pmxcfs (Proxmox Cluster File System)
 
@@ -245,6 +322,24 @@ armed. The chipset's hardware watchdog module (`sp5100_tco`) exists but is not l
 Its limit is worth knowing - softdog is a kernel timer, so a completely locked-up kernel takes the
 watchdog down with it. Only a hardware watchdog survives that case, which is the argument for
 preferring `sp5100_tco` if it works on this board.
+
+## sudoers.d and NOPASSWD
+
+**What it is.** `/etc/sudoers.d/` is a drop-in directory that `sudo` reads in addition to
+`/etc/sudoers`; each file holds a fragment of policy, so a package or a role can add its own rule
+without editing a shared file. The `NOPASSWD:` tag on a rule means the listed commands run without
+sudo asking for the invoking user's password.
+
+**Here.** `/etc/sudoers.d/ansible` on every managed node, containing one line -
+`ansible ALL=(ALL) NOPASSWD: ALL` - written by `bootstrap-ansible-user.yml` with mode `0440` and
+checked by `visudo -csf` before it is put in place. lxc250 is the node that has been missing it.
+
+**Why it matters.** It is what makes `become: true` work unattended: a password prompt in a
+non-interactive SSH session does not fail, it hangs. The cost is stated plainly - whoever holds the
+Ansible private key holds unprompted root on every node in the inventory, which is why that key
+living unbackuped on a single container is its own open item. The two guards around the file are not
+decoration: mode `0440` keeps it unwritable, and the syntax check matters because a malformed file in
+this directory makes `sudo` refuse to run at all, on a node where root SSH is already disabled.
 
 ## sysctl
 
