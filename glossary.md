@@ -14,6 +14,50 @@ a dictionary, not a register.
 
 ---
 
+## 3-2-1 rule (and 3-2-1-1-0)
+
+**What it is.** Three copies of the data, on two kinds of media, one of them off site. The extended
+form adds two digits: 3-2-1-1-0, where the extra 1 is a copy that is immutable or physically
+disconnected, and the 0 is the number of errors in the last restore test.
+
+**Here.** The first three digits are satisfied. The fourth is what the
+[off-site decision](../homelab-server-architecture/docs/decisions/offsite-backup-target.md) is about. The zero is already
+practised: the PostgreSQL restore test runs monthly into a throwaway cluster, and the guest backup
+was restored by hand on 2026-08-21.
+
+**Why it matters.** Each digit answers a different threat. Three copies covers accidental deletion,
+two media covers a media defect, one off site covers site loss, the extra 1 covers ransomware and a
+stolen credential, and the 0 covers the question that decides the day - whether it restores.
+
+## air gap
+
+**What it is.** Keeping a copy off any network path that could reach it, usually by physically
+disconnecting the medium.
+
+**Here.** The disk at a family member's home, recorded in
+[data classification](../homelab-server-architecture/docs/platform/data-classification.md), is a real air gap: off site,
+disconnected, and of unknown age between visits.
+
+**Why it matters.** Nothing on a network can reach it, which is the strongest guarantee available.
+The weakness is that a person has to perform it, and this one is refreshed only when its owner
+visits the household that holds it. An air gap with no cadence has an unknown age between refreshes,
+so it works as a last resort and not as a planned control. That gap is most of the argument for
+paying for an off-site target that can be scheduled.
+
+## capabilities and CAP_DAC_OVERRIDE
+
+**What it is.** Linux splits root's historical powers into around forty capabilities, so a process
+can hold one without holding all. `CAP_DAC_OVERRIDE` is the one that skips file permission checks.
+
+**Here.** Inside LXC220, root could not read `/opt/calibreweb`
+([KE-22](../homelab-server-architecture/docs/platform/known-errors.md#ke-22)). Capabilities are scoped to the user namespace
+that holds them, so container root has `CAP_DAC_OVERRIDE` over owners the
+[UID map](#user-namespace-and-uid-mapping) covers and none over owners it does not.
+
+**Why it matters.** "root can do anything" stopped being true when user namespaces arrived, and
+habits older than that still assume it. When a privileged process in a container gets `EACCES`,
+check whether the file's owner exists inside the namespace before looking at mode bits.
+
 ## corosync
 
 **What it is.** The cluster communication layer of Proxmox. It carries the heartbeat between nodes
@@ -212,6 +256,23 @@ memory, a memory fault produces no MCE, so silence is not evidence of health. Th
 as `smartctl -H PASSED` on a disk with 7680 unreadable sectors: a check that cannot fail is not a
 check.
 
+## Object Lock (WORM)
+
+**What it is.** A property of an object in S3-compatible storage that forbids deleting or
+overwriting it until a retention date passes. WORM is the older name: write once, read many.
+Enforcement sits on the storage side, so it binds the account owner too.
+
+**Here.** Considered and not chosen for the off-site backup target
+([decision](../homelab-server-architecture/docs/decisions/offsite-backup-target.md)), which went to an append-only
+`rest-server` on a VPS instead. The entry is kept because it names what that choice gave up.
+
+**Why it matters.** Distance answers fire. It does not answer a stolen credential, and on this
+platform the control node already holds hypervisor root, so an account that can reach everything
+exists. Object Lock is the one option where the guarantee does not depend on the operator
+configuring it correctly, because the storage service refuses the deletion. Everything else,
+append-only servers included, is that property rebuilt by hand and therefore capable of being
+misconfigured or switched off.
+
 ## pct (Proxmox Container Toolkit)
 
 **What it is.** The Proxmox command-line tool for LXC containers, addressed by numeric ID:
@@ -293,6 +354,34 @@ cluster each believe they are in charge and both write to shared storage.
 there is no genuine loss of quorum to detect, only false positives - which is the core argument for
 leaving HA switched off here.
 
+## restic
+
+**What it is.** A backup program that encrypts and deduplicates on the client before transmitting,
+storing the result as content-addressed blobs in a repository - a local directory, an SSH target, or
+an S3-compatible bucket. Unchanged data is not stored twice.
+
+**Here.** The client for both the interim and the durable off-site copy
+([decision](../homelab-server-architecture/docs/decisions/offsite-backup-target.md)).
+
+**Why it matters.** Client-side encryption makes the operator of the target largely irrelevant,
+which matters because the data includes identity documents. It also adds a failure mode: the
+repository password cannot be recovered, so it has to live in the credential escrow rather than on
+the machine being backed up.
+
+## RPO and RTO
+
+**What they are.** Recovery Point Objective is how much data may be lost, expressed as time: an RPO
+of 24 hours accepts a day's work as the worst case. Recovery Time Objective is how long recovery may
+take.
+
+**Here.** Stated per dataset in [data classification](../homelab-server-architecture/docs/platform/data-classification.md).
+Several rows read "undefined" until 2026-09-01, which was the finding - an undefined RPO is unknown,
+not zero.
+
+**Why it matters.** They pick the mechanism. A 24-hour RPO permits a nightly dump; a one-hour RPO
+does not, and no amount of care about the nightly dump closes that gap. Writing them down first
+keeps a backup design from being chosen out of habit.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -371,6 +460,59 @@ out-of-tree module, `D` for "this kernel has already oopsed".
 2026-08-20 read `P O` with no `D`, every later one carried `D` - which is what identifies the first
 as the cause and the rest as consequences. Without that flag the seven reports would just be seven
 crashes.
+
+## user namespace and UID mapping
+
+**What it is.** A namespace that translates user and group IDs between the inside and the outside of
+a container. Proxmox unprivileged containers use `u 0 100000 65536`: container UID 0 is host 100000,
+container 1000 is host 101000, for 65536 IDs. The permitted ranges come from `/etc/subuid` and
+`/etc/subgid`. When a file's host owner falls outside the map the kernel cannot translate it and
+reports `/proc/sys/kernel/overflowuid` instead, conventionally 65534 or `nobody`.
+
+**Here.** Every LXC on this platform is unprivileged. It is why storage mounted into LXC220 needs
+`chown 100000:100000`, and why a directory owned by host UID 1000 was unreadable inside the
+container that held it ([KE-22](../homelab-server-architecture/docs/platform/known-errors.md#ke-22)).
+
+**Why it matters.** A container escape lands on an unprivileged host account instead of root, which
+is most of the security argument for unprivileged containers. The cost is that ownership means two
+different things depending which side you ask from, and `nobody` in a container listing is often the
+kernel declining to answer rather than a real owner. See also
+[capabilities](#capabilities-and-cap_dac_override).
+
+## vzdump
+
+**What it is.** Proxmox's backup tool for VMs and containers. `--mode snapshot` archives a
+storage-level snapshot so the guest keeps running; `stop` and `suspend` are the consistent but
+disruptive alternatives. Unprivileged containers are archived through
+`lxc-usernsexec -m u:0:100000:65536`, inside the guest's
+[UID map](#user-namespace-and-uid-mapping), so the archive records container-relative ownership.
+
+**Here.** The weekly guest backup
+([runbook](../homelab-server-architecture/runbooks/platform/guest-backup-restore.md)), covering nine guests since 2026-09-01.
+
+**Why it matters.** Two of its properties have already caused faults. The scope of a VM backup lives
+in the guest config rather than in the backup job, so a passthrough disk without `backup=0` drags an
+entire array into the target. And because it reads through the container's map, a path the container
+cannot read is a path the backup cannot read.
+
+## WAL (write-ahead log)
+
+**What it is.** A journal a database writes changes into before applying them to the main data file,
+so a crash mid-write leaves a recoverable record. SQLite in WAL mode keeps it beside the database as
+`-wal`, with a shared-memory index as `-shm`. A checkpoint folds the contents back into the main
+file.
+
+**Here.** The retired Vaultwarden database looked like a textbook case and was not. Its main file
+had an mtime of February beside a 57 KB `-wal` written in June, which reads like four months of
+stranded transactions. `PRAGMA wal_checkpoint(TRUNCATE)` returned zero frames: the log was empty and
+the file had never been truncated. The same side files are why
+[KE-19](../homelab-server-architecture/docs/platform/known-errors.md#ke-19) excluded them from the SnapRAID array.
+
+**Why it matters.** A log's size and timestamp say nothing about whether it holds data, because the
+file is not truncated when its frames are checkpointed. A stale allocation and a real backlog look
+identical from the filesystem, and only the database can tell them apart. The consistent set is the
+main file together with its side files at one instant, which is why a live copy needs the online
+backup API or a stopped writer.
 
 ## watchdog-mux
 
