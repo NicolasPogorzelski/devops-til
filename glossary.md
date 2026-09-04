@@ -44,6 +44,37 @@ visits the household that holds it. An air gap with no cadence has an unknown ag
 so it works as a last resort and not as a planned control. That gap is most of the argument for
 paying for an off-site target that can be scheduled.
 
+## Alertmanager
+
+**What it is.** The component that turns a firing Prometheus rule into a notification. Prometheus
+decides only *that* an alert fires; it has no idea where to send it. Alertmanager receives firing
+alerts, groups, deduplicates and silences them, and hands them to a receiver.
+
+**Here.** A container on lxc200 alongside Prometheus, Grafana, node_exporter and the
+[blackbox exporter](#blackbox-exporter). Its route has one receiver, `discord`, with
+`send_resolved: true`, so the recovery arrives in the same channel as the alert.
+
+**Why it matters.** It is the second half of every alert path and it fails independently of the
+first. A rule reaching `firing` in Prometheus proves the detection worked; it does not prove anybody
+was told. When asking "why did nothing warn me", check both halves separately -
+`ALERTS{alertstate="firing"}` in Prometheus, and the receiver in Alertmanager.
+
+## blackbox exporter
+
+**What it is.** A Prometheus exporter that probes a target from outside instead of reading metrics
+from inside it. Prometheus scrapes the exporter and passes the target URL as a parameter; the
+exporter performs the HTTP request (or TCP connect, or ICMP ping) and answers with `probe_success`
+1 or 0.
+
+**Here.** A container on lxc200. It probes Jellyfin and Audiobookshelf on vm100 by port, and the
+`tailscale serve` services by MagicDNS name. The `ServiceDown` rule (`probe_success == 0`,
+`for: 3m`) is built on it.
+
+**Why it matters.** It is the only layer that sees a *service* being down while its node is
+perfectly healthy - the gap KE-8 named. node_exporter runs on the node and reports the node; if a
+container there never starts, every node metric stays green. The probe sits outside the failure,
+which is precisely what lets it observe one.
+
 ## capabilities and CAP_DAC_OVERRIDE
 
 **What it is.** Linux splits root's historical powers into around forty capabilities, so a process
@@ -57,6 +88,24 @@ that holds them, so container root has `CAP_DAC_OVERRIDE` over owners the
 **Why it matters.** "root can do anything" stopped being true when user namespaces arrived, and
 habits older than that still assume it. When a privileged process in a container gets `EACCES`,
 check whether the file's owner exists inside the namespace before looking at mode bits.
+
+## CDI (Container Device Interface)
+
+**What it is.** A specification for handing hardware to a container declaratively. A vendor writes a
+spec file - YAML listing device nodes, libraries and mounts under a name such as
+`nvidia.com/gpu=all` - and the container runtime reads it and applies it. It replaces the older
+approach of running a vendor program during container startup.
+
+**Here.** vm100 uses it for the GPU. `nvidia-ctk cdi generate`, run from
+`nvidia-cdi-refresh.service`, writes `/var/run/cdi/nvidia.yaml`; dockerd resolves the Jellyfin
+container's device request `nvidia.com/gpu=all` against it.
+
+**Why it matters.** The spec file lives on [tmpfs](#tmpfs), so it is gone after every boot, and
+`nvidia-cdi-refresh.service` carries `After=multi-user.target`, which places it after
+`docker.service` rather than before. So at every boot dockerd finds no spec, logs
+`unresolvable CDI devices nvidia.com/gpu=all`, and falls back to the legacy
+[OCI hook](#oci-hook-prestart-hook). The declarative path is configured and never used at boot; the
+fragile path is the one that runs.
 
 ## corosync
 
@@ -162,6 +211,21 @@ guests to - while it does bring its full set of consequences, above all self-fen
 here is deliberately recovery-oriented rather than highly available: the design accepts downtime and
 invests in being able to come back.
 
+## hrtimer interrupt warning
+
+**What it is.** The kernel message `hrtimer: interrupt took N ns`. A high-resolution timer interrupt
+should finish in microseconds. When one takes milliseconds the kernel prints this once and widens
+its own tolerance. It is not a fault in the timer - it is evidence that the CPU was not available
+when the interrupt was due.
+
+**Here.** vm100 logged `interrupt took 11834745 ns` (11.8 ms) at 20:55:02 on 2026-08-24, at the end
+of a 33-second stall in which the Jellyfin GPU hook timed out.
+
+**Why it matters.** Inside a virtual machine this usually means the *host* did not schedule the
+guest's vCPU, not that the guest was busy. It is one of the few signals a guest gets for host-side
+contention, which is otherwise invisible from within. Read it as a timestamped marker of "this VM
+was starved here" and line it up against whatever timed out.
+
 ## idempotency
 
 **What it is.** The property of an operation that leaves the same end state however often it runs.
@@ -256,6 +320,21 @@ memory, a memory fault produces no MCE, so silence is not evidence of health. Th
 as `smartctl -H PASSED` on a disk with 7680 unreadable sectors: a check that cannot fail is not a
 check.
 
+## nvcgo
+
+**What it is.** The cgroup component of the NVIDIA container toolkit. `nvidia-container-cli` does
+not manipulate cgroups in its own process; it calls a helper over an RPC - a remote procedure call,
+meaning the caller invokes a function that runs in a different process and waits for the reply.
+`nvcgo` is that helper, and the call has a timeout.
+
+**Here.** It appears on vm100 only in failure messages:
+`nvidia-container-cli: initialization error: nvcgo rpc error: timed out`, emitted by the legacy
+[OCI hook](#oci-hook-prestart-hook) while starting the Jellyfin container.
+
+**Why it matters.** Being a timeout, it fails on a *slow* machine rather than a broken one - so it
+is a boot-window failure by nature, striking exactly when the system is most loaded and least
+watched. Six occurrences in vm100's journal since January, every one during startup.
+
 ## Object Lock (WORM)
 
 **What it is.** A property of an object in S3-compatible storage that forbids deleting or
@@ -272,6 +351,23 @@ exists. Object Lock is the one option where the guarantee does not depend on the
 configuring it correctly, because the storage service refuses the deletion. Everything else,
 append-only servers included, is that property rebuilt by hand and therefore capable of being
 misconfigured or switched off.
+
+## OCI hook (prestart hook)
+
+**What it is.** OCI, the Open Container Initiative, standardises the on-disk container format and
+the runtime that starts it. Its runtime specification lets a container config declare *hooks*:
+external programs the runtime executes at defined points. A `prestart` hook runs after the
+container's namespaces exist but before its main process starts - the moment at which devices can
+be injected from outside.
+
+**Here.** `/usr/bin/nvidia-container-runtime-hook`, injected by dockerd as a prestart hook for the
+Jellyfin container whenever the [CDI](#cdi-container-device-interface) path is unavailable. It calls
+`nvidia-container-cli`, which sets up the GPU device nodes and driver libraries inside the container.
+
+**Why it matters.** A failing prestart hook is fatal to `runc create`, so the container never
+reaches the running state at all. That distinction is what lets the failure survive a
+[restart policy](#restart-policy-docker): a policy reacts to a container that ran and exited, and a
+hook failure means it never ran.
 
 ## pct (Proxmox Container Toolkit)
 
@@ -382,6 +478,23 @@ not zero.
 does not, and no amount of care about the nightly dump closes that gap. Writing them down first
 keeps a backup design from being chosen out of habit.
 
+## restart policy (Docker)
+
+**What it is.** A per-container setting telling the Docker daemon what to do when the container's
+main process exits: `no`, `on-failure`, `always` or `unless-stopped`. `unless-stopped` means
+"restart it, and start it again when the daemon starts, unless a human explicitly stopped it".
+
+**Here.** Every compose stack in this homelab uses `restart: unless-stopped`.
+
+**Why it matters.** The name invites a wrong reading. It is a policy about *exits*, not a supervisor
+that keeps a container up. When dockerd cannot even create the container - a failing
+[OCI hook](#oci-hook-prestart-hook), a missing bind mount, a device that is not ready - the
+container never enters the running state, nothing ever exits, and the policy never applies. The
+start is attempted once at daemon start and then dropped: `RestartCount` stays 0 and `FinishedAt`
+still points at the previous clean shutdown, so `docker ps -a` prints `Exited (0)` and looks exactly
+like a container somebody stopped on purpose. This is what kept Jellyfin down on vm100 on
+2026-08-24 until it was started by hand.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -460,6 +573,21 @@ out-of-tree module, `D` for "this kernel has already oopsed".
 2026-08-20 read `P O` with no `D`, every later one carried `D` - which is what identifies the first
 as the cause and the rest as consequences. Without that flag the seven reports would just be seven
 crashes.
+
+## tmpfs
+
+**What it is.** A filesystem held in memory. It looks like an ordinary directory tree, is read and
+written like one, and is empty again after a reboot. Linux mounts several by default, `/run` among
+them.
+
+**Here.** `/run` on every node, and through the `/var/run` -> `/run` symlink also `/var/run/cdi`,
+the directory holding vm100's generated [CDI](#cdi-container-device-interface) spec.
+
+**Why it matters.** A file on tmpfs is not state, it is a cache with no owner. Anything depending on
+it acquires an implicit ordering requirement against whatever regenerates it, and that requirement
+is invisible in the consuming config - nothing in `docker.service` mentions `/var/run/cdi`. Same
+shape as [KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18): a resource
+that exists in steady state and does not exist yet at boot.
 
 ## user namespace and UID mapping
 
