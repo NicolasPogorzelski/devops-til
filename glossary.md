@@ -248,6 +248,23 @@ logic is "if I lose contact with the cluster, I must reset myself" - correct in 
 another node takes over. On a standalone machine there is nothing to take over, so a transient
 software hiccup would produce a hard reset of every running guest and gain nothing.
 
+## file descriptor
+
+**What it is.** A small integer a process uses to refer to something the kernel opened for it - a
+file, a pipe, a network socket. The number is meaningful only inside that process. Descriptors
+survive `fork()`, so a child inherits its parent's open files, and they survive `execve()` unless
+marked close-on-exec, which is how a program can be replaced while keeping its connections.
+
+**Here.** It is the mechanism behind [socket activation](#socket-activation): systemd opens the
+listening socket for port 22 itself and passes the descriptor to `ssh.service`, so `ss -lntp` shows
+both `systemd` and `sshd` as owners of the same socket. It is also why a restarted daemon under
+socket activation loses no connections - the descriptor stays open in systemd while the service is
+away.
+
+**Why it matters.** Inheriting a socket and binding one look identical from outside and are not the
+same act. The whole of [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24)
+is a daemon that should have reused an inherited descriptor and tried to bind instead.
+
 ## FUSE (Filesystem in Userspace)
 
 **What it is.** A kernel interface that lets an ordinary program provide a filesystem. The kernel
@@ -510,6 +527,22 @@ first suspect and would have explained the same symptoms.
 interface. And when the Proxmox interface misbehaves, pmxcfs is worth checking early - but check it,
 do not assume it, since a plausible suspect and a guilty one are different things.
 
+## privilege separation (OpenSSH)
+
+**What it is.** OpenSSH splits the handling of a connection in two. A small privileged process does
+only what needs root - reading the host key, opening the session - and everything that touches data
+from the network runs in an unprivileged child, `chroot`ed into an empty directory owned by root.
+A flaw in the parsing code then reaches a process with no privileges and no filesystem.
+
+**Here.** That directory is `/run/sshd`, and `ssh.service` declares `RuntimeDirectory=sshd`, so
+systemd creates it at start and removes it at stop. sshd refuses to run without it:
+`Missing privilege separation directory: /run/sshd`.
+
+**Why it matters.** It turns a stopped unit into a second, unrelated failure. When ssh.service died
+during [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24) the directory
+went with it, and every later `sshd -t` failed on the missing directory rather than on the original
+cause - a diagnosis one layer away from the fault, produced by the cleanup rather than the defect.
+
 ## PSI (Pressure Stall Information)
 
 **What it is.** A kernel interface that reports how much time tasks spent *waiting* for CPU, memory
@@ -598,6 +631,23 @@ every upload would overwrite the previous one.
 `category` argument is the part that is easy to leave out and silently wrong: with one category for
 several images, the tab shows the last upload and reports the earlier findings as fixed.
 
+## SIGHUP (and what sshd does with it)
+
+**What it is.** A signal, historically "the terminal hung up", adopted by convention as "re-read
+your configuration". The convention is not a rule, and each daemon decides what it means.
+
+**Here.** `systemctl reload ssh` runs two commands from the unit: `/usr/sbin/sshd -t`, which parses
+the configuration and aborts the reload if it is invalid, then `/bin/kill -HUP $MAINPID`. sshd does
+not re-read anything on that signal. It calls `execve()` on itself and starts over with the same
+PID, which is how a package upgrade takes effect without systemd losing track of the process.
+
+**Why it matters.** Re-exec means the new process rebuilds everything the old one had, including
+its listening socket. Under [socket activation](#socket-activation) that socket belongs to systemd,
+the bind fails with `EADDRINUSE`, and the daemon exits - which is
+[KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24). The general form: a
+reload is not always a re-read, and the difference only shows where the process has state it cannot
+recreate on its own.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -612,6 +662,27 @@ lives *inside* the free memory it tracks, corrupting one slot poisons the chain.
 allocation from that cache follows the bad pointer and faults - so unrelated processes die one after
 another with an identical error. Seeing the same faulting address repeat across different programs
 is the signature: one corruption event, re-read many times, not many separate faults.
+
+## socket activation
+
+**What it is.** systemd opens a listening socket itself and starts the service only when a
+connection arrives, passing the open [file descriptor](#file-descriptor) to it. With `Accept=no`
+one service instance receives the listening socket and handles every connection; with `Accept=yes`
+systemd forks an instance per connection. The socket keeps listening while the service is stopped,
+crashed or restarting, so connections in that window are queued in the backlog rather than refused.
+
+**Here.** The Proxmox Debian 12 container template enables `ssh.socket` - `Accept=no`,
+`ListenStream=22` - so lxc200, lxc210, lxc211, lxc220, lxc230 and lxc260 run sshd this way. vm100,
+vm102, lxc250 and the Proxmox host have it disabled and run the daemon on its own. Both units
+active is the correct steady state on the six, not a collision.
+
+**Why it matters.** Two consequences pull in opposite directions. A restart under socket activation
+is gentler than elsewhere, because nothing is refused while the service is away. But `ListenAddress`
+in `sshd_config` has no effect - the socket unit decides what is listened on - so the platform
+binding rule would have to be written as `ListenStream=<tailscale-ip>:22`, an address that does not
+exist yet at boot, which is
+[KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18) one layer down. And a reload becomes unsafe, for the reason in
+[SIGHUP](#sighup-and-what-sshd-does-with-it).
 
 ## softdog
 
