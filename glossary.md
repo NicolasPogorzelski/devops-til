@@ -107,6 +107,22 @@ container's device request `nvidia.com/gpu=all` against it.
 [OCI hook](#oci-hook-prestart-hook). The declarative path is configured and never used at boot; the
 fragile path is the one that runs.
 
+## CodeQL
+
+**What it is.** GitHub's code-scanning engine. It builds a queryable database from source and runs
+queries against it to find security defects. The `github/codeql-action` repository ships it as a
+set of Actions, one of which - `upload-sarif` - does something unrelated to scanning: it publishes
+a [SARIF](#sarif-static-analysis-results-interchange-format) file to a repository's Security tab.
+
+**Here.** CodeQL analysis does not run. Only `github/codeql-action/upload-sarif` is used, in
+`.github/workflows/image-scan.yml`, to publish Trivy's findings. The repository holds
+documentation, YAML and shell, none of which CodeQL supports well enough to be worth the minutes.
+
+**Why it matters.** The name in the workflow reads as if code scanning were happening, and it is
+not. `upload-sarif` is the generic publishing endpoint that happens to live in the CodeQL
+repository, which is also why Dependabot's weekly pull requests carry `codeql-action` in the title
+for a repository that runs no CodeQL. Read the sub-path, not the repository name.
+
 ## corosync
 
 **What it is.** The cluster communication layer of Proxmox. It carries the heartbeat between nodes
@@ -140,6 +156,22 @@ working for a node that has been removed from the inventory, and equally why a h
 CTIDs in a script drifts out of step with `pct list` without anything noticing. Never identify a
 guest by its position in a list; identify it by CTID.
 
+## CVE (Common Vulnerabilities and Exposures)
+
+**What it is.** A globally unique identifier for one publicly disclosed vulnerability, in the form
+`CVE-2026-12345`. It names the flaw; it does not say whether a given system is exploitable through
+it. Severity is expressed separately, usually as a CVSS score bucketed into LOW / MEDIUM / HIGH /
+CRITICAL.
+
+**Here.** `image-scan.yml` runs Trivy against the pinned container images and counts findings by
+severity with `jq`, selecting `.Severity == "CRITICAL"` and `"HIGH"` from the JSON output. The
+same scan is written again as SARIF and published to the Security tab, one category per image.
+
+**Why it matters.** During the [KE-13](../homelab-server-architecture/docs/platform/known-errors.md#ke-13) hold no image may be re-pulled, so the useful question
+is not "is a newer tag available" but "is what is running vulnerable, and how badly". A CVE count
+answers that without proposing a change. Note what a count does not establish: a CRITICAL in a
+package the service never calls is not an incident, and triage still has to happen by hand.
+
 ## D-state (uninterruptible sleep)
 
 **What it is.** A process state. A process in `D` is waiting for the kernel to finish something and
@@ -158,6 +190,27 @@ twenty-two processes sat in this state, waiting on a dead [FUSE](#fuse) mount. T
   signature of a lock, and it is a diagnosis rather than a symptom.
 - **You cannot kill your way out.** The usual reflex - find the process, `kill -9` it - does nothing
   here. Recovery means fixing what it waits on, or rebooting.
+
+## Dependabot
+
+**What it is.** A GitHub service that watches a repository's declared dependencies and opens pull
+requests when newer versions appear. It does two separate jobs. *Version updates* are configured in
+`.github/dependabot.yml` and fire whenever something newer exists. *Security updates* are a
+repository setting rather than a file, and fire only when a published advisory affects a version
+actually in use.
+
+**Here.** Version updates cover GitHub Actions only, weekly on Friday, at most five open pull
+requests, with `commit-message.prefix: ci` and `include: scope` so the generated subject satisfies
+`scripts/commit-msg-lint.sh`. The Docker images under `docker/` are deliberately excluded: they are
+pinned on purpose and `docker-compose-update` is under a standing hold until the aux-disk is
+replaced, so a stream of proposals that must not be applied would be noise. Advisory-driven
+security updates stay on.
+
+**Why it matters.** Actions here are pinned to commit SHAs rather than tags, and a SHA never
+updates itself. The pin buys immutability and pays for it in permanent staleness; Dependabot is the
+counter-movement, with a human in between. Without it the workflows would sit on whatever was
+current the day they were written. The Friday schedule matches the weekly fleet audit, so the
+review lands in a slot that already exists instead of arriving as an interrupt.
 
 ## ECC (Error-Correcting Code memory)
 
@@ -530,6 +583,21 @@ still points at the previous clean shutdown, so `docker ps -a` prints `Exited (0
 like a container somebody stopped on purpose. This is what kept Jellyfin down on vm100 on
 2026-08-24 until it was started by hand.
 
+## SARIF (Static Analysis Results Interchange Format)
+
+**What it is.** A JSON schema for the output of static analysis tools - findings, locations,
+severities, rule identifiers. It exists so that a platform can display results from a tool it knows
+nothing about, and so that results from different tools can sit side by side.
+
+**Here.** Trivy runs twice in `image-scan.yml` over the same images: once with JSON output, which
+`jq` reduces to CRITICAL and HIGH counts, and once with `format: sarif` into `trivy.sarif`, which
+`github/codeql-action/upload-sarif` publishes. Each image gets its own `category`, without which
+every upload would overwrite the previous one.
+
+**Why it matters.** It is the reason GitHub's Security tab can show container findings at all. The
+`category` argument is the part that is easy to leave out and silently wrong: with one category for
+several images, the tab shows the last upload and reports the earlier findings as fixed.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -577,6 +645,25 @@ Ansible private key holds unprompted root on every node in the inventory, which 
 living unbackuped on a single container is its own open item. The two guards around the file are not
 decoration: mode `0440` keeps it unwritable, and the syntax check matters because a malformed file in
 this directory makes `sudo` refuse to run at all, on a node where root SSH is already disabled.
+
+## supply chain attack
+
+**What it is.** An attack that reaches a target through something the target depends on, rather
+than through the target itself - a compromised library, base image, package repository or CI
+action. The defender's own code can be flawless and still execute the attacker's.
+
+**Here.** A GitHub Actions workflow runs third-party code on a machine that has the repository
+checked out and can hold write access to it, which makes an Action the shortest path in. Every
+Action in `.github/workflows/` is therefore pinned to a commit SHA with the version in a trailing
+comment: `actions/checkout@3d3c42e5... # v7.0.1`. A tag such as `v7` is mutable and the publisher
+can move it; a SHA cannot be moved. Container images are pinned the same way one level down, by
+version tag, and `apache/tika` by `@sha256:` digest, which is the stronger form.
+
+**Why it matters.** It is why [Dependabot](#dependabot) is needed rather than optional: the SHA pin
+closes the hijack path and freezes the code at the same time, and something has to unfreeze it
+deliberately. The remaining manual step is checking that a proposed SHA really belongs to the tag
+named in the comment - `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq '.object.sha'` - which
+is the one thing the bot cannot vouch for on its own behalf.
 
 ## sysctl
 
