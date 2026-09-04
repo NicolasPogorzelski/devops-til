@@ -121,6 +121,25 @@ says "HA needs a quorate cluster", corosync is what provides the quorum. On a si
 features are technically present and practically meaningless, which is a trap rather than a
 convenience - see [HA](#ha-high-availability) and [quorum](#quorum).
 
+## CTID (container ID)
+
+**What it is.** The numeric identifier Proxmox gives every guest. Containers and virtual machines
+share one number space, so a CTID is unique across the whole host and never reused while the guest
+exists. Every `pct` command addresses a container by it, and `qm` addresses a VM the same way.
+Proxmox stores the configuration under that number: `/etc/pve/lxc/<ctid>.conf` for a container,
+`/etc/pve/qemu-server/<vmid>.conf` for a VM.
+
+**Here.** The numbers carry meaning by convention rather than by rule - 200 monitoring, 210
+Nextcloud, 240 Vaultwarden, 250 the control node, 260 PostgreSQL, and 100/102 for the two VMs. The
+node documents and the Ansible inventory use the same names (`lxc240`, `vm102`), so a CTID is
+usually readable as a node name and back.
+
+**Why it matters.** Anything that runs on the hypervisor addresses guests by CTID and knows nothing
+about the Ansible inventory: `vzdump`, `pct fstrim`, `pct exec`. That is why the guest backup keeps
+working for a node that has been removed from the inventory, and equally why a hardcoded list of
+CTIDs in a script drifts out of step with `pct list` without anything noticing. Never identify a
+guest by its position in a list; identify it by CTID.
+
 ## D-state (uninterruptible sleep)
 
 **What it is.** A process state. A process in `D` is waiting for the kernel to finish something and
@@ -368,6 +387,22 @@ Jellyfin container whenever the [CDI](#cdi-container-device-interface) path is u
 reaches the running state at all. That distinction is what lets the failure survive a
 [restart policy](#restart-policy-docker): a policy reacts to a container that ran and exited, and a
 hook failure means it never ran.
+
+## onboot
+
+**What it is.** A per-guest Proxmox setting deciding whether the host starts that guest
+automatically when it boots. `onboot: 1` starts it, `onboot: 0` leaves it stopped. It lives in the
+guest's config file and is read during host startup. A related key, `startup`, orders the guests
+that do start and can hold a delay.
+
+**Here.** The host powers down every night and wakes on an RTC alarm, so `onboot` is what actually
+brings the platform back - a guest with `onboot: 0` stays down until somebody starts it by hand.
+Clearing it was step one of withdrawing lxc240 from service: stopping a guest without clearing
+`onboot` means the next wake undoes the shutdown silently.
+
+**Why it matters.** "Stopped" and "will stay stopped" are two different states, and `pct status`
+only reports the first. On a host that reboots on a schedule, the second is the one that decides
+what is running tomorrow.
 
 ## pct (Proxmox Container Toolkit)
 
