@@ -212,6 +212,45 @@ counter-movement, with a human in between. Without it the workflows would sit on
 current the day they were written. The Friday schedule matches the weekly fleet audit, so the
 review lands in a slot that already exists instead of arriving as an interrupt.
 
+## DevOps
+
+**What it is.** A way of working in which the people who build a system also run it, rather than
+handing it over a boundary to a separate operations team. It shows up as three habits rather than
+as a job title: infrastructure described in version-controlled files instead of assembled by hand,
+delivery automated so a change reaches the running system the same way every time, and that system
+measured so its state is a reading rather than an opinion.
+
+**Here.** The homelab repository is the artefact. Every guest-side change is an Ansible role, every
+scheduled job a systemd timer, and each node reports through `node_exporter` into Prometheus. The
+counter-example is the shape this platform keeps finding: a hand-written unit in
+`/etc/systemd/system` that no role owns, which works perfectly until the node is rebuilt and then
+does not exist. The host `node_exporter` and the LVM thin-pool collectors were both in that state
+for months.
+
+**Why it matters.** It decides whether a fault can be reproduced. A configuration that lives only
+on the machine has no history, so "it used to work" cannot be checked against anything, and the
+person diagnosing it is reading the current state and guessing at the previous one. The same
+property is what makes [idempotency](#idempotency) worth having at all.
+
+## DevSecOps
+
+**What it is.** [DevOps](#devops) with the security review moved into the pipeline instead of
+appended to the end of it. The novelty is not the checks, it is when they run. A finding at the
+moment code is written costs a rewrite of that code; the same finding at release costs the release;
+the same finding after publication cannot be undone at all.
+
+**Here.** `validate-repo.sh` runs as a pre-commit hook and again in CI, `ansible-lint` on every
+push, [CodeQL](#codeql) and Trivy on a schedule, [Dependabot](#dependabot) weekly. The
+sanitization checks are the clearest case of the timing argument: the homelab repository is public,
+so an address that reaches a commit is public the moment it is pushed, and no review afterwards
+takes it back.
+
+**Why it matters.** The failure this discipline exists to prevent is a control that is asserted
+rather than measured. `security-controls.md` carries a status column for exactly that reason, and
+it has been wrong: A.8.5 read *Enforced* for weeks while two nodes still accepted passwords. A
+false assurance suppresses discovery more effectively than a stated gap does, because nobody looks
+at a row that already says yes.
+
 ## ECC (Error-Correcting Code memory)
 
 **What it is.** Memory that stores extra check bits, so the memory controller can detect and repair
@@ -264,6 +303,23 @@ away.
 **Why it matters.** Inheriting a socket and binding one look identical from outside and are not the
 same act. The whole of [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24)
 is a daemon that should have reused an inherited descriptor and tried to bind instead.
+
+## frontmatter
+
+**What it is.** A metadata block at the very top of a text file, fenced above and below by a line
+of three hyphens and written in YAML. Tools read it; readers skip it. Static site generators use it
+for titles and dates, and it is the usual way to attach machine-readable fields to a document
+without inventing a second file.
+
+**Here.** Not used in either repository - every markdown file starts with its `#` heading. It
+appears in the assistant's memory files outside both repos, which carry `name`, `description` and a
+`type`. The confusion worth naming is the `---` that opens every Ansible YAML file: that is the
+YAML document-start marker, a single line with nothing above it and no closing counterpart, and it
+means "a document begins here", not "metadata follows".
+
+**Why it matters.** Two constructs that look identical do different jobs, and only one of them has
+a closing delimiter. Deleting the `---` from a playbook because it "looked like empty frontmatter"
+is a plausible edit that `ansible-lint` will then object to.
 
 ## FUSE (Filesystem in Userspace)
 
@@ -473,6 +529,30 @@ Clearing it was step one of withdrawing lxc240 from service: stopping a guest wi
 **Why it matters.** "Stopped" and "will stay stopped" are two different states, and `pct status`
 only reports the first. On a host that reboots on a schedule, the second is the one that decides
 what is running tomorrow.
+
+## OT (Operational Technology)
+
+**What it is.** The hardware and software that controls and measures physical processes - sensors,
+actuators, programmable logic controllers, and the control systems of factories, substations and
+water works. The contrast is with IT, which processes data. The difference inverts the priorities:
+IT ranks confidentiality, integrity and availability in that order, while OT puts availability and
+physical safety first, because a patch that stops a turbine for ten minutes can cost more than the
+vulnerability it closes. Lifetimes differ by an order of magnitude too - a controller installed in
+2004 is ordinary, and it cannot be patched into something modern.
+
+**Here.** There is none. Nothing in this homelab controls a physical process, and no entry in it
+should suggest otherwise.
+
+**Why it matters.** It is carried as a review perspective rather than as a system to defend. The OT
+seat asks what the maintenance window is, which changes cannot be reversed while the thing is
+running, and which machines are not simply restarted. Those questions have concrete answers here:
+vm100 cannot be snapshotted, so every change to it is one-way; the hypervisor's physical recovery
+path is unavailable while the GPU is passed through, so a bad sshd reload there has no second
+route in; and [KE-13](../homelab-server-architecture/docs/platform/known-errors.md#ke-13) is a
+failing disk kept in service under a standing hold rather than replaced on discovery. Read from an
+IT seat those are inconveniences. Read from an OT seat they are the constraints that decide what
+may be attempted at all, which is why the platform has no [HA](#ha-high-availability) and is
+designed for recovery instead.
 
 ## pct (Proxmox Container Toolkit)
 
