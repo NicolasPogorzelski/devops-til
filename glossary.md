@@ -59,6 +59,37 @@ first. A rule reaching `firing` in Prometheus proves the detection worked; it do
 was told. When asking "why did nothing warn me", check both halves separately -
 `ALERTS{alertstate="firing"}` in Prometheus, and the receiver in Alertmanager.
 
+## append-only (backup target)
+
+**What it is.** A mode in which a storage endpoint accepts new data and refuses deletion and
+overwriting. `rest-server`, the restic REST backend, implements it with `--append-only`: the
+credential can create snapshots and read them, and every delete is rejected at the server.
+
+**Here.** The property the off-site backup target was chosen for
+([decision](../homelab-server-architecture/docs/decisions/offsite-backup-target.md)). It is why
+`restic forget` and `restic prune` fail from the homelab by design and retention runs on the server
+under a different account.
+
+**Why it matters.** Backups usually fail as a credential problem rather than a media problem: any
+account that can write them can normally delete them, and ransomware and a mistaken script both use
+that. Append-only breaks the symmetry. It is weaker than object storage's Object Lock, which the
+provider enforces and nobody can override, because whoever holds root on the server can still
+remove files - the residual risk is stated rather than designed away.
+
+## AppImage
+
+**What it is.** A single executable file carrying an application and its libraries, which mounts
+itself at run time instead of being installed. Nothing lands in the package manager's database.
+
+**Here.** How Collabora Online runs on lxc210: the `richdocumentscode` Nextcloud app extracts an
+AppImage into `/tmp` and starts `coolwsd` from it as `www-data`. That is why the node has no
+`coolwsd` package and no `coolwsd` unit while a process listens on port 9983.
+
+**Why it matters.** It sits outside every mechanism this platform uses to know what it runs.
+`dpkg -l` does not list it, `systemctl` does not manage it, no Ansible role can own it without
+owning the app that ships it, and its files live in `/tmp` on the container's root disk. A component
+that arrives this way skips the new-service checklist without anybody deciding to skip it.
+
 ## blackbox exporter
 
 **What it is.** A Prometheus exporter that probes a target from outside instead of reading metrics
@@ -711,6 +742,20 @@ every upload would overwrite the previous one.
 `category` argument is the part that is easy to leave out and silently wrong: with one category for
 several images, the tab shows the last upload and reports the earlier findings as fixed.
 
+## seccomp
+
+**What it is.** A Linux kernel facility that restricts which system calls a process may make. A
+seccomp profile is the list; a call outside it is refused or kills the process.
+
+**Here.** Switched off in the Collabora process on lxc210, together with capability-based jailing
+(`--o:security.seccomp=false`, `--o:security.capabilities=false`). The AppImage sets both because
+that jailing does not work inside an unprivileged LXC.
+
+**Why it matters.** It is the layer that confines a program while it parses untrusted input, and a
+document is untrusted input - Paperless feeds this instance from a consumption directory. Without
+it, a malicious file that reaches a parser bug is confined by the container boundary and by nothing
+inside it. See [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override).
+
 ## SIGHUP (and what sshd does with it)
 
 **What it is.** A signal, historically "the terminal hung up", adopted by convention as "re-read
@@ -742,6 +787,22 @@ lives *inside* the free memory it tracks, corrupting one slot poisons the chain.
 allocation from that cache follows the bad pointer and faults - so unrelated processes die one after
 another with an identical error. Seeing the same faulting address repeat across different programs
 is the signature: one corruption event, re-read many times, not many separate faults.
+
+## smartmon.sh and prometheus-node-exporter-collectors
+
+**What it is.** A Debian package of textfile-collector scripts for node_exporter. `smartmon.sh` is
+the one that reads every SMART attribute of every disk with `smartctl` and prints it as Prometheus
+metrics - `smartmon_<attribute>_value`, `_worst`, `_threshold` and `_raw_value`, plus a
+`smartmon_device_info` line carrying model and serial.
+
+**Here.** Deployed on the Proxmox host by the `smart_metrics` role since 2026-09-09, replacing a
+hand-written collector that exported two metrics.
+
+**Why it matters.** The metric the hand-written collector exported, `smart_health_passed`, read
+PASSED for a disk with 7680 unreadable sectors, because the drive's own self-assessment normalises
+that attribute against a threshold it can never cross. The per-attribute export is what makes the
+question answerable at all: not whether a disk calls itself healthy, but whether its error counters
+moved since yesterday.
 
 ## socket activation
 
@@ -778,6 +839,19 @@ armed. The chipset's hardware watchdog module (`sp5100_tco`) exists but is not l
 Its limit is worth knowing - softdog is a kernel timer, so a completely locked-up kernel takes the
 watchdog down with it. Only a hardware watchdog survives that case, which is the argument for
 preferring `sp5100_tco` if it works on this board.
+
+## sponge (moreutils)
+
+**What it is.** A small utility that reads all of its input before it writes any output. `cmd |
+sponge file` is the safe form of `cmd > file`, which truncates the file before the command has
+produced anything.
+
+**Here.** In the `ExecStart` of the packaged smartmon collector unit, writing `smartmon.prom`.
+
+**Why it matters.** A textfile collector is read by node_exporter on its own schedule, so a plain
+redirect exposes a window in which the file is empty or half written and the metrics simply vanish
+for a scrape. Absent is not zero: a rule written as `> 0` reads an absent metric as silence rather
+than as a fault.
 
 ## sudoers.d and NOPASSWD
 
@@ -847,6 +921,33 @@ out-of-tree module, `D` for "this kernel has already oopsed".
 as the cause and the rest as consequences. Without that flag the seven reports would just be seven
 crashes.
 
+## tentative (systemd device unit state)
+
+**What it is.** The sub-state of a systemd `.device` unit that systemd knows about - from a mount
+table entry or a unit referring to it - but that udev has not tagged with `systemd`. The unit sits
+in `activating (tentative)` and never becomes active.
+
+**Here.** `dev-fuse.device` on the Proxmox host, measured 2026-09-09: `activating/tentative`, empty
+`ActiveEnterTimestamp`, while `/dev/fuse` is open by lxcfs and pmxcfs and works.
+
+**Why it matters.** It looks exactly like a hung unit and is not one, which cost the
+`SystemdUnitStuckActivating` rule a false positive on the day after it was written - one that would
+have returned after every boot. See [udev](#udev).
+
+## thin pool (LVM)
+
+**What it is.** An LVM volume that hands out space on demand rather than at creation. Volumes carved
+from it may promise more in total than the pool holds, and blocks are allocated when they are first
+written.
+
+**Here.** `pve/data` on the Proxmox host, holding every VM and LXC root disk.
+
+**Why it matters.** Two properties bite. A pool that fills stops every guest on it at once, and it
+is a block-layer object with no filesystem, so `node_filesystem_*` cannot see it - which is why it
+went from 86 % to 93 % in thirteen days in 2026 with no rule able to notice, and why it now has its
+own textfile collector. And freeing a file inside a guest does not return blocks to the pool: the
+guest has to discard them, and a container cannot `fstrim` itself.
+
 ## tmpfs
 
 **What it is.** A filesystem held in memory. It looks like an ordinary directory tree, is read and
@@ -861,6 +962,19 @@ it acquires an implicit ordering requirement against whatever regenerates it, an
 is invisible in the consuming config - nothing in `docker.service` mentions `/var/run/cdi`. Same
 shape as [KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18): a resource
 that exists in steady state and does not exist yet at boot.
+
+## udev
+
+**What it is.** The Linux device manager. It handles kernel events about devices appearing and
+disappearing, creates the nodes under `/dev`, and applies rules that set permissions, symlinks and
+tags.
+
+**Here.** The reason `/dev/fuse` on the hypervisor has no `systemd` tag, which is what keeps its
+device unit tentative.
+
+**Why it matters.** Tags are how udev tells systemd which devices are worth having units for. A
+device without one still works perfectly; only systemd's view of it stays incomplete. Reading the
+unit state instead of the device is how that turns into a false alarm.
 
 ## user namespace and UID mapping
 
@@ -928,3 +1042,16 @@ with it over a socket.
 only Proxmox-native way to activate it drags in [HA](#ha-high-availability) and
 [fencing](#fencing). It also explains why systemd's own watchdog cannot simply be switched on: the
 device is taken, so systemd needs either a second device or watchdog-mux out of the way.
+
+## WOPI
+
+**What it is.** Web Application Open Platform Interface, the protocol a document editor uses to fetch
+and save a file held by another system. The editor is the client; the file's owner is the host.
+
+**Here.** How Collabora reaches Nextcloud's files. `richdocuments` sets `wopi_url` to a `proxy.php`
+endpoint on Nextcloud's own web server, so the editing traffic goes through Apache rather than
+straight to the editor's port.
+
+**Why it matters.** It explains a listener that looks worse than it is: `coolwsd` binds `*:9983`,
+and nothing is supposed to reach it there, because every request arrives through the proxy. The bind
+is still wrong by this platform's rule - it is simply not the hole it appears to be.
