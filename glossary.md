@@ -496,6 +496,83 @@ memory, a memory fault produces no MCE, so silence is not evidence of health. Th
 as `smartctl -H PASSED` on a disk with 7680 unreadable sectors: a check that cannot fail is not a
 check.
 
+## memtest86+
+
+**What it is.** A memory tester that boots instead of the operating system and writes and reads
+patterns across every address the firmware reports. It has to run outside a running system, because
+memory in use cannot be tested.
+
+**Here.** One of the four remediation steps [KE-21](../homelab-server-architecture/docs/platform/known-errors.md#ke-21)
+left open: the oops cascade that wedged the hypervisor has no confirmed cause, and bad memory is
+one of the few candidates that can be ruled in or out rather than argued about.
+
+**Why it matters.** It is the step that has not happened, and the reason is instructive. It needs
+physical presence and a boot that does not reach Proxmox, so it cannot be scheduled the way the
+other three can. A verification that requires a person in the room stays open longer than one that
+requires a command, which is why it is written into a runbook rather than a list of intentions.
+
+## netconsole (and netpoll)
+
+**What it is.** A kernel module that sends the kernel log as UDP datagrams to another machine.
+It writes them through `netpoll`, a path inside the kernel that drives the network card directly
+without the normal networking stack or any userspace process.
+
+**Here.** vm100 streams its kernel log to the Proxmox host, where a `socat` unit writes it into the
+persistent journal. Deployed by the `netconsole` role on the sending side and, since 2026-09-11, by
+`proxmox_host_units` on the receiving side.
+
+**Why it matters.** It is the only channel that still works while a guest is freezing. That is also
+why the receiver binds the LAN address rather than the Tailscale one, a documented exception to this
+platform's binding rule: a Tailscale address lives on a TUN device served by a userspace daemon,
+and that daemon is frozen along with everything else during exactly the failure being captured.
+
+## nftables
+
+**What it is.** The Linux kernel's packet filter, and the successor to iptables. Rules live in named
+tables attached to hooks in the network path; `nft -f <file>` loads a file, and a table can be
+replaced or deleted on its own without touching the others.
+
+**Here.** Two filters, both enforcing a boundary a service cannot enforce itself: `smb_guard` on
+vm102, because Samba cannot bind an IPv4 address on `tailscale0`, and `local_guard` on lxc210 via
+the `nft_guard` role, because Collabora offers no listen-address setting at all.
+
+**Why it matters.** A kernel filter is evaluated before the daemon accepts the connection, unlike
+an application's own allow-list, which runs after the TCP accept. The trap on this platform is the
+loading mechanism rather than the rules: the stock `nftables.service` begins with `flush ruleset`
+and flushes everything on stop, either of which would delete the chains Tailscale maintains. Both
+filters therefore carry their own unit and never a `flush ruleset`.
+
+## nmi_watchdog
+
+**What it is.** A kernel mechanism that uses a performance counter to raise a non-maskable interrupt
+periodically, detecting a CPU stuck in the kernel with interrupts disabled - a hard lockup, which no
+ordinary timer can observe because the timer never fires.
+
+**Here.** Considered and set aside in the
+[hypervisor panic decision](../homelab-server-architecture/docs/decisions/hypervisor-panic-and-watchdog.md).
+
+**Why it matters.** It looks like the middle option between doing nothing and enabling the HA stack
+for `softdog`, and it is not one on its own: its default action is to log, which on a host nobody
+can reach produces another record of a machine nobody can reach. It becomes useful combined with
+`panic_on_oops`, where a hard-lockup panic inherits the reboot - a combination worth measuring on
+the hardware rather than assuming from a manual page.
+
+## nsswitch.conf
+
+**What it is.** The file that tells glibc which sources to consult for names, and in which order:
+`hosts: files resolve [!UNAVAIL=return] dns` means try `/etc/hosts`, then `systemd-resolved`, and
+consult DNS only if resolved was unavailable. The bracketed action is the part that catches people -
+it ends the lookup on the named condition instead of falling through.
+
+**Here.** Why MagicDNS does not resolve on lxc250. `resolved` is available and simply does not know
+the tailnet's names, so it answers NXDOMAIN, `[!UNAVAIL=return]` ends the search, and the correct
+`/etc/resolv.conf` that `tailscaled` wrote is never read.
+
+**Why it matters.** Nothing was misconfigured in any sense a person would grep for. Two resolvers
+were present, one of them knew the answer, and the ordering meant the lookup never reached it. The
+fix chosen was to remove `resolve` from the line rather than to teach `resolved` the tailnet, on the
+grounds that the smallest honest change is to stop short-circuiting a lookup that already works.
+
 ## nvcgo
 
 **What it is.** The cgroup component of the NVIDIA container toolkit. `nvidia-container-cli` does
@@ -696,6 +773,24 @@ which matters because the data includes identity documents. It also adds a failu
 repository password cannot be recovered, so it has to live in the credential escrow rather than on
 the machine being backed up.
 
+## rpcbind (and nfs-common)
+
+**What it is.** `rpcbind` is the port mapper for Sun RPC services: a client asks it which port a
+program number listens on, which is how NFS clients and servers find each other. It is pulled in by
+`nfs-common`, the Debian package carrying the NFS client tools.
+
+**Here.** Installed on lxc210 and on the Proxmox host, neither of which has an NFS mount. On lxc210
+it listened on `0.0.0.0:111` and `[::]:111` while the package's `run-rpc_pipefs.mount` failed at
+every boot - the fault recorded as
+[KE-3](../homelab-server-architecture/docs/platform/known-errors.md#ke-3) and masked rather than
+fixed until 2026-09-11.
+
+**Why it matters.** Two audit findings eight months apart turned out to be one package. The failed
+mount was treated as a cosmetic nuisance and masked; the open port was recorded separately as a
+binding-rule violation; nobody connected them. Removing the package closed both and retired the
+mask, which is the general shape worth carrying: a mask is a statement that something cannot
+succeed, and the next question is always why it is installed.
+
 ## RPO and RTO
 
 **What they are.** Recovery Point Objective is how much data may be lost, expressed as time: an RPO
@@ -741,6 +836,22 @@ every upload would overwrite the previous one.
 **Why it matters.** It is the reason GitHub's Security tab can show container findings at all. The
 `category` argument is the part that is easy to leave out and silently wrong: with one category for
 several images, the tab shows the last upload and reports the earlier findings as fixed.
+
+## scrub (SnapRAID)
+
+**What it is.** Re-reading data already in the array and checking it against the parity, to find
+bit rot that no read has touched. Distinct from `sync`, which computes parity for data that
+changed. `snapraid scrub` with no arguments verifies about 8 % of the array per run, choosing
+blocks older than ten days.
+
+**Here.** Runs monthly on vm102. Measured 2026-08-17, the oldest block had gone 123 days unverified
+and 74 % of the array had never been scrubbed, while `SnapRAIDScrubStale` read green.
+
+**Why it matters.** It is the clearest case on this platform of a guard measuring that a job ran
+rather than that it achieved something - the same shape as `smart_health_passed` reporting PASSED
+for a disk with 7680 unreadable sectors. The arithmetic is the point: 8 % a month is roughly a year
+for a full pass, so the coverage was not a fault but the schedule working as configured, and
+nothing was reading the number that would have said so.
 
 ## seccomp
 
@@ -803,6 +914,20 @@ PASSED for a disk with 7680 unreadable sectors, because the drive's own self-ass
 that attribute against a threshold it can never cross. The per-attribute export is what makes the
 question answerable at all: not whether a disk calls itself healthy, but whether its error counters
 moved since yesterday.
+
+## socat
+
+**What it is.** A relay between two byte streams of almost any kind - sockets, files, pipes,
+devices. `socat -u UDP4-RECV:6666,bind=<addr>,reuseaddr -` reads datagrams from one address and
+writes them to standard output; `-u` makes it unidirectional, so it never writes back.
+
+**Here.** The whole implementation of the netconsole receiver on the Proxmox host. systemd captures
+its standard output into the journal under a fixed identifier.
+
+**Why it matters.** A one-line `ExecStart` with no code to maintain, which is the right amount of
+machinery for a log relay. The failure mode it introduces is worth naming: if the binary is missing
+the unit dies with 203/EXEC at every boot, which is how `fleet-snapshot.service` failed on its first
+start, so the role installs the package rather than assuming it.
 
 ## socket activation
 
