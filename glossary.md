@@ -304,6 +304,26 @@ interface through which ECC events would surface.
 **Here.** Initialised at boot (`EDAC MC: Ver: 3.0.0`), and reporting nothing - which follows from the
 memory having no [ECC](#ecc-error-correcting-code-memory) to report on.
 
+## ExecStartPre
+
+**What it is.** A systemd service directive naming a command to run before the unit's own
+`ExecStart`. It runs to completion first, and a non-zero exit aborts the start: the unit goes to
+`failed` and `ExecStart` never runs. Several may be listed and they run in order.
+
+**Here.** The readiness half of every boot gate on this fleet. `wait-for-tailscale-ip.sh` polls
+until the Tailscale address is actually assigned to an interface, and only then does the gated
+unit start - `pveproxy` on the hypervisor, `node_exporter` on nine guests, PostgreSQL on lxc260,
+sshd on lxc250.
+
+**Why it matters.** It is the difference between ordering and readiness, which is the
+[KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18) class. `After=` only
+promises that systemd started the other unit, and a daemon counts as started while it is still
+negotiating; `ExecStartPre` lets a unit wait for a condition rather than for a neighbour. The
+trap is the other half of the sentence: because a failing `ExecStartPre` blocks the start
+entirely, a gate script must be fail-open - `wait-for-tailscale-ip.sh` logs a warning and exits 0
+on timeout, so a gated unit starts late rather than not at all. That property is what makes it
+safe to put in front of sshd.
+
 ## fencing
 
 **What it is.** Forcibly cutting a node off - usually by resetting it - so that a cluster can safely
@@ -455,6 +475,24 @@ question. An error naming kex means no authentication was attempted and no remot
 whatever the command would have done, it did not do. A failure after kex is the opposite case and
 deserves the opposite assumption. Distinguishing the two is the difference between "nothing happened"
 and "something half happened".
+
+## KillMode
+
+**What it is.** A systemd service directive deciding who receives the signal when a unit is
+stopped. The default, `control-group`, signals every process in the unit's cgroup, including
+anything it forked. `process` signals only the main process and leaves the children running.
+`mixed` sends SIGTERM to the main process and SIGKILL to the rest.
+
+**Here.** Debian's `ssh.service` carries `KillMode=process`, which is why an open SSH session
+survives `systemctl restart ssh`: the listening daemon is replaced while the per-session child
+that carries your shell is left alone.
+
+**Why it matters.** It is the reason a configuration change to sshd can be applied over sshd at
+all. Under the default, restarting the service from a play that arrived through it would take
+down the connection mid-change - and on a node with no out-of-band console that is the end of the
+session. It also sets the shape of the precaution around such a change: the risk is never the
+existing session, it is whether a *new* one can still be established afterwards, which is why the
+old one stays open until a fresh one is proven.
 
 ## LRM and CRM (Local / Cluster Resource Manager)
 
