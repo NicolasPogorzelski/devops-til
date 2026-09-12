@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Tracked git hook. Installed by pointing git at this directory once per clone:
+#
+#   git config core.hooksPath scripts/hooks
+#
+# A tracked file rather than a symlink into .git/hooks. The symlink is state that
+# lives outside the repository, so nothing can confirm it exists - and measured on
+# 2026-09-12, no workstation had it, which is why scripts/commit-msg-lint.sh had
+# never run and an attribution trailer reached the published history.
+#
+# This is the preventive half and it is the important one here, because this
+# repository publishes by pushing to main rather than through pull requests. The
+# workflow in .github/workflows/commit-messages.yml runs after a push and can only
+# report what already left the machine.
+#
+# Note the file has no extension: git looks for exactly `commit-msg`.
+
+exec "$(dirname "$0")/../commit-msg-lint.sh" "$@"

@@ -1,14 +1,36 @@
 #!/usr/bin/env bash
-# Reject AI/assistant attribution in commit messages.
+set -euo pipefail
+
+# Refuse AI attribution in a commit message.
+#
+# Rewritten 2026-09-12. The previous version matched three phrases and let the
+# case that actually happened straight through: a `Claude-Session:` trailer with
+# a session URL under it, which reached the published history of this repository
+# and of the homelab one. Two separate faults, and the second is the one worth
+# remembering - no commit-msg hook was installed on the workstation, so this
+# script had never run at all. A gate nobody installed is indistinguishable from
+# a gate nobody wrote.
 #
 # Usage:
-#   ./scripts/commit-msg-lint.sh "docs(linux): capture cgroup v2 notes"
-#   ./scripts/commit-msg-lint.sh path/to/commit-msg-file
+#   commit-msg-lint.sh "<message>" | <file>      # git commit-msg hook, and CI
+#   commit-msg-lint.sh --attribution-only ...    # same rules; kept for symmetry
+#                                                # with the homelab repository,
+#                                                # where the other rule is format
 #
-# As a git hook (.git/hooks/commit-msg):
-#   #!/usr/bin/env bash
-#   exec "$(git rev-parse --show-toplevel)/scripts/commit-msg-lint.sh" "$1"
-set -euo pipefail
+# WHAT THIS DOES NOT BLOCK, and the reason is this repository's subject matter.
+# Claude Code, the Anthropic API, aider and Copilot are things these notes are
+# *about*: operations/claude-code-hooks.md, ai/local-llm-coding-fallback.md, and
+# a commit scoped `docs(claude)` all predate this check. Naming a tool in a
+# subject that describes a note about that tool is documentation.
+#
+# What is forbidden is marking the work as produced by one: a trailer under a
+# commit, a session URL, a "generated with" line. The homelab repository draws
+# the line further out, because there the tooling is infrastructure rather than
+# a topic; here it would reject half the legitimate history.
+
+if [[ "${1:-}" == "--attribution-only" ]]; then
+    shift
+fi
 
 if [[ $# -lt 1 ]]; then
     echo "usage: $0 \"<commit message>\" | <commit-msg-file>" >&2
@@ -22,10 +44,42 @@ else
     BODY="$1"
 fi
 
-# No AI / assistant attribution anywhere in the message.
-if printf '%s' "${BODY}" | grep -qiE 'co-authored-by:.*(claude|anthropic|gpt|copilot|gemini)|generated with|ai assistant'; then
-    echo "ERROR: commit messages must not contain AI/assistant attribution" >&2
+fail() {
+    echo "ERROR: commit messages must not carry AI attribution." >&2
+    echo "Naming a tool the notes are about is fine; marking the work as" >&2
+    echo "produced by one is not. See the Commit Policy in CLAUDE.md." >&2
+    echo "" >&2
+    echo "Offending line(s):" >&2
+    printf '  %s\n' "$1" >&2
     exit 1
+}
+
+# 1. Attribution trailers. Enumerated rather than pattern-matched on "any
+#    Key: value", because this repository's notes legitimately contain lines of
+#    that shape inside fenced examples.
+TRAILERS='^[[:space:]]*(co-authored-by|claude-session|assisted-by|generated-by|ai-session)[[:space:]]*:'
+if MATCH="$(printf '%s' "$BODY" | grep -inE "$TRAILERS" | head -3)"; then
+    fail "$MATCH"
+fi
+
+# 2. A link into an assistant session or console. This is what leaked, and it is
+#    the hardest form to argue is anything but attribution.
+URLS='claude\.ai|anthropic\.com|chat\.openai\.com|chatgpt\.com|copilot\.microsoft\.com'
+if MATCH="$(printf '%s' "$BODY" | grep -inE "$URLS" | head -3)"; then
+    fail "$MATCH"
+fi
+
+# 3. The stock phrasings.
+PHRASES='generated with|ai assistant|ai-generated|written by (claude|chatgpt|an ai)|with the help of (claude|chatgpt|an ai)'
+if MATCH="$(printf '%s' "$BODY" | grep -inE "$PHRASES" | head -3)"; then
+    fail "$MATCH"
+fi
+
+# 4. The robot emoji the usual generated trailer opens with, matched by code
+#    point so this file stays plain ASCII - the repository's own punctuation
+#    workflow scans .sh files and would reject the character itself.
+if printf '%s' "$BODY" | grep -qP '\x{1F916}'; then
+    fail "(robot emoji)"
 fi
 
 exit 0

@@ -45,6 +45,39 @@ address, one of them inside a firewall rule, until an audit on 2026-08-20.
 
 Enforced by `.github/workflows/no-real-addresses.yml` on every push.
 
+## Commit Policy (applies in every mode)
+
+No AI attribution in a commit message. Not a `Co-Authored-By` trailer, not a session link,
+not a "generated with" line.
+
+**The line this draws, and it is narrower than the sister repository's.** Claude Code, the
+Anthropic API, aider and Copilot are things these notes are *about* -
+[`operations/claude-code-hooks.md`](operations/claude-code-hooks.md),
+[`ai/local-llm-coding-fallback.md`](ai/local-llm-coding-fallback.md), and a commit scoped
+`docs(claude)` all predate this rule. Naming a tool in a message that describes a note about
+that tool is documentation. Marking the work as produced by one is not. The homelab repository
+refuses the bare word because the tooling is infrastructure there; here that would reject half
+the legitimate history.
+
+**Enforced since 2026-09-12, because it was not before.** A `Claude-Session:` trailer with a
+session URL reached the published history of both repositories. The check in
+`scripts/commit-msg-lint.sh` existed and matched three phrases, none of which was that one -
+and no machine had a `commit-msg` hook installed, so it had never run once. A gate nobody
+installed is indistinguishable from a gate nobody wrote.
+
+| Layer | Covers | Note |
+|---|---|---|
+| `scripts/commit-msg-lint.sh` | Trailers, assistant URLs, the stock phrasings, the robot emoji | Rewritten; the old version matched three phrases |
+| `scripts/hooks/commit-msg` | The hook itself, tracked in git | The preventive half. Install with `git config core.hooksPath scripts/hooks` |
+| `.github/workflows/commit-messages.yml` | Every message in a push or pull request, plus a PR's title and body | Reports rather than prevents on a push - see below |
+
+**The limitation, stated rather than glossed.** These notes are published by pushing to `main`,
+so the workflow runs after the commit is already public. It catches what the hook missed; it
+cannot stop it. That makes installing the hook on every clone the step that actually matters,
+and it is one line. The published instance of the trailer stays where it is: rewriting a
+public branch breaks every clone, for a line that discloses what a repository containing
+`CLAUDE.md` discloses anyway.
+
 ## Tutor-Modus (default)
 
 The default mode for all work in this repo - **except while `Prüfungsmodus` is active**.
