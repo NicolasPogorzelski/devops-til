@@ -392,6 +392,22 @@ Two properties follow that both showed up in
 - `node_exporter` is the one collector with a mount timeout, so it survives a wedged mount and
   reports `device_error="mountpoint timeout"`. That label is the fastest way to identify this class.
 
+## getent
+
+**What it is.** A small command that asks glibc's own name-service switch a question and prints the
+answer - `getent hosts <name>`, `getent passwd <user>`, `getent group <group>`. The point is which
+code path it uses: it resolves exactly the way an ordinary program does, through `/etc/nsswitch.conf`
+and whatever sources that file lists, rather than talking to a name server directly.
+
+**Here.** It is the verification step of the `nsswitch` role. After the role rewrites the `hosts:`
+line on lxc250, it calls `getent ahostsv4` against the node's own MagicDNS name and fails the run if
+the lookup does not answer.
+
+**Why it matters.** `dig` and `nslookup` query a resolver of their own choosing and bypass the
+switch entirely, so both answered correctly on lxc250 the whole time MagicDNS was broken for every
+other program on the node. A tool that proves the resolver works proves nothing about whether
+anything can reach it. `getent` is the one that asks the question the applications ask.
+
 ## HA (High Availability)
 
 **What it is.** In Proxmox, a subsystem that restarts guests on another node when the node running
