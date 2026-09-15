@@ -194,14 +194,38 @@ guest by its position in a list; identify it by CTID.
 it. Severity is expressed separately, usually as a CVSS score bucketed into LOW / MEDIUM / HIGH /
 CRITICAL.
 
-**Here.** `image-scan.yml` runs Trivy against the pinned container images and counts findings by
-severity with `jq`, selecting `.Severity == "CRITICAL"` and `"HIGH"` from the JSON output. The
-same scan is written again as SARIF and published to the Security tab, one category per image.
+**Here.** `image-scan.yml` runs [Trivy](#trivy) over the images the repository pins and counts
+findings by severity with `jq`, selecting `.Severity == "CRITICAL"` and `"HIGH"` from the JSON
+output. The same scan is written again as SARIF and published to the Security tab, one category
+per image. Measured 2026-08-17 and still true: no stack on the fleet runs a pinned image, so the
+scan describes files in a repository rather than processes on a node.
 
-**Why it matters.** During the [KE-13](../homelab-server-architecture/docs/platform/known-errors.md#ke-13) hold no image may be re-pulled, so the useful question
-is not "is a newer tag available" but "is what is running vulnerable, and how badly". A CVE count
-answers that without proposing a change. Note what a count does not establish: a CRITICAL in a
-package the service never calls is not an incident, and triage still has to happen by hand.
+**Why it matters.** The count was the useful measure while the
+[KE-13](../homelab-server-architecture/docs/platform/known-errors.md#ke-13) hold forbade pulling
+new layers onto a failing disk: it answers "how badly is the running thing exposed" without
+proposing a change that was not allowed. That hold was lifted on 2026-09-05, which turns the
+number from a status report into a work queue - 139 fixable critical and 2162 high at the last
+count. Note what a count does not establish: a CRITICAL in a package the service never calls is
+not an incident, and triage still has to happen by hand.
+
+## CVSS (Common Vulnerability Scoring System)
+
+**What it is.** The severity a [CVE](#cve-common-vulnerabilities-and-exposures) identifier does not
+carry. A number from 0.0 to 10.0, computed from a vector of properties - whether the flaw is
+reachable over a network or only locally, whether it needs credentials, whether it needs a user to
+act, and what it costs in confidentiality, integrity and availability. The number is bucketed:
+0.1-3.9 LOW, 4.0-6.9 MEDIUM, 7.0-8.9 HIGH, 9.0-10.0 CRITICAL.
+
+**Here.** Those buckets are what `image-scan.yml` counts. Every "139 critical, 2162 high" in this
+platform's documents is a tally of CVSS buckets reported by [Trivy](#trivy), not a judgement about
+this fleet.
+
+**Why it matters.** The score published with an advisory is the Base score, and it describes the
+flaw in isolation: it knows nothing about a platform with no public ingress, where every service
+sits behind a Tailscale ACL. A CRITICAL in a container reachable from two tagged devices scores
+exactly what the same CRITICAL scores on an exposed port. The standard has metric groups for
+that - Temporal and Environmental - and almost nobody fills them in, so the bucket says how much
+work a finding might be and nothing about how exposed this platform is to it.
 
 ## D-state (uninterruptible sleep)
 
@@ -1141,6 +1165,24 @@ it acquires an implicit ordering requirement against whatever regenerates it, an
 is invisible in the consuming config - nothing in `docker.service` mentions `/var/run/cdi`. Same
 shape as [KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18): a resource
 that exists in steady state and does not exist yet at boot.
+
+## Trivy
+
+**What it is.** A vulnerability scanner for container images and filesystems. It unpacks an image
+layer by layer, extracts the installed packages - the `dpkg` status database on a Debian base,
+plus language manifests such as `package-lock.json` or `requirements.txt` - and matches every
+version against vulnerability databases. Each finding names a [CVE](#cve-common-vulnerabilities-and-exposures),
+the package, the installed version and the version that fixes it. "Fixable" means that last field
+is filled in.
+
+**Here.** `image-scan.yml` runs it weekly, twice over the same images: once as JSON, which `jq`
+reduces to [CVSS](#cvss-common-vulnerability-scoring-system) bucket counts, and once as
+[SARIF](#sarif-static-analysis-results-interchange-format) for the Security tab.
+
+**Why it matters.** The repository pins exact version tags and the fleet runs `:latest` and
+`:main`, measured 2026-08-17, so the weekly result describes an image nobody has started. The workflow's own comment claims the compose files "cannot drift
+from reality", which is the assumption that measurement contradicted. Until the pinned files are
+deployed, read every count as a lower bound on something adjacent.
 
 ## udev
 
