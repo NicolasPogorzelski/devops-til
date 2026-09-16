@@ -635,6 +635,25 @@ can reach produces another record of a machine nobody can reach. It becomes usef
 `panic_on_oops`, where a hard-lockup panic inherits the reboot - a combination worth measuring on
 the hardware rather than assuming from a manual page.
 
+## nowayout
+
+**What it is.** A module parameter carried by most Linux watchdog drivers. It decides what happens
+when the process holding `/dev/watchdog` closes it. At `nowayout=0` the kernel stops the timer on
+close; at `nowayout=1` it keeps counting and the machine resets whatever the userspace process
+does. Closing "properly" means writing the magic character `V` first, and the distinction only
+matters at `nowayout=0`.
+
+**Here.** The hypervisor loads [softdog](#softdog) at `nowayout=0` - read from the kernel's own
+line at load, `softdog: initialized. soft_noboot=0 soft_margin=60 sec soft_panic=0 (nowayout=0)`,
+with `CONFIG_WATCHDOG_NOWAYOUT` unset in the running kernel. The parameter is not exposed under
+`/sys/module/softdog/parameters`, so the journal is where it is read.
+
+**Why it matters.** It answers whether a crashed watchdog daemon takes the host with it. A process
+that dies has its descriptors closed by the kernel, so at `nowayout=0` the timer stops and the
+machine keeps running: losing the daemon costs the watchdog. At `nowayout=1` the same crash is a
+reset in one timeout period, which is the point on a machine that must fence itself, and a trap on
+one that must not.
+
 ## nsswitch.conf
 
 **What it is.** The file that tells glibc which sources to consult for names, and in which order:
@@ -962,6 +981,23 @@ the bind fails with `EADDRINUSE`, and the daemon exits - which is
 reload is not always a re-read, and the difference only shows where the process has state it cannot
 recreate on its own.
 
+## Setext heading (Markdown)
+
+**What it is.** Markdown's older of two heading syntaxes. ATX headings lead with hashes
+(`## Title`); a Setext heading instead *underlines* the text - `===` beneath a paragraph makes it
+an H1, `---` makes it an H2. The rule fires whenever a non-blank paragraph is followed immediately
+by such a line, which is exactly one blank line away from the same characters meaning a horizontal
+rule.
+
+**Here.** Every heading in both repositories is ATX, so a Setext heading is always an accident.
+One happened on 2026-09-15: an explanatory paragraph placed directly above a `---` section divider
+rendered on GitHub as a three-line H2. Nothing caught it, because every heading check in
+`validate-repo.sh` reads a leading hash. Check 42 now scans for the pattern, skipping list items,
+table rows, fenced code and YAML frontmatter, where those characters mean something else.
+
+**Why it matters.** It is a silent formatting fault: the source looks right, the renderer disagrees,
+and no linter in a documentation repository need notice. A blank line is the whole fix.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -1034,8 +1070,11 @@ exist yet at boot, which is
 `/dev/watchdog` within its timeout. "Software" means the timer lives in the kernel, as opposed to a
 hardware watchdog implemented in the chipset.
 
-**Here.** Loaded and providing `/dev/watchdog`, held open by [watchdog-mux](#watchdog-mux), and not
-armed. The chipset's hardware watchdog module (`sp5100_tco`) exists but is not loaded.
+**Here.** Loaded and providing `/dev/watchdog`, held open by [watchdog-mux](#watchdog-mux). Read
+2026-09-16, the device is `active` at a ten-second timeout, not idle - what is missing is a client
+that could stop the petting, since no HA resource is configured. It is loaded at
+[`nowayout=0`](#nowayout). The chipset's hardware watchdog module (`sp5100_tco`) exists but is not
+loaded.
 
 **Why it matters.** A watchdog answers a different question from
 [`panic_on_oops`](#sysctl): not "did the kernel fault" but "has anything been alive recently".
