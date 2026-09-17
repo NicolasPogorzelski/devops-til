@@ -534,6 +534,23 @@ session. It also sets the shape of the precaution around such a change: the risk
 existing session, it is whether a *new* one can still be established afterwards, which is why the
 old one stays open until a fresh one is proven.
 
+## logical vs physical path (symlinks)
+
+**What it is.** A symlink makes one path name stand for another. The *logical* path is
+the name you used, symlinks intact; the *physical* path is what remains after every
+symlink is resolved. `pwd` and `$PWD` give the logical form, `pwd -P`, `readlink -f`
+and `git rev-parse --show-toplevel` give the physical one.
+
+**Here.** On the rpm-ostree workstations `/home` is a symlink to `/var/home`, so
+`$HOME=/home/admin` and `/var/home/admin` name the same directory. On every node
+`/var/run` is a symlink to `/run`.
+
+**Why it matters.** Two tools looking at the same directory can return different strings,
+and a string comparison between them is false. The homelab's commit guard compared a
+`pwd`-derived root with a `rev-parse`-derived one and silently stepped aside on the
+gaming PC - see [Claude Code Hooks](operations/claude-code-hooks.md). Any config that
+stores an absolute path should store the physical one.
+
 ## LRM and CRM (Local / Cluster Resource Manager)
 
 **What they are.** The two halves of Proxmox [HA](#ha-high-availability). The **LRM** runs on every
@@ -798,6 +815,21 @@ log is therefore not evidence that nothing was attempted, and troubleshooting an
 failure by reading the server's log alone can point at exactly the wrong layer. Raising `LogLevel` to
 `VERBOSE` is what makes the mechanism visible.
 
+## pipx
+
+**What it is.** Installs a Python command-line tool into its own virtual environment and
+puts only the executable on `PATH`, so tools with conflicting dependencies coexist and
+none of them touches the system Python.
+
+**Here.** `ansible` and `ansible-lint` on lxc250 (`dotfiles/bootstrap.sh`), and the
+`pipx install 'ansible-lint==26.6.0'` line the homelab `CLAUDE.md` prescribes for a
+workstation.
+
+**Why it matters.** The version pin is the point: `validate-repo.sh` Check 16 gates
+commits against whatever `ansible-lint` is on `PATH`, and a version other than CI's
+gates against a different rule set. On the rpm-ostree workstations there is no `pipx`;
+[`uv`](#uv-and-uv-tool) fills the same role.
+
 ## pmxcfs (Proxmox Cluster File System)
 
 **What it is.** The [FUSE](#fuse) filesystem mounted at `/etc/pve`. It is not an ordinary directory:
@@ -887,6 +919,21 @@ mount was treated as a cosmetic nuisance and masked; the open port was recorded 
 binding-rule violation; nobody connected them. Removing the package closed both and retired the
 mask, which is the general shape worth carrying: a mask is a statement that something cannot
 succeed, and the next question is always why it is installed.
+
+## rpm-ostree
+
+**What it is.** The package layer of image-based Fedora variants (Silverblue, Bazzite).
+The OS is an immutable image; `rpm-ostree install` layers a package on top and takes
+effect at the next boot, `flatpak` is for applications, and `dnf` is not used for the
+system.
+
+**Here.** Both admin machines - Bazzite on the gaming PC, Fedora on the notebook - are
+the operator side of every playbook and PR.
+
+**Why it matters.** "Install a linter" is a reboot, so per-user tooling (`uv`, `brew`,
+`flatpak`) is the normal route. And `/home` is a symlink to `/var/home` on these
+systems, which is a path-comparison trap in its own right - see
+[logical vs physical path](#logical-vs-physical-path-symlinks).
 
 ## RPO and RTO
 
@@ -1235,6 +1282,20 @@ device unit tentative.
 **Why it matters.** Tags are how udev tells systemd which devices are worth having units for. A
 device without one still works perfectly; only systemd's view of it stays incomplete. Reading the
 unit state instead of the device is how that turns into a false alarm.
+
+## uv (and `uv tool`)
+
+**What it is.** A Python package and project manager. `uv tool install <pkg>` is the
+`pipx` shape - isolated environment under `~/.local/share/uv/tools/`, shim in
+`~/.local/bin/` - and `uvx` runs a tool once without installing it.
+
+**Here.** `ansible-lint==26.6.0` on the gaming PC, installed 2026-09-17 with
+`uv tool install` because the immutable OS has no `pipx`.
+
+**Why it matters.** The repository's check asks only whether the pinned `ansible-lint`
+is on `PATH`; how it got there is a workstation detail. `uv` is that detail on the
+rpm-ostree machines, `pipx` on the Debian control node - same guarantee, different
+installer.
 
 ## user namespace and UID mapping
 

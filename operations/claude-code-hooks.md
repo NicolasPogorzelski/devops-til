@@ -241,3 +241,44 @@ command that merely contains the string - a `grep`, an `echo`, a `git log` showi
 message. Use the harness filter `"if": "Bash(git commit *)"` on the hook instead: it does
 shell-aware matching (including sub-commands of `a && git commit ...`) and only runs on real commit
 invocations. See *Conditional Execution: the if Field* above.
+
+## A symlinked home directory defeats a path-comparing guard
+
+`scripts/hooks/pre-commit-guard.sh` in the homelab repository asks which repository a
+command touches and steps aside when the answer is a *different* one. It does that by
+comparing two strings: `REPO_ROOT`, derived from the hook's own path with
+`cd "$(dirname "$0")/../.." && pwd`, and `git -C <target> rev-parse --show-toplevel`.
+
+On an rpm-ostree system (Bazzite, Silverblue) `/home` is a symlink to `/var/home`, and
+`$HOME` is `/home/admin`. `pwd` returns the *logical* path - the one you typed, symlinks
+intact - so a hook configured as `/home/admin/git/.../pre-commit-guard.sh` computes
+`REPO_ROOT=/home/admin/...`. `rev-parse --show-toplevel` returns the *physical* path,
+symlinks resolved: `/var/home/admin/...`. The strings differ, the guard concludes "a
+different repository", and a commit on `main` passes silently. Measured, not inferred:
+
+```bash
+printf '{"tool_input":{"command":"git commit -m x"},"cwd":"/var/home/admin/git/repo"}' \
+  | /home/admin/git/repo/scripts/hooks/pre-commit-guard.sh     # prints nothing: pass
+printf '...same payload...' \
+  | /var/home/admin/git/repo/scripts/hooks/pre-commit-guard.sh # deny, as intended
+```
+
+Two consequences. The absolute path written into `settings.local.json` must be the
+physical one (`readlink -f "$HOME/git/repo"`), which is exactly what a template renderer
+using `$HOME` does *not* produce - `dotfiles/install.sh` would have installed the
+silent variant. And the durable fix belongs in the guard, not in the config: derive
+`REPO_ROOT` with `git -C "$(dirname "$0")" rev-parse --show-toplevel` so both sides of
+the comparison come from the same resolver. Simulating the hook with a hand-written
+stdin payload, as above, is the test; reading the JSON is not.
+
+This is the fourth instance of the pattern this file already records: the notebook had
+no `hooks` key at all (2026-08-17), and on 2026-09-17 the gaming PC had none either -
+`jq '.hooks' .claude/settings.local.json` printed `null`. A gitignored file is verified
+per machine or it is assumed.
+
+One more measured detail from the same day: the guard's "which repository" resolver
+prefers an explicit `git -C <dir>` over a leading `cd <dir>`. A heredoc that merely
+*quotes* `git -C <target>` in prose therefore retargets the guard to a directory that
+does not exist, the fallback treats the command as this repository, and a documentation
+edit in the sister repository is refused. Accepted cost, as the script says - the retry
+is to put the text in a file and run the file.

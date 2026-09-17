@@ -624,6 +624,32 @@ git branch -d fix/whatever            # -d refuses if not merged (safety)
 git checkout -b refactor/whatever     # separate branch, tests-first, when calm
 ```
 
+### The partial rewrite: a non-empty `merge-base` with twin commits
+
+The empty-`merge-base` case above is the total rewrite. The 2026-09-17 case on the
+workstation was the other shape: `main...origin/main [ahead 45, behind 272]` after a
+fetch that reported `(forced update)`, but `merge-base` printed a real commit. The
+remote had been rewritten *from a point onward*, and the 45 "local" commits were the
+same commits as the first 45 remote ones - same subjects, same authors, same dates,
+different SHAs. `ahead 45` here does not mean 45 commits of local work; it means 45
+commits the rewrite re-hashed.
+
+Triage is a three-line proof, not a judgement:
+
+```bash
+git log --oneline --reverse origin/main..main          # what "ahead" actually holds
+R=$(git log --format=%H --grep='Merge pull request #51 ' origin/main | head -1)
+git diff --stat <local-tip> "$R"                        # local tip vs its remote twin
+```
+
+Pair the local tip with its remote twin by subject, then diff the two *trees*. If the
+only differences are the edits the rewrite was made for (here: three files, the
+sanitised figures), nothing local is unique and `git reset --hard origin/main` loses
+nothing. Keep the old tip on a throwaway branch (`git branch pre-rewrite-main-backup
+<sha>`) rather than trusting the reflog, and never push it - it carries the values
+the rewrite removed. A `git pull` at this point would have merged the two lineages
+and re-introduced every unsanitised commit under a fresh merge.
+
 ## Related
 
 - [Conventional Commits](conventional-commits.md)

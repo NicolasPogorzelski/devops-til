@@ -105,3 +105,26 @@ The `bootstrap.sh` -> `install.sh` split is intentional:
 - `bootstrap.sh` requires sudo and internet access.
 - `install.sh` only needs the user's home directory and an already-cloned repo.
 - Separation makes `install.sh` safe to re-run on an existing machine.
+
+## Templates rot when the live file is the one that evolves
+
+Checked 2026-09-17: both Claude Code templates in `dotfiles/` were still at the first
+commit. The live `~/.claude/settings.json` on the workstation had since gained three
+hooks (explain rule, attribution refusal, push refusal); the live project file had
+gained a deny list and a guard script that the homelab repository now documents in
+`snippets/claude/hooks-reference.json`. Running `install.sh` would have *downgraded*
+both. A template is only a source of truth if edits go there first and get rendered
+out; here they went to the live files and the template was never told.
+
+The check is a diff, not a reading: `diff <(jq -S . template) <(jq -S . live)` per
+managed file, before every `install.sh`. Anything the live side has and the template
+lacks is either a change to port back or a reason not to run the installer.
+
+## `uv tool install` where `pipx` is not available
+
+`bootstrap.sh` installs `pipx` with `apt`. On an immutable Fedora workstation there is
+no `pipx` and `rpm-ostree install` would need a reboot for a linter. `uv tool install
+'ansible-lint==26.6.0'` is the same shape as `pipx install`: an isolated environment
+under `~/.local/share/uv/tools/<name>/` and a shim in `~/.local/bin/`. The repository
+check only asks `command -v ansible-lint` and that the version matches CI's pin, so
+the installer is a workstation detail, not a repository one.
