@@ -131,9 +131,17 @@ Neither alone is sufficient:
 `Stop` fires when Claude's turn ends. The only supported output is `systemMessage` -
 a visible banner shown to the user.
 
-**`additionalContext` via `hookSpecificOutput` is NOT valid for Stop.** It is only
-supported for `UserPromptSubmit`, `PostToolUse`, and `PostToolBatch`. Outputting it
-from a Stop hook causes a JSON validation error and the hook is silently skipped.
+**`additionalContext` on Stop does not fail validation - it means "continue".** This
+paragraph used to say the output was rejected and the hook silently skipped. Measured
+2026-09-17 on Claude Code 2.1.274: a Stop hook answering
+`{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "..."}}` re-invoked
+the model at every turn end, five turns in a row with no user input, each one another copy
+of the reminder, until the entry was removed from the settings file. The hooks reference
+lists Stop among the events that can block, and "block" on Stop is defined as "prevents
+Claude from stopping, continues the conversation" - additionalContext lands in the same
+place. A reminder must therefore be a `systemMessage`; verified the same day to show once
+and let the session end. The homelab repository's own `hooks-reference.json` carried the
+looping form for a month, which nobody noticed because no machine had installed it.
 
 ```json
 {
@@ -210,13 +218,17 @@ For single-machine personal setups, hardcoding the absolute path directly in
 `settings.local.json` is acceptable - the placeholder pattern matters when sharing
 across team members or machines where the repo path differs.
 
-## Hooks Do Not Hot-Reload
+## Whether Hooks Hot-Reload Is a Measurement, Not a Fact
 
-A running session reads its hooks **at startup** and holds them in memory. Editing
-`settings.local.json` mid-session does **not** take effect until you reload - open `/hooks`
-(the menu reloads config) or restart. The confusing symptom is that a hook you just "fixed"
-keeps firing with its old behaviour; the fix is correct on disk, it is simply not live yet.
-Always reload and re-verify before concluding a hook change didn't work.
+This section used to state that a running session reads its hooks at startup and holds
+them until `/hooks` or a restart. Measured 2026-09-17 on 2.1.274, the opposite held for both
+files: removing the Stop entry from `settings.local.json` ended a re-invocation loop on the
+very next turn, and a regex edited into `~/.claude/settings.json` fired on the next Bash
+call. The earlier observation was made on an older version and was not dated, so which
+version changed the behaviour cannot be recovered now. The durable lesson is the shape of
+the test rather than either answer: after editing a hook, run the one call that must trip it
+and read the result, and record the version next to what you saw. A fix that is correct on
+disk and a fix that is live are different claims, and only the second is worth writing down.
 
 ## Anti-Pattern: git push (or any non-JSON) in a Stop hook
 
@@ -241,6 +253,42 @@ command that merely contains the string - a `grep`, an `echo`, a `git log` showi
 message. Use the harness filter `"if": "Bash(git commit *)"` on the hook instead: it does
 shell-aware matching (including sub-commands of `a && git commit ...`) and only runs on real commit
 invocations. See *Conditional Execution: the if Field* above.
+
+**With one documented hole, measured 2026-09-17.** A command containing `$VAR`, `$()` or
+backticks runs an `if`-filtered hook regardless of the pattern, because the harness cannot
+tell what the expansion is. The global Co-Authored-By hook, filtered exactly this way, denied
+a test loop whose command carried a `"$m"` and the trailer text in a `printf` - no commit
+anywhere in it. So `if:` narrows the common case and the hook body still has to decide the
+uncommon one. That is why the homelab guard matches in the script and not in a filter: the
+decision has to live in the script anyway, and a script can be fed a hand-written payload.
+The workaround for a false refusal is to assemble the trigger word from parts (`a=Co-Authored;
+b=By`), which is also the workaround for the guard refusing its own file name.
+
+## The hook that never fired: test the regex under the grep the hook will use
+
+The global push-refusal hook greps the command text with an ERE that required, read
+literally, `git`, whitespace, anything, whitespace, `push` - two separate whitespace runs.
+`git push origin main` has one. The hook matched `git -C <dir> push` and nothing else, and
+the message it printed ("git push ist gesperrt") had never been seen on the form it was
+written for. The `permissions.deny` rule was doing the work the whole time; the hook was
+decoration with a confident name.
+
+Finding it took three attempts, because the first offline test contradicted the live
+behaviour: inside the Claude Code Bash tool, `grep` is a **shell function** that redirects to
+the harness's bundled `ugrep` (`type -a grep` shows it), and ugrep reads that pattern
+differently from GNU grep 3.12 in `/usr/bin`. The function is not exported, so scripts and
+hooks run under the system grep - only one-liners typed into the tool do not. Test a regex
+for a hook with `/usr/bin/grep`, or `command grep`, never bare `grep` in the tool shell. The
+corrected pattern treats `git` as a word, allows any number of arguments inside the same
+`;`/`&&`/`|` segment, and then needs `push` as a word:
+`(^|[^[:alnum:]_/.-])git([[:space:]]+[^[:space:];&|]+)*[[:space:]]+push([[:space:]]|$)`.
+Its one over-match is `git help push`.
+
+The same session measured two more properties of PreToolUse hooks worth pinning: a hook
+that exceeds its `timeout` does **not** block the call (the documentation says so), so a
+guard's timeout is the width of a bypass, and the homelab guard went from 60 s to 120 s on a
+measured 24 s worst case; and a guard invoked by its own absolute path from the tool shell
+denies itself when that path holds both words of its pattern (`.../git/.../pre-commit-guard.sh`).
 
 ## A symlinked home directory defeats a path-comparing guard
 

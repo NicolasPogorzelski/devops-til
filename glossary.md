@@ -447,6 +447,23 @@ guests to - while it does bring its full set of consequences, above all self-fen
 here is deliberately recovery-oriented rather than highly available: the design accepts downtime and
 invests in being able to come back.
 
+## hook output fields (Claude Code)
+
+**What it is.** A Claude Code hook speaks through JSON on stdout. Three fields carry
+different meanings: `additionalContext` is text added to the model's context, which on
+`Stop` means "keep going" rather than "remind"; `systemMessage` is a banner shown to the
+user and leaves the model alone; `permissionDecision` (`allow`, `deny`, `ask`) is the
+verdict of a `PreToolUse` hook on one tool call. A hook that exceeds its `timeout` does not
+block - the call proceeds.
+
+**Here.** `hooks-reference.json` in the homelab repository, `~/.claude/settings.json` and
+`.claude/settings.local.json` on both workstations; the pre-commit guard answers with
+`permissionDecision: deny`, the devops-til reminder with `systemMessage`.
+
+**Why it matters.** The wrong field is not an error, it is a different behaviour: the
+reminder written as `additionalContext` re-invoked the model on every turn end (measured
+2026-09-17), and a guard timeout is the width of a bypass, not a safety margin.
+
 ## hrtimer interrupt warning
 
 **What it is.** The kernel message `hrtimer: interrupt took N ns`. A high-resolution timer interrupt
@@ -1282,6 +1299,21 @@ device unit tentative.
 **Why it matters.** Tags are how udev tells systemd which devices are worth having units for. A
 device without one still works perfectly; only systemd's view of it stays incomplete. Reading the
 unit state instead of the device is how that turns into a false alarm.
+
+## ugrep (in the Claude Code tool shell)
+
+**What it is.** A grep implementation with its own regex engine, bundled into the Claude
+Code binary. Inside the tool shell `grep` is a shell function that redirects to it
+(`type -a grep` shows the function); the function is not exported, so scripts and hooks
+started from that shell still run the system GNU grep.
+
+**Here.** Bazzite gaming PC, Claude Code 2.1.274, `/usr/bin/grep` is GNU grep 3.12
+underneath.
+
+**Why it matters.** A pattern tested with bare `grep` in the tool shell can behave
+differently from the same pattern in a hook or in `validate-repo.sh`. The push-refusal
+regex looked correct under ugrep and did not match a plain `git push` under GNU grep.
+Test hook and script patterns with `/usr/bin/grep` or `command grep`.
 
 ## uv (and `uv tool`)
 
