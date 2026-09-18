@@ -83,6 +83,7 @@ matters. Start there when an entry below uses a word you do not know.
 
 | Topic | Summary |
 |---|---|
+| [userns-remap](docker/userns-remap.md) | Rootful vs `userns-remap` vs rootless by blast radius; enable **before** the first pull (a later switch hides existing images); the bind-mount rule - owner = 100000 + container UID (`ls -ln`); what breaks (`--network=host`, `--privileged`, `mknod`); `docker` group = passwordless root without audit trail -> `sudo docker` plus a narrow read-only sudoers rule |
 | [Compose Patterns](docker/compose-patterns.md) | Restart policies, `network_mode: host`, bridge service-name DNS vs `localhost` trap, logging, `depends_on` w/ healthcheck, `env_file` vs environment, PUID/PGID, named-volume mix |
 | [Daemon Recovery](docker/daemon-recovery.md) | Docker vs containerd process model, stale task state after ungraceful crash, `docker rm -f` + `compose up` recovery |
 | [Data Root Migration](docker/data-root-migration.md) | Moving containerd + Docker data root off the root disk to Aux storage: `daemon.json`, `config.toml`, `rsync -aH`, boot-time dependency, fstrim |
@@ -140,6 +141,7 @@ matters. Start there when an entry below uses a word you do not know.
 | Topic | Summary |
 |---|---|
 | [Least-Privilege Patterns](security/least-privilege-patterns.md) | SMB perms, credentials files, `.env` hygiene, service isolation, sudoers.d, NOPASSWD helper hardening (the binary is the boundary), secret generation, defense in depth |
+| [Private CA with OpenSSL](security/private-ca-openssl.md) | Own root CA + per-service leaf certificates: which file is secret and which is public (and why `ca.crt` belongs in the repo, with its fingerprint), `CA:TRUE,pathlen:0`, why the SAN is the only name that counts, unencrypted server keys guarded by mode 600, and the real cost - distributing the CA into every client trust store (system, Flatpak browsers, JVM `cacerts`, GitLab `trusted-certs`, `SSL_CERT_FILE`) instead of disabling verification |
 
 ## Operations
 
