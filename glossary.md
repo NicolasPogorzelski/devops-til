@@ -59,6 +59,20 @@ first. A rule reaching `firing` in Prometheus proves the detection worked; it do
 was told. When asking "why did nothing warn me", check both halves separately -
 `ALERTS{alertstate="firing"}` in Prometheus, and the receiver in Alertmanager.
 
+## ansible_managed
+
+**What it is.** A string Ansible offers inside templates, meant for a header line such as
+`# {{ ansible_managed }}` that tells a reader the file is generated and hand edits will be lost.
+It is defined while the `template` module renders a file and nowhere else.
+
+**Here.** `journal_remote` used it inside `ansible.builtin.copy: content:`, where it is undefined,
+so the play failed with `'ansible_managed' is undefined` - measured 2026-09-24 in the drift sweep's
+`journal-central` run. The two `.j2` templates in the same roles use it correctly.
+
+**Why it matters.** The failure is not a check-mode artefact: the real apply fails the same way. A
+header that works in one module and breaks in the one beside it is easy to copy across without
+noticing, and only a run shows it.
+
 ## append-only (backup target)
 
 **What it is.** A mode in which a storage endpoint accepts new data and refuses deletion and
@@ -266,6 +280,22 @@ updates itself. The pin buys immutability and pays for it in permanent staleness
 counter-movement, with a human in between. Without it the workflows would sit on whatever was
 current the day they were written. The Friday schedule matches the weekly fleet audit, so the
 review lands in a slot that already exists instead of arriving as an interrupt.
+
+## Depends and Recommends (Debian packages)
+
+**What it is.** Two strengths of package relationship. `Depends` is mandatory: the package cannot
+be installed without it, and apt pulls it in. `Recommends` is installed by default too, but can be
+refused with `--no-install-recommends` (or `install_recommends: false` in Ansible's apt module)
+without breaking anything.
+
+**Here.** On Debian 12, `prometheus-node-exporter-collectors` lists `prometheus-node-exporter` - a
+complete second exporter daemon - under `Depends`. Installing the collectors for `apt_metrics` on
+lxc260 therefore installed and started it; on the Trixie hypervisor the dependency is gone. Read
+it with `apt-cache show <package> | grep -E '^(Depends|Recommends)'`.
+
+**Why it matters.** A `Depends` cannot be switched off with a flag, only neutralised after the
+fact - here by masking the unit before the install. Assuming a helper package is inert is how
+lxc260 ended up with two exporters fighting over one port.
 
 ## DevOps
 
@@ -813,6 +843,21 @@ established and the memory in this machine has no [ECC](#ecc-error-correcting-co
 correlation is all there is. It is still the reason live fleet commands are now copied up as script
 files instead of being nested four levels deep in quotes.
 
+## Persistent=true (systemd timers)
+
+**What it is.** A timer option: if the machine was off when an `OnCalendar=` time passed, the job
+runs as soon as the timer is next started - normally at boot - instead of waiting for the next
+scheduled time. systemd records the last run under `/var/lib/systemd/timers/`.
+
+**Here.** Every daily job on the fleet carries it, because the host powers down overnight and a
+plain calendar time at night would simply never fire. The catch-up runs a few minutes into uptime:
+on 2026-09-24 the MariaDB dump finished about three minutes after boot, which is why the backup
+staleness rules carry `for: 15m`.
+
+**Why it matters.** It is why the backups exist at all on a machine that sleeps, and also why an
+alert evaluated in the first minutes after boot can see yesterday's timestamp. Cron has no
+equivalent, which is what silently lost the PostgreSQL backups in June and July.
+
 ## PerSourcePenalties (OpenSSH)
 
 **What it is.** A rate-limiting mechanism in `sshd`, on by default since OpenSSH 9.8. It records
@@ -904,6 +949,21 @@ cluster each believe they are in charge and both write to shared storage.
 [HA](#ha-high-availability), a node that believes it has lost quorum self-fences. On a single node
 there is no genuine loss of quorum to detect, only false positives - which is the core argument for
 leaving HA switched off here.
+
+## repeat_interval (Alertmanager)
+
+**What it is.** How long Alertmanager waits before sending a notification again for an alert group
+that is still firing and has not changed. Distinct from `group_wait` (delay before the first
+notification of a new group) and `group_interval` (delay before notifying about a change within a
+group).
+
+**Here.** `4h` on the `discord` route on lxc200. An alert that stays red therefore reappears in the
+Discord channel every four hours with no new information, and the permanently firing Watchdog does
+so too while its own route is not live.
+
+**Why it matters.** Repetition is how a channel teaches its reader to stop reading. When the same
+message arrives six times, check whether anything changed between them before treating each one as
+news - on 2026-09-22/24, two notifications out of roughly twenty carried information.
 
 ## restic
 
@@ -1395,6 +1455,22 @@ with it over a socket.
 only Proxmox-native way to activate it drags in [HA](#ha-high-availability) and
 [fencing](#fencing). It also explains why systemd's own watchdog cannot simply be switched on: the
 device is taken, so systemd needs either a second device or watchdog-mux out of the way.
+
+## wildcard bind
+
+**What it is.** A listening socket bound to "every address" rather than to one: `0.0.0.0` for IPv4,
+`[::]` for IPv6, and printed by `ss` as `*:<port>` when it covers both. A specific bind names one
+address, such as a node's Tailscale IP.
+
+**Here.** The platform's binding rule forbids it: services bind the Tailscale address or loopback,
+never the LAN. Instances found and fixed include sshd, the hypervisor's `node_exporter` and
+`postgres_exporter`; the most recent is Debian's packaged exporter on lxc260, `*:9100`, measured
+2026-09-24. On Linux a wildcard bind and a specific bind on the same port conflict, so whichever
+starts first takes the port and the other fails with `EADDRINUSE`.
+
+**Why it matters.** A wildcard listener is reachable from every network the node is attached to,
+including the untrusted LAN, and at boot it usually wins the race against a correctly gated service.
+Check with `ss -ltnp` and read column four.
 
 ## WOPI
 
