@@ -529,6 +529,21 @@ accumulates silently - two identical `authorized_keys` lines, two cron entries, 
 This platform has already paid for that once, with the second hand-written `tailscaled` unit on
 lxc220 that started a duplicate daemon at every boot.
 
+## identity provider (IdP)
+
+**What it is.** The service that proves who a user is and tells other applications the answer. The
+applications stop checking passwords themselves and trust a signed statement from the provider
+instead. It usually reads its users from a directory such as LDAP.
+
+**Here.** Planned, not built: Authelia on a new node, reading users from `lldap`, scheduled for
+2026-09-25 to 2026-09-27
+([decision](../homelab-server-architecture/docs/decisions/identity-before-terraform.md)). Until then
+every service keeps its own user table.
+
+**Why it matters.** It concentrates trust. One place to add or remove a person, one place where a
+stolen admin password opens everything, and one service that must be up for anyone to sign in -
+which is why every application here keeps a local administrator that does not depend on it.
+
 ## kernel oops
 
 **What it is.** A kernel-detected fault - it dereferenced a bad pointer, or hit an inconsistent
@@ -580,6 +595,22 @@ down the connection mid-change - and on a node with no out-of-band console that 
 session. It also sets the shape of the precaution around such a change: the risk is never the
 existing session, it is whether a *new* one can still be established afterwards, which is why the
 old one stays open until a fresh one is proven.
+
+## LDAP (Lightweight Directory Access Protocol)
+
+**What it is.** A protocol for reading and searching a directory of users and groups, organised as a
+tree of entries with a distinguished name each (`uid=alice,ou=people,dc=example,dc=com`). An
+application signs a user in by binding to the directory with the user's name and password; if the
+bind succeeds, the password was right.
+
+**Here.** Planned as `lldap`, a small LDAP server with a web interface, on the identity node. The
+clients that use it directly are the ones that cannot show a browser for OIDC - Jellyfin's TV apps -
+and Calibre-Web, which has LDAP and no generic OIDC. Nextcloud ships `user_ldap`, installed and
+disabled, measured 2026-09-24.
+
+**Why it matters.** The application sees the password. That is acceptable for a trusted service on
+the tailnet and is the reason browser applications use OIDC instead, where the password is typed
+only into the provider.
 
 ## logical vs physical path (symlinks)
 
@@ -783,6 +814,22 @@ reaches the running state at all. That distinction is what lets the failure surv
 [restart policy](#restart-policy-docker): a policy reacts to a container that ran and exited, and a
 hook failure means it never ran.
 
+## OIDC (OpenID Connect)
+
+**What it is.** A sign-in protocol built on OAuth 2.0, the standard for handing an application a
+limited token instead of a password. The application redirects the browser to the identity provider,
+the user signs in there, and the browser returns with a code the application exchanges for a signed
+ID token that names the user. The provider publishes its endpoints and keys in a discovery document
+at `/.well-known/openid-configuration`.
+
+**Here.** Planned with Authelia as the provider, for Grafana, OpenWebUI, Paperless-ngx and
+Audiobookshelf. It needs no reverse proxy, which matters because services here are published by
+`tailscale serve` on their own nodes.
+
+**Why it matters.** The application never sees the password, and a session can be revoked in one
+place. The price is that it needs a browser: a client that only knows username and password fields,
+like a TV app, cannot follow the redirect and needs LDAP instead.
+
 ## onboot
 
 **What it is.** A per-guest Proxmox setting deciding whether the host starts that guest
@@ -936,6 +983,21 @@ near-zero pressure means the tasks are not waiting for a resource at all - they 
 lock. That single comparison ruled out both a disk problem and a runaway process in one step, and it
 is the most useful diagnostic pair on this platform: **load says how many are waiting, pressure says
 what they are waiting for.**
+
+## Public Suffix List
+
+**What it is.** A list, maintained at `publicsuffix.org`, of domain suffixes under which unrelated
+parties register names - `com`, `co.uk`, and private entries such as `github.io`. Browsers refuse to
+let a site set a cookie for a listed suffix, so `a.github.io` cannot plant a cookie on `b.github.io`.
+
+**Here.** `ts.net` is on it, as an entry submitted by Tailscale, measured 2026-09-24. Every MagicDNS
+name on this tailnet sits under it. A cookie can therefore be scoped to `<tailnet-id>.ts.net` at
+the widest, never to `ts.net`, and Authelia refuses the latter at startup. The planned provider scopes
+its cookie to its own host name, narrower than it has to.
+
+**Why it matters.** It sets the upper bound for sharing a session between hosts. On a hosting domain
+that nobody has listed, one customer could set cookies for every other customer's site, which is
+the problem the list exists to close.
 
 ## quorum
 
