@@ -73,6 +73,19 @@ so the play failed with `'ansible_managed' is undefined` - measured 2026-09-24 i
 header that works in one module and breaks in the one beside it is easy to copy across without
 noticing, and only a run shows it.
 
+## any_errors_fatal (Ansible)
+
+**What it is.** A play keyword. Without it, a host that fails a task drops out of the run and the
+other hosts carry on; with it, the first failure on any host ends the play for every host, and a
+host marked failed takes part in no later play.
+
+**Here.** `preflight.yml` sets it. Its checks run once, on the control node, but they are attributed
+to a single host of the play, so without this keyword a refusal would stop that one host and let the
+rest of the fleet go on to the playbook proper.
+
+**Why it matters.** A gate that fails "for one host" is not a gate. The keyword is what turns one
+refused check into a run that deploys nothing.
+
 ## append-only (backup target)
 
 **What it is.** A mode in which a storage endpoint accepts new data and refuses deletion and
@@ -259,6 +272,19 @@ twenty-two processes sat in this state, waiting on a dead [FUSE](#fuse) mount. T
   signature of a lock, and it is a diagnosis rather than a symptom.
 - **You cannot kill your way out.** The usual reflex - find the process, `kill -9` it - does nothing
   here. Recovery means fixing what it waits on, or rebooting.
+
+## delegate_to and run_once (Ansible)
+
+**What it is.** Two task keywords. `delegate_to: localhost` executes the task on another machine
+than the host it is being run for, here the control node itself. `run_once: true` executes it for
+the first host of the play only and shares the result with the others.
+
+**Here.** Together, on a block in `preflight.yml`, since 2026-09-25: the play targets `all`, and the
+git checks run exactly once on lxc250 however many hosts `--limit` leaves in the play.
+
+**Why it matters.** It is how a play can depend on the control node without targeting it. A play
+aimed at `localhost` is removed by any limit that does not name it; a play aimed at `all` with
+delegated tasks cannot be.
 
 ## Dependabot
 
@@ -611,6 +637,32 @@ disabled, measured 2026-09-24.
 **Why it matters.** The application sees the password. That is acceptable for a trusted service on
 the tailnet and is the reason browser applications use OIDC instead, where the password is typed
 only into the provider.
+
+## limit (ansible-playbook --limit)
+
+**What it is.** A command-line pattern that narrows the hosts of a run, for example
+`--limit lxc260`. It intersects with the `hosts:` line of every play in the playbook, including
+imported ones.
+
+**Here.** Used to roll a change out one node at a time. Until 2026-09-25 it also removed the
+preflight gate, which targeted `localhost`; Ansible printed `skipping: no hosts matched` and ran the
+rest of the playbook from whatever tree the control node held.
+
+**Why it matters.** A limit is read as "only these nodes", but it applies to every play, and a play
+it empties is skipped without an error.
+
+## local mailer (Postfix and /etc/aliases)
+
+**What it is.** A mail server on the machine itself, which delivers mail addressed to local users
+such as `root`. Postfix looks up where `root` should go in `/etc/aliases`, compiled into
+`/etc/aliases.db` by `newaliases`.
+
+**Here.** On the Proxmox host. Cron mails every job's output to root, and so does smartd. Measured
+2026-09-25: `/etc/aliases.db` does not exist, so every such message is deferred with
+`alias database unavailable`; 29 were queued, visible with `mailq`.
+
+**Why it matters.** Output sent by mail looks like reporting, but when nothing delivers it nobody
+sees it. The KE-26 read-back failure was found in that queue rather than in the journal.
 
 ## logical vs physical path (symlinks)
 
@@ -1027,6 +1079,20 @@ so too while its own route is not live.
 message arrives six times, check whether anything changed between them before treating each one as
 news - on 2026-09-22/24, two notifications out of roughly twenty carried information.
 
+## RTC and rtcwake
+
+**What it is.** The RTC (real-time clock) is the battery-backed clock on the mainboard that keeps
+time while the machine is off, and it can hold one alarm that powers the machine on. `rtcwake` sets
+that alarm; `-m no -t <epoch>` arms it without suspending. The kernel shows the armed time in
+`/sys/class/rtc/rtc0/wakealarm`.
+
+**Here.** `homelab-setwake.sh` on the Proxmox host arms it every night at 00:45 before the 01:00
+shutdown (homelab KE-26). `rtcwake` reads the RTC and then the system clock and corrects the alarm by the
+difference, so it can arm one second early when the second ticks between the two reads.
+
+**Why it matters.** The host is off every night, and this alarm is the only thing that brings it
+back. `rtcwake` exits 0 for an alarm on the wrong day, so the script reads the armed value back.
+
 ## restic
 
 **What it is.** A backup program that encrypts and deduplicates on the client before transmitting,
@@ -1335,6 +1401,20 @@ one, `sysctl -w` sets one for this boot, and a file in `/etc/sysctl.d/` makes it
 
 Together they turn "the machine is alive and unreachable" into "the machine rebooted". On a host with
 no out-of-band console, that trade is almost always worth taking.
+
+## systemd-cat
+
+**What it is.** A small systemd tool that runs a command with its stdout and stderr connected to the
+journal, under an identifier given with `-t`. `--stderr-priority=err` files stderr at error
+priority. The command's exit code is passed through.
+
+**Here.** In `/etc/cron.d/homelab-schedule` on the Proxmox host since 2026-09-25, so both
+power-schedule scripts log under `homelab-setwake` and `homelab-shutdown`. Read with
+`journalctl -b -1 -t homelab-setwake`.
+
+**Why it matters.** Cron sends output by mail, and on this host mail goes nowhere (see local
+mailer). The journal persists across the nightly power-off, so it is where this evidence can
+actually be read.
 
 ## taint flags
 
