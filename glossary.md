@@ -34,15 +34,15 @@ stolen credential, and the 0 covers the question that decides the day - whether 
 **What it is.** Keeping a copy off any network path that could reach it, usually by physically
 disconnecting the medium.
 
-**Here.** The disk at a family member's home, recorded in
+**Here.** A disk kept at a second location, recorded in
 [data classification](../homelab-server-architecture/docs/platform/data-classification.md), is a real air gap: off site,
 disconnected, and of unknown age between visits.
 
 **Why it matters.** Nothing on a network can reach it, which is the strongest guarantee available.
 The weakness is that a person has to perform it, and this one is refreshed only when its owner
-visits the household that holds it. An air gap with no cadence has an unknown age between refreshes,
-so it works as a last resort and not as a planned control. That gap is most of the argument for
-paying for an off-site target that can be scheduled.
+visits that location. An air gap with no cadence has an unknown age between refreshes, so it works
+as a last resort and not as a planned control. That gap is most of the argument for paying for an
+off-site target that can be scheduled.
 
 ## Alertmanager
 
@@ -455,6 +455,21 @@ entirely, a gate script must be fail-open - `wait-for-tailscale-ip.sh` logs a wa
 on timeout, so a gated unit starts late rather than not at all. That property is what makes it
 safe to put in front of sshd.
 
+## exit node (Tailscale) and Mullvad
+
+**What it is.** An exit node is a tailnet device that forwards a client's internet traffic, so the
+client appears on the internet with the exit node's address. Tailscale also sells access to
+Mullvad's VPN servers as exit nodes, enabled per device with the `mullvad` node attribute.
+
+**Here.** Five devices carry the attribute, listed in
+[tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md#node-attributes).
+Tailscale's own exit nodes would need a grant to `autogroup:internet`; Mullvad worked without one,
+measured on the admin desktop on 2026-09-26.
+
+**Why it matters.** While an exit node is active, a device may lose its path into the home network
+unless LAN access is allowed in the client, which is why a streaming box that uses Mullvad and
+Jellyfin is a decision rather than a default.
+
 ## Falco
 
 **What it is.** A runtime security tool, hosted by the
@@ -714,6 +729,19 @@ session. It also sets the shape of the precaution around such a change: the risk
 existing session, it is whether a *new* one can still be established afterwards, which is why the
 old one stays open until a fresh one is proven.
 
+## lateral movement
+
+**What it is.** An attacker who has taken one system using it as a base to reach the next, instead
+of attacking each target from outside.
+
+**Here.** Until 2026-09-26 the policy let every tier1 service reach every other on all ports, and
+the control node shared a tag with the operator's phone and workstations. Both paths were closed in
+the rebuild described in
+[tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md).
+
+**Why it matters.** Most intrusions start on the weakest system, not the most valuable one. What
+limits the damage is how little the first foothold can reach.
+
 ## LDAP (Lightweight Directory Access Protocol)
 
 **What it is.** A protocol for reading and searching a directory of users and groups, organised as a
@@ -729,6 +757,20 @@ disabled, measured 2026-09-24.
 **Why it matters.** The application sees the password. That is acceptable for a trusted service on
 the tailnet and is the reason browser applications use OIDC instead, where the password is typed
 only into the provider.
+
+## least privilege
+
+**What it is.** Giving every identity - a person, a device, a service - exactly the rights its task
+needs, and nothing it might need some day.
+
+**Here.** The rule behind the 2026-09-26 policy: each device reaches the services its owner uses, by
+host and port, and the operator phone reaches the hypervisor only for its web interface, meant to be
+backed by a Proxmox user that may do nothing but shut down
+([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
+
+**Why it matters.** It decides the size of the damage when something is compromised. A stolen phone
+that can only switch a server off is an inconvenience; one that holds full administrative reach is
+an incident.
 
 ## limit (ansible-playbook --limit)
 
@@ -816,6 +858,20 @@ and `pvestatd` reads container statistics through it. When its worker thread die
 guest status reporting, systemd and therefore every new SSH session blocked. The failure surfaced as
 "the whole hypervisor is unreachable".
 
+## machine sharing (Tailscale)
+
+**What it is.** Offering one device of your tailnet to a user of another tailnet. The recipient
+accepts an invitation in their own tailnet and reaches only that device, still subject to the
+sharer's policy.
+
+**Here.** Since 2026-09-26 one external user reaches Jellyfin, Audiobookshelf and Nextcloud this way
+instead of as a member of the tailnet
+([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
+
+**Why it matters.** It keeps external people's devices out of your network entirely: they cannot add
+devices, and a rule written too broadly cannot reach them. Rights attach to the person, so
+per-device limits are not possible this way.
+
 ## MCE (Machine Check Exception)
 
 **What it is.** A hardware-raised error report from the CPU - uncorrectable memory errors, cache
@@ -842,6 +898,19 @@ one of the few candidates that can be ruled in or out rather than argued about.
 physical presence and a boot that does not reach Proxmox, so it cannot be scheduled the way the
 other three can. A verification that requires a person in the room stays open longer than one that
 requires a command, which is why it is written into a runbook rather than a list of intentions.
+
+## MFA and TOTP
+
+**What it is.** Multi-factor authentication requires a second proof besides the password. TOTP
+(time-based one-time password) is the common form: an authenticator app derives a six-digit code
+from a shared secret and the current time.
+
+**Here.** Planned for the Proxmox user of the operator phone, so that knowing its password alone
+does not switch the host off. Phishing-resistant forms are described under
+[FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys).
+
+**Why it matters.** A leaked password stops being enough. TOTP codes can still be phished in real
+time, which is where passkeys go further.
 
 ## mTLS (mutual TLS)
 
@@ -1728,6 +1797,31 @@ is invisible in the consuming config - nothing in `docker.service` mentions `/va
 shape as [KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18): a resource
 that exists in steady state and does not exist yet at boot.
 
+## toll fraud
+
+**What it is.** Criminals using a compromised telephone account to call premium-rate or foreign
+numbers they earn money from, usually at night and in large volume. The bill goes to the account
+holder.
+
+**Here.** The router's security report on 2026-09-26 showed calls abroad and to premium numbers
+unblocked, on an account whose SIP signalling runs unencrypted. SIP is the protocol internet
+telephony uses to set up calls.
+
+**Why it matters.** It turns a small compromise into a direct financial loss, and blocking the call
+classes nobody uses costs nothing.
+
+## TR-069
+
+**What it is.** A protocol through which an internet provider manages customer routers remotely:
+configuration, firmware, diagnostics. The router contacts the provider's auto configuration server
+(ACS).
+
+**Here.** The router contacts its provider's ACS hourly over plain HTTP without certificate
+verification, measured on 2026-09-26.
+
+**Why it matters.** Whoever can answer in the ACS's place can reconfigure the router. Over HTTP
+without verification that is anyone positioned on the path.
+
 ## Trivy
 
 **What it is.** A vulnerability scanner for container images and filesystems. It unpacks an image
@@ -1773,6 +1867,18 @@ underneath.
 differently from the same pattern in a hook or in `validate-repo.sh`. The push-refusal
 regex looked correct under ugrep and did not match a plain `git push` under GNU grep.
 Test hook and script patterns with `/usr/bin/grep` or `command grep`.
+
+## UPnP and PCP
+
+**What it is.** Two protocols that let a program on the LAN ask the router to open a port towards
+the internet by itself: UPnP IGD and the Port Control Protocol (RFC 6887).
+
+**Here.** The router's port-share page offered to disable the per-device permission for devices that
+never used it, which means some still held it on 2026-09-26. No share existed at that time.
+
+**Why it matters.** The router's own documentation warns that malware on a permitted device can use
+it to open the firewall. Allowing it per device and only where needed keeps the firewall's state
+under the owner's control.
 
 ## uv (and `uv tool`)
 
@@ -1907,6 +2013,17 @@ straight to the editor's port.
 **Why it matters.** It explains a listener that looks worse than it is: `coolwsd` binds `*:9983`,
 and nothing is supposed to reach it there, because every request arrives through the proxy. The bind
 is still wrong by this platform's rule - it is simply not the hole it appears to be.
+
+## WPS (Wi-Fi Protected Setup)
+
+**What it is.** A shortcut for joining a Wi-Fi network by pressing a button or entering a PIN
+instead of typing the passphrase.
+
+**Here.** Enabled on the home router, measured on 2026-09-26.
+
+**Why it matters.** Its PIN method has a well-known design weakness, and the push-button method lets
+anyone near the router join during the window. With a passphrase in place it adds reach and no
+protection.
 
 ## Zero Trust
 
