@@ -133,6 +133,19 @@ perfectly healthy - the gap KE-8 named. node_exporter runs on the node and repor
 container there never starts, every node metric stays green. The probe sits outside the failure,
 which is precisely what lets it observe one.
 
+## build provenance
+
+**What it is.** A signed record of how an artefact was produced: which source commit, which build
+system, which steps and inputs. SLSA defines its format, and it is published next to the artefact as
+an attestation.
+
+**Here.** Nothing is built on this platform; the question is only whether upstream images publish
+provenance that `sbom.yml` could check alongside a signature.
+
+**Why it matters.** A signature says who released an artefact; provenance says what went into it.
+The two together are what lets a verifier refuse an image that was built from a modified source or
+on an unexpected builder.
+
 ## capabilities and CAP_DAC_OVERRIDE
 
 **What it is.** Linux splits root's historical powers into around forty capabilities, so a process
@@ -164,6 +177,18 @@ container's device request `nvidia.com/gpu=all` against it.
 `unresolvable CDI devices nvidia.com/gpu=all`, and falls back to the legacy
 [OCI hook](#oci-hook-prestart-hook). The declarative path is configured and never used at boot; the
 fragile path is the one that runs.
+
+## CNCF (Cloud Native Computing Foundation)
+
+**What it is.** The Linux Foundation project that hosts Kubernetes and most of the tooling around it
+- Prometheus, containerd, Falco, OPA among them - and grades projects as sandbox, incubating or
+graduated.
+
+**Here.** Prometheus, the platform's monitoring core, is a graduated CNCF project, and so is
+containerd underneath Docker.
+
+**Why it matters.** The maturity level is a quick, independent signal of how widely a tool is used
+and maintained, which is useful when choosing between tools during the Kubernetes track.
 
 ## CodeQL
 
@@ -197,11 +222,17 @@ convenience - see [HA](#ha-high-availability) and [quorum](#quorum).
 
 ## CrowdSec
 
-**What it is.** An open-source intrusion prevention system: agents parse logs for attack patterns (SSH brute force, HTTP scanning), and "bouncers" block the offending address, with block lists shared across all participants.
+**What it is.** An open-source intrusion prevention system: agents parse logs for attack patterns
+(SSH brute force, HTTP scanning), and "bouncers" block the offending address, with block lists
+shared across all participants.
 
-**Here.** Not deployed. The platform has no public ingress and SSH is key-only, so the attack surface CrowdSec watches barely exists; it becomes relevant the moment the off-site VPS gets a public address.
+**Here.** Not deployed. The platform has no public ingress and SSH is key-only, so the attack
+surface CrowdSec watches barely exists; it becomes relevant the moment the off-site VPS gets a
+public address.
 
-**Why it matters.** It is the modern replacement for fail2ban and the usual first control on any host facing the internet. On a machine reachable only through the tailnet it would mostly count noise.
+**Why it matters.** It is the modern replacement for fail2ban (the long-standing tool that bans an
+address after repeated failed logins in a log file) and the usual first control on any host facing
+the internet. On a machine reachable only through the tailnet it would mostly count noise.
 
 ## CTID (container ID)
 
@@ -370,6 +401,18 @@ it has been wrong: A.8.5 read *Enforced* for weeks while two nodes still accepte
 false assurance suppresses discovery more effectively than a stated gap does, because nobody looks
 at a row that already says yes.
 
+## eBPF
+
+**What it is.** Extended Berkeley Packet Filter: a way to load small, verified programs into the
+running Linux kernel that react to events - system calls, network packets, function entries -
+without a kernel module.
+
+**Here.** Not used deliberately. It is how Falco, Cilium and modern profilers work, and it needs the
+host kernel, so an unprivileged LXC cannot load programs.
+
+**Why it matters.** It has become the standard way to observe and secure Linux at runtime with
+little overhead, and most current container security and networking tools are built on it.
+
 ## ECC (Error-Correcting Code memory)
 
 **What it is.** Memory that stores extra check bits, so the memory controller can detect and repair
@@ -414,11 +457,17 @@ safe to put in front of sshd.
 
 ## Falco
 
-**What it is.** A runtime security tool (CNCF) that watches kernel system calls, via eBPF, and raises an alert when a container or process does something its rules call suspicious: a shell spawned in a container, a write below `/etc`, an unexpected outbound connection.
+**What it is.** A runtime security tool, hosted by the
+[CNCF](#cncf-cloud-native-computing-foundation), that watches kernel system calls, via
+[eBPF](#ebpf), and raises an alert when a container or process does something its rules call
+suspicious: a shell spawned in a container, a write below `/etc`, an unexpected outbound connection.
 
-**Here.** Not deployed. It needs the host kernel, so on this platform it could only run on the hypervisor or in the VMs, never inside an unprivileged LXC - the same limit the `auditd` exercise hit.
+**Here.** Not deployed. It needs the host kernel, so on this platform it could only run on the
+hypervisor or in the VMs, never inside an unprivileged LXC - the same limit the `auditd` exercise
+hit.
 
-**Why it matters.** It is detection rather than prevention, and it is the standard answer to "how would you know a container was compromised". Relevant for the Kubernetes track, where it is common.
+**Why it matters.** It is detection rather than prevention, and it is the standard answer to "how
+would you know a container was compromised". Relevant for the Kubernetes track, where it is common.
 
 ## fencing
 
@@ -436,11 +485,18 @@ software hiccup would produce a hard reset of every running guest and gain nothi
 
 ## FIDO2, WebAuthn and passkeys
 
-**What it is.** FIDO2 is the standard for signing in with a hardware-backed key pair instead of a shared secret; WebAuthn is its browser API; a passkey is a FIDO2 credential that a password manager or phone can sync. The private key never leaves the authenticator, and the signature is bound to the site's origin.
+**What it is.** FIDO2 is the standard for signing in with a hardware-backed key pair instead of a
+shared secret; WebAuthn is its browser API; a passkey is a FIDO2 credential that a password manager
+or phone can sync. The private key never leaves the authenticator, and the signature is bound to the
+site's origin.
 
-**Here.** Not used on the platform. Authelia, planned in the [identity decision](../homelab-server-architecture/docs/decisions/identity-before-terraform.md), supports WebAuthn as a second factor and passkeys as a login method.
+**Here.** Not used on the platform. Authelia, planned in the
+[identity decision](../homelab-server-architecture/docs/decisions/identity-before-terraform.md),
+supports WebAuthn as a second factor and passkeys as a login method.
 
-**Why it matters.** Origin binding makes it phishing-resistant: a look-alike site receives a signature it cannot use. That is the property one-time codes lack, and why it is what enterprise and government guidance now asks for on administrative accounts.
+**Why it matters.** Origin binding makes it phishing-resistant: a look-alike site receives a
+signature it cannot use. That is the property one-time codes lack, and why it is what enterprise and
+government guidance now asks for on administrative accounts.
 
 ## file descriptor
 
@@ -511,6 +567,18 @@ the lookup does not answer.
 switch entirely, so both answered correctly on lxc250 the whole time MagicDNS was broken for every
 other program on the node. A tool that proves the resolver works proves nothing about whether
 anything can reach it. `getent` is the one that asks the question the applications ask.
+
+## GitOps
+
+**What it is.** Running infrastructure so that a Git repository is the declared desired state and an
+agent continuously makes the running system match it, instead of a person running an apply. Argo CD
+and Flux are the common agents.
+
+**Here.** Not practised. The control node applies playbooks from its working tree when somebody runs
+them, and the weekly drift sweep only reports divergence; it does not correct it.
+
+**Why it matters.** It turns drift correction from a report into a loop and makes every change
+reviewable as a commit. It is the default deployment model in Kubernetes environments.
 
 ## HA (High Availability)
 
@@ -677,11 +745,18 @@ it empties is skipped without an error.
 
 ## LLMNR and mDNS
 
-**What it is.** Link-Local Multicast Name Resolution and multicast DNS: two protocols that resolve a name by shouting the question to the whole local segment when DNS has no answer. Neither authenticates the reply.
+**What it is.** Link-Local Multicast Name Resolution and multicast DNS: two protocols that resolve a
+name by shouting the question to the whole local segment when DNS has no answer. Neither
+authenticates the reply.
 
-**Here.** `systemd-resolved` enables both by default. lxc250 answered on port 5355 after the `nsswitch` change until it was closed during the September block, recorded in the [remediation plan](../homelab-server-architecture/docs/platform/remediation-plan.md).
+**Here.** `systemd-resolved` enables both by default. lxc250 answered on port 5355 after the
+`nsswitch` change until it was closed during the September block, recorded in the
+[remediation plan](../homelab-server-architecture/docs/platform/remediation-plan.md).
 
-**Why it matters.** Any host on the same segment can answer a failed lookup and receive the connection, including credentials offered to it - a standard step in internal penetration tests (the Responder tool). On a node holding the vault password it is a direct path to it.
+**Why it matters.** Any host on the same segment can answer a failed lookup and receive the
+connection, including credentials offered to it - a standard step in internal penetration tests,
+automated by the Responder tool, which answers every such lookup and collects the credentials
+offered to it. On a node holding the vault password it is a direct path to it.
 
 ## local mailer (Postfix and /etc/aliases)
 
@@ -770,11 +845,16 @@ requires a command, which is why it is written into a runbook rather than a list
 
 ## mTLS (mutual TLS)
 
-**What it is.** TLS in which both sides present a certificate, so the server authenticates the client as well as the other way round.
+**What it is.** TLS in which both sides present a certificate, so the server authenticates the
+client as well as the other way round.
 
-**Here.** Not used. WireGuard, underneath Tailscale, already authenticates both ends of every connection by node key, which is why the journal upload runs plain HTTP ([ansible.md](../homelab-server-architecture/docs/platform/ansible.md)).
+**Here.** Not used. WireGuard, underneath Tailscale, already authenticates both ends of every
+connection by node key, which is why the journal upload runs plain HTTP
+([ansible.md](../homelab-server-architecture/docs/platform/ansible.md)).
 
-**Why it matters.** It is how service-to-service authentication works where there is no overlay network - in Kubernetes service meshes and between cloud services - and is the comparison the plain-HTTP choice here is meant to prompt.
+**Why it matters.** It is how service-to-service authentication works where there is no overlay
+network - in Kubernetes [service meshes](#service-mesh) and between cloud services - and is the
+comparison the plain-HTTP choice here is meant to prompt.
 
 ## netconsole (and netpoll)
 
@@ -940,11 +1020,16 @@ what is running tomorrow.
 
 ## OpenSSF Scorecard
 
-**What it is.** An automated check from the Open Source Security Foundation that grades a repository on supply-chain practices: pinned dependencies, branch protection, token permissions in workflows, signed releases, dependency update tooling.
+**What it is.** An automated check from the Open Source Security Foundation that grades a repository
+on supply-chain practices: pinned dependencies, branch protection, token permissions in workflows,
+signed releases, dependency update tooling.
 
-**Here.** Not run. The repository already meets several of its checks - SHA-pinned actions, a branch ruleset, Dependabot - and would lose points on the two tag-pinned actions in `sbom.yml` and on workflows that declare no `permissions:` block.
+**Here.** Not run. The repository already meets several of its checks - SHA-pinned actions, a branch
+ruleset, Dependabot - and would lose points on the two tag-pinned actions in `sbom.yml` and on
+workflows that declare no `permissions:` block.
 
-**Why it matters.** It turns "we follow good practice" into a score an outsider can read, and it is available as a GitHub Action.
+**Why it matters.** It turns "we follow good practice" into a score an outsider can read, and it is
+available as a GitHub Action.
 
 ## OT (Operational Technology)
 
@@ -1055,11 +1140,16 @@ do not assume it, since a plausible suspect and a guilty one are different thing
 
 ## Policy-as-Code
 
-**What it is.** Writing rules about configuration as code that a machine evaluates, instead of as prose somebody has to remember. Common engines are OPA with its language Rego, Conftest, and Kyverno for Kubernetes.
+**What it is.** Writing rules about configuration as code that a machine evaluates, instead of as
+prose somebody has to remember. Common engines are OPA (Open Policy Agent) with its rule language
+Rego, Conftest (OPA applied to configuration files) and Kyverno (policies written as Kubernetes
+resources).
 
-**Here.** `validate-repo.sh` is a hand-built form of it: 44 checks that refuse a commit. The Tailscale ACL `tests` block is another.
+**Here.** `validate-repo.sh` is a hand-built form of it: 44 checks that refuse a commit. The
+Tailscale ACL `tests` block is another.
 
-**Why it matters.** It is how an organisation enforces rules across many repositories and teams, and the natural next step once Terraform plans exist to check.
+**Why it matters.** It is how an organisation enforces rules across many repositories and teams, and
+the natural next step once Terraform plans exist to check.
 
 ## privilege separation (OpenSSH)
 
@@ -1122,11 +1212,15 @@ leaving HA switched off here.
 
 ## Renovate
 
-**What it is.** A dependency update bot comparable to Dependabot, with broader file support: Docker Compose image tags, Ansible Galaxy requirements, pinned digests, and grouping or auto-merge rules per package.
+**What it is.** A dependency update bot comparable to Dependabot, with broader file support: Docker
+Compose image tags, Ansible Galaxy requirements, pinned digests, and grouping or auto-merge rules
+per package.
 
-**Here.** Not used. Dependabot covers GitHub Actions only, and the compose images are deliberately left out of it ([dependabot.yml](../homelab-server-architecture/.github/dependabot.yml)).
+**Here.** Not used. Dependabot covers GitHub Actions only, and the compose images are deliberately
+left out of it ([dependabot.yml](../homelab-server-architecture/.github/dependabot.yml)).
 
-**Why it matters.** It can keep a pinned tag and its digest together and propose both at once, which is the piece a manual pinning policy is missing.
+**Why it matters.** It can keep a pinned tag and its digest together and propose both at once, which
+is the piece a manual pinning policy is missing.
 
 ## repeat_interval (Alertmanager)
 
@@ -1252,11 +1346,17 @@ several images, the tab shows the last upload and reports the earlier findings a
 
 ## SBOM (Software Bill of Materials)
 
-**What it is.** A machine-readable list of every component inside a piece of software - packages, versions, licences - in a standard format such as SPDX or CycloneDX.
+**What it is.** A machine-readable list of every component inside a piece of software - packages,
+versions, licences - in a standard format - SPDX (from the Linux Foundation) or CycloneDX (from
+OWASP), the two formats tools exchange.
 
-**Here.** Produced monthly for the pinned images by the `sbom.yml` workflow, as one of the four exercises in the [exercise-scope decision](../homelab-server-architecture/docs/decisions/exercise-scope-before-terraform.md).
+**Here.** Produced monthly for the pinned images by the `sbom.yml` workflow, as one of the four
+exercises in the
+[exercise-scope decision](../homelab-server-architecture/docs/decisions/exercise-scope-before-terraform.md).
 
-**Why it matters.** When a new vulnerability is published, an SBOM answers "are we affected" without pulling and scanning every image again. Several regulations, including the EU Cyber Resilience Act, now require one for products.
+**Why it matters.** When a new vulnerability is published, an SBOM answers "are we affected" without
+pulling and scanning every image again. Several regulations, including the EU Cyber Resilience Act,
+now require one for products.
 
 ## scrub (SnapRAID)
 
@@ -1287,6 +1387,30 @@ that jailing does not work inside an unprivileged LXC.
 document is untrusted input - Paperless feeds this instance from a consumption directory. Without
 it, a malicious file that reaches a parser bug is confined by the container boundary and by nothing
 inside it. See [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override).
+
+## service mesh
+
+**What it is.** A layer of proxies beside every service in a cluster that handles service-to-service
+traffic: mutual TLS, retries, traffic splitting and per-request metrics, configured centrally rather
+than in each application. Istio and Linkerd are the common ones.
+
+**Here.** Not used; there is no cluster. Tailscale provides the encryption and node identity a mesh
+would, at the node level rather than per service.
+
+**Why it matters.** It is where mTLS and fine-grained service identity usually live in an enterprise
+Kubernetes platform.
+
+## SIEM and XDR
+
+**What it is.** A SIEM (Security Information and Event Management) collects logs from many systems,
+correlates them and raises security alerts. XDR (Extended Detection and Response) adds agents on the
+endpoints that can also act - isolate a host, kill a process.
+
+**Here.** Neither exists. The journal aggregation exercise collects logs centrally, but nothing
+correlates them or alerts on security events.
+
+**Why it matters.** It is the core tool of a security operations centre, and the place the "who
+logged in where" question gets answered across a whole estate rather than host by host.
 
 ## SIGHUP (and what sshd does with it)
 
@@ -1324,11 +1448,15 @@ and no linter in a documentation repository need notice. A blank line is the who
 
 ## Sigstore and cosign
 
-**What it is.** Sigstore is a public infrastructure for signing software artefacts without managing long-lived keys; `cosign` is its tool for signing and verifying container images. Signatures are logged in a public transparency log, Rekor.
+**What it is.** Sigstore is a public infrastructure for signing software artefacts without managing
+long-lived keys; `cosign` is its tool for signing and verifying container images. Signatures are
+recorded in Rekor, a public append-only log, so a signature made in secret would be visible as
+missing.
 
 **Here.** `sbom.yml` installs cosign and verifies the images that publish a signature.
 
-**Why it matters.** A signature proves which builder produced an image, which a tag or a digest alone does not. Verifying it before deployment is the check that stops a tampered registry image.
+**Why it matters.** A signature proves which builder produced an image, which a tag or a digest
+alone does not. Verifying it before deployment is the check that stops a tampered registry image.
 
 ## slab allocator
 
@@ -1347,11 +1475,15 @@ is the signature: one corruption event, re-read many times, not many separate fa
 
 ## SLSA (Supply-chain Levels for Software Artifacts)
 
-**What it is.** A framework (pronounced "salsa") that grades how trustworthy a build is, in levels: whether provenance is recorded, whether it is signed, whether the build ran on a hardened, isolated builder.
+**What it is.** A framework (pronounced "salsa") that grades how trustworthy a build is, in levels:
+whether [provenance](#build-provenance) is recorded, whether it is signed, whether the build ran on
+a hardened, isolated builder.
 
-**Here.** Not applied. Nothing is built here; the platform consumes upstream images, so the question is only whether those images carry SLSA provenance that can be checked.
+**Here.** Not applied. Nothing is built here; the platform consumes upstream images, so the question
+is only whether those images carry SLSA provenance that can be checked.
 
-**Why it matters.** It is the vocabulary in which supply-chain requirements are written, and a provenance attestation is what a verifier checks alongside a signature.
+**Why it matters.** It is the vocabulary in which supply-chain requirements are written, and a
+[provenance](#build-provenance) attestation is what a verifier checks alongside a signature.
 
 ## smartmon.sh and prometheus-node-exporter-collectors
 
@@ -1424,11 +1556,14 @@ preferring `sp5100_tco` if it works on this board.
 
 ## SOPS
 
-**What it is.** Secrets OPerationS, a tool that encrypts only the values in a YAML, JSON or env file and leaves the keys readable, using age, PGP or a cloud key service.
+**What it is.** Secrets OPerationS, a tool that encrypts only the values in a YAML, JSON or env file
+and leaves the keys readable, using age, PGP or a cloud key service.
 
 **Here.** Not used; secrets in the repository are held with Ansible Vault.
 
-**Why it matters.** A diff of a SOPS file shows which secret changed, where an Ansible Vault diff shows only that the ciphertext changed. It is common in GitOps and Terraform setups, which is where the next track goes.
+**Why it matters.** A diff of a SOPS file shows which secret changed, where an Ansible Vault diff
+shows only that the ciphertext changed. It is common in [GitOps](#gitops) and Terraform setups,
+which is where the next track goes.
 
 ## sponge (moreutils)
 
@@ -1445,11 +1580,16 @@ than as a fault.
 
 ## SSH certificates
 
-**What it is.** Instead of listing public keys in every `authorized_keys` file, a certificate authority signs a user's key with a validity period and a principal name, and servers trust the CA through `TrustedUserCAKeys`.
+**What it is.** Instead of listing public keys in every `authorized_keys` file, a certificate
+authority signs a user's key with a validity period and a principal name, and servers trust the CA
+through `TrustedUserCAKeys`.
 
-**Here.** Not used. Access is managed by listing keys, per node, which is how a retired key stayed authorised as root on the hypervisor after it had been removed everywhere else.
+**Here.** Not used. Access is managed by listing keys, per node, which is how a retired key stayed
+authorised as root on the hypervisor after it had been removed everywhere else.
 
-**Why it matters.** Certificates expire on their own, so a lost laptop stops being a standing credential. Tools such as step-ca, Teleport or Vault issue them, and Tailscale SSH offers a managed variant.
+**Why it matters.** Certificates expire on their own, so a lost laptop stops being a standing
+credential. Tools such as step-ca, Teleport (an access platform that brokers SSH and database
+sessions) or HashiCorp Vault issue them, and Tailscale SSH offers a managed variant.
 
 ## sudoers.d and NOPASSWD
 
@@ -1522,11 +1662,16 @@ actually be read.
 
 ## Tailnet Lock
 
-**What it is.** A Tailscale feature in which new nodes must be signed by trusted keys held on your own devices before other nodes accept them, rather than being admitted by the coordination server alone.
+**What it is.** A Tailscale feature in which new nodes must be signed by trusted keys held on your
+own devices before other nodes accept them, rather than being admitted by the coordination server
+alone.
 
-**Here.** Not enabled, measured 2026-09-26 with `tailscale lock status`. Every access decision on this platform rests on the tailnet ([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
+**Here.** Not enabled, measured 2026-09-26 with `tailscale lock status`. Every access decision on
+this platform rests on the tailnet
+([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
 
-**Why it matters.** Without it, whoever controls the coordination server or the admin account can add a node to the tailnet. With it, that also needs a signing key held on your own devices.
+**Why it matters.** Without it, whoever controls the coordination server or the admin account can
+add a node to the tailnet. With it, that also needs a signing key held on your own devices.
 
 ## taint flags
 
@@ -1663,11 +1808,15 @@ kernel declining to answer rather than a real owner. See also
 
 ## VEX (Vulnerability Exploitability eXchange)
 
-**What it is.** A statement attached to an SBOM saying whether a known vulnerability actually affects the product - "not affected, the vulnerable function is never called" - in a machine-readable form.
+**What it is.** A statement attached to an SBOM saying whether a known vulnerability actually
+affects the product - "not affected, the vulnerable function is never called" - in a
+machine-readable form.
 
-**Here.** Not used. The weekly image scan reports every CVE that matches a package version, without that context.
+**Here.** Not used. The weekly image scan reports every CVE that matches a package version, without
+that context.
 
-**Why it matters.** Most scanner findings are not exploitable where they occur, and VEX is the standard way to record that judgement once instead of re-reading the same list every week.
+**Why it matters.** Most scanner findings are not exploitable where they occur, and VEX is the
+standard way to record that judgement once instead of re-reading the same list every week.
 
 ## vzdump
 
@@ -1720,11 +1869,15 @@ device is taken, so systemd needs either a second device or watchdog-mux out of 
 
 ## Wazuh
 
-**What it is.** An open-source security monitoring platform combining a host agent, log analysis, file integrity monitoring and vulnerability detection with a central manager - a free SIEM and XDR.
+**What it is.** An open-source security monitoring platform combining a host agent, log analysis,
+file integrity monitoring and vulnerability detection with a central manager - a free
+[SIEM and XDR](#siem-and-xdr).
 
-**Here.** Not deployed. The platform's nearest equivalents are the `fleet_snapshot` diff, the `auditd` exercise and the journal aggregation.
+**Here.** Not deployed. The platform's nearest equivalents are the `fleet_snapshot` diff, the
+`auditd` exercise and the journal aggregation.
 
-**Why it matters.** It is what those three pieces look like assembled into one product, and a common entry-level SIEM in small companies and security training.
+**Why it matters.** It is what those three pieces look like assembled into one product, and a common
+entry-level SIEM in small companies and security training.
 
 ## wildcard bind
 
@@ -1757,8 +1910,15 @@ is still wrong by this platform's rule - it is simply not the hole it appears to
 
 ## Zero Trust
 
-**What it is.** An architecture principle: no request is trusted because of where on the network it comes from. Each access is authenticated, authorised against the identity and device making it, and limited to what is needed. Described in NIST SP 800-207.
+**What it is.** An architecture principle: no request is trusted because of where on the network it
+comes from. Each access is authenticated, authorised against the identity and device making it, and
+limited to what is needed. The reference description is NIST Special Publication 800-207, the US
+standards institute's architecture document for it.
 
-**Here.** The platform's access model: the LAN is untrusted, services bind the tailnet address, and ACL tags decide which node may reach which port ([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)). What it lacks is the per-request identity layer, which is what the identity track adds.
+**Here.** The platform's access model: the LAN is untrusted, services bind the tailnet address, and
+ACL tags decide which node may reach which port
+([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)). What it lacks
+is the per-request identity layer, which is what the identity track adds.
 
-**Why it matters.** It replaces the perimeter model, in which everything inside the firewall trusted everything else - the model that lets one compromised laptop reach every server.
+**Why it matters.** It replaces the perimeter model, in which everything inside the firewall trusted
+everything else - the model that lets one compromised laptop reach every server.
