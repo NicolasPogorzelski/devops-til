@@ -3,14 +3,14 @@
 ## The chain
 
 ```
-browser ──TLS──▶ Caddy (terminates TLS) ──plain HTTP──▶ backend (nginx/Tomcat/Puma)
+browser ──TLS──> Caddy (terminates TLS) ──plain HTTP──> backend (nginx/Tomcat/Puma)
 ```
 
 From the backend's point of view every request comes from the proxy's
 address, over plain HTTP. Two things are lost unless someone passes them on:
 
 1. **The scheme.** The backend believes the request was `http://`. Links it
-   renders and redirects it sends become `http://…` → extra redirect
+   renders and redirects it sends become `http://...` -> extra redirect
    round-trips, mixed content, cookies without the `Secure` flag, broken
    login flows.
 2. **The client address.** Logs, audit trails, "last sign-in from" and every
@@ -36,7 +36,7 @@ addresses the header may come from:
 
 `real_ip_recursive on` (nginx) / the valve's default (Tomcat): walk the
 comma-separated `X-Forwarded-For` list from the right and take the first
-address that is *not* a trusted proxy — that is the client, even when several
+address that is *not* a trusted proxy - that is the client, even when several
 proxies are chained.
 
 ## The other half: the proxy must not forward what the client sent
@@ -44,19 +44,20 @@ proxies are chained.
 If the proxy simply appended to an incoming `X-Forwarded-For`, a client could
 still plant a fake first entry. Caddy strips client-supplied `X-Forwarded-*`
 unless `trusted_proxies` is configured. Verified end to end in the lab:
-`curl -H 'X-Forwarded-For: 203.0.113.9' https://git.lab.test/…` was logged by
+`curl -H 'X-Forwarded-For: 203.0.113.9' https://git.lab.test/...` was logged by
 GitLab with the workstation's real address.
 
 ## Residual risk in a Docker setup
 
-Trusting the Docker address pool (`172.16.0.0/12`) means every container on
-the shared proxy network could forge the header towards a backend it can
+Trusting the Docker address pool (`172.16/12`, the RFC 1918 block Docker
+allocates from) means every container on the shared proxy network could
+forge the header towards a backend it can
 reach directly. Precise fix: a fixed address for the proxy and a `/32` trust
 entry; accepted as an extension step in the lab, because a container in that
 position already has worse options.
 
 ## Checks that prove it
 
-- Redirect through the proxy carries `Location: https://…` (scheme honoured).
+- Redirect through the proxy carries `Location: https://...` (scheme honoured).
 - Backend access log shows the client's public address, not the proxy's.
 - A forged header from outside does not appear in the log.

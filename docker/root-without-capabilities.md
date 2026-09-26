@@ -9,8 +9,8 @@ in one day with three images that are built differently:
 |---|---|---|---|
 | lldap (`-rootless` variant) | yes, `user: 1000:1000` | no (ports > 1024) | non-root + `cap_drop: ALL` + `read_only` |
 | PostgreSQL (alpine) | yes, `user: 70:70` if the data dir is owned accordingly | no | non-root + `cap_drop: ALL` + `read_only` + tmpfs for the socket dir |
-| XWiki (Tomcat) | no — the entrypoint edits files inside the image | no | **root + `cap_drop: ALL`** |
-| GitLab Omnibus | no — runit starts services as root and switches users | yes (SETUID, SETGID, CHOWN, DAC_OVERRIDE, …) | root + Docker's default set, `no-new-privileges` only |
+| XWiki (Tomcat) | no - the entrypoint edits files inside the image | no | **root + `cap_drop: ALL`** |
+| GitLab Omnibus | no - runit starts services as root and switches users | yes (SETUID, SETGID, CHOWN, DAC_OVERRIDE, ...) | root + Docker's default set, `no-new-privileges` only |
 
 ## Why "root without capabilities" is a real level
 
@@ -28,8 +28,8 @@ process with UID 0 and no special powers:
 
 Whether it works is an empirical question per image: does the process do
 anything at start-up that needs one of these? Tomcat (bind 8080, no user
-switch, no chown) — no. Omnibus (chown volumes, drop to `git`, `postgres`)
-— yes, on several counts. The test costs one start; the log names the
+switch, no chown) - no. Omnibus (chown volumes, drop to `git`, `postgres`) -
+yes, on several counts. The test costs one start; the log names the
 missing capability as `Operation not permitted` in the failing sub-service.
 
 ## Why a root process can still not become non-root here
@@ -37,7 +37,7 @@ missing capability as `Operation not permitted` in the failing sub-service.
 The XWiki entrypoint rewrites `hibernate.cfg.xml`/`xwiki.cfg` under
 `WEB-INF`, which the image owns as root. Running it as UID 1000 would fail
 on the first write. The clean fix is a derived image (pre-configured, then
-`USER 1000`) — not an option when the project builds no images. Root without
+`USER 1000`) - not an option when the project builds no images. Root without
 capabilities is the honest middle: smaller attack surface than the default,
 documented as an exception rather than hidden.
 

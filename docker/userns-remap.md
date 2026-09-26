@@ -58,7 +58,7 @@ ls -ln /var/lib/docker/                       # a <uid>.<gid> directory exists
 ## Related decision: the `docker` group
 
 Membership in the `docker` group is root-equivalent without a password prompt and without
-a `sudo` audit line (`docker run -v /:/host …`). Prefer `sudo docker` for humans; for
+a `sudo` audit line (`docker run -v /:/host ...`). Prefer `sudo docker` for humans; for
 unattended read-only checks (monitoring, tooling) a narrow `sudoers.d` rule
-(`NOPASSWD: /usr/bin/docker ps, /usr/bin/docker logs *, …`) beats the group - see
+(`NOPASSWD: /usr/bin/docker ps, /usr/bin/docker logs *, ...`) beats the group - see
 [Least-Privilege Patterns](../security/least-privilege-patterns.md).

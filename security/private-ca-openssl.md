@@ -33,7 +33,7 @@ openssl req -x509 -new -key ca.key -sha256 -days 3650 -subj "/CN=lab.test Root C
 
 | Piece | Why |
 |---|---|
-| `genpkey -algorithm EC … P-256` | modern default; ECDSA keys are small and fast, supported by every current client (Caddy, Java 17+, Ruby/OpenSSL, browsers). RSA 2048/4096 only for legacy clients |
+| `genpkey -algorithm EC ... P-256` | modern default; ECDSA keys are small and fast, supported by every current client (Caddy, Java 17+, Ruby/OpenSSL, browsers). RSA 2048/4096 only for legacy clients |
 | `-aes-256-cbc` | passphrase-encrypted key file - the CA key is the one file worth encrypting at rest |
 | `req -x509` | self-signed: a root CA signs itself |
 | `basicConstraints=critical,CA:TRUE,pathlen:0` | *is* a CA, may **not** issue sub-CAs; `critical` = a client that does not understand the extension must reject the certificate |
@@ -59,7 +59,7 @@ openssl verify -CAfile ca.crt git.lab.test.crt      # must print OK
 | `keyUsage=digitalSignature` | sufficient for ECDSA; `keyEncipherment` is RSA key transport and would be wrong here |
 | `-CAcreateserial` | every certificate of a CA needs a unique serial; `ca.srl` keeps the counter |
 | `-days 365` | below the 397-day maximum browsers enforce for public CAs - keeping the convention forces a documented renewal routine |
-| `-extfile <(printf …)` | process substitution: the extension "file" is the output of `printf`, no temp file |
+| `-extfile <(printf ...)` | process substitution: the extension "file" is the output of `printf`, no temp file |
 
 ## The part that actually costs time: trust distribution
 
