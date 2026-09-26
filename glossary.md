@@ -195,6 +195,14 @@ says "HA needs a quorate cluster", corosync is what provides the quorum. On a si
 features are technically present and practically meaningless, which is a trap rather than a
 convenience - see [HA](#ha-high-availability) and [quorum](#quorum).
 
+## CrowdSec
+
+**What it is.** An open-source intrusion prevention system: agents parse logs for attack patterns (SSH brute force, HTTP scanning), and "bouncers" block the offending address, with block lists shared across all participants.
+
+**Here.** Not deployed. The platform has no public ingress and SSH is key-only, so the attack surface CrowdSec watches barely exists; it becomes relevant the moment the off-site VPS gets a public address.
+
+**Why it matters.** It is the modern replacement for fail2ban and the usual first control on any host facing the internet. On a machine reachable only through the tailnet it would mostly count noise.
+
 ## CTID (container ID)
 
 **What it is.** The numeric identifier Proxmox gives every guest. Containers and virtual machines
@@ -404,6 +412,14 @@ entirely, a gate script must be fail-open - `wait-for-tailscale-ip.sh` logs a wa
 on timeout, so a gated unit starts late rather than not at all. That property is what makes it
 safe to put in front of sshd.
 
+## Falco
+
+**What it is.** A runtime security tool (CNCF) that watches kernel system calls, via eBPF, and raises an alert when a container or process does something its rules call suspicious: a shell spawned in a container, a write below `/etc`, an unexpected outbound connection.
+
+**Here.** Not deployed. It needs the host kernel, so on this platform it could only run on the hypervisor or in the VMs, never inside an unprivileged LXC - the same limit the `auditd` exercise hit.
+
+**Why it matters.** It is detection rather than prevention, and it is the standard answer to "how would you know a container was compromised". Relevant for the Kubernetes track, where it is common.
+
 ## fencing
 
 **What it is.** Forcibly cutting a node off - usually by resetting it - so that a cluster can safely
@@ -417,6 +433,14 @@ is enabled.
 logic is "if I lose contact with the cluster, I must reset myself" - correct in a cluster, where
 another node takes over. On a standalone machine there is nothing to take over, so a transient
 software hiccup would produce a hard reset of every running guest and gain nothing.
+
+## FIDO2, WebAuthn and passkeys
+
+**What it is.** FIDO2 is the standard for signing in with a hardware-backed key pair instead of a shared secret; WebAuthn is its browser API; a passkey is a FIDO2 credential that a password manager or phone can sync. The private key never leaves the authenticator, and the signature is bound to the site's origin.
+
+**Here.** Not used on the platform. Authelia, planned in the [identity decision](../homelab-server-architecture/docs/decisions/identity-before-terraform.md), supports WebAuthn as a second factor and passkeys as a login method.
+
+**Why it matters.** Origin binding makes it phishing-resistant: a look-alike site receives a signature it cannot use. That is the property one-time codes lack, and why it is what enterprise and government guidance now asks for on administrative accounts.
 
 ## file descriptor
 
@@ -651,6 +675,14 @@ rest of the playbook from whatever tree the control node held.
 **Why it matters.** A limit is read as "only these nodes", but it applies to every play, and a play
 it empties is skipped without an error.
 
+## LLMNR and mDNS
+
+**What it is.** Link-Local Multicast Name Resolution and multicast DNS: two protocols that resolve a name by shouting the question to the whole local segment when DNS has no answer. Neither authenticates the reply.
+
+**Here.** `systemd-resolved` enables both by default. lxc250 answered on port 5355 after the `nsswitch` change until it was closed during the September block, recorded in the [remediation plan](../homelab-server-architecture/docs/platform/remediation-plan.md).
+
+**Why it matters.** Any host on the same segment can answer a failed lookup and receive the connection, including credentials offered to it - a standard step in internal penetration tests (the Responder tool). On a node holding the vault password it is a direct path to it.
+
 ## local mailer (Postfix and /etc/aliases)
 
 **What it is.** A mail server on the machine itself, which delivers mail addressed to local users
@@ -735,6 +767,14 @@ one of the few candidates that can be ruled in or out rather than argued about.
 physical presence and a boot that does not reach Proxmox, so it cannot be scheduled the way the
 other three can. A verification that requires a person in the room stays open longer than one that
 requires a command, which is why it is written into a runbook rather than a list of intentions.
+
+## mTLS (mutual TLS)
+
+**What it is.** TLS in which both sides present a certificate, so the server authenticates the client as well as the other way round.
+
+**Here.** Not used. WireGuard, underneath Tailscale, already authenticates both ends of every connection by node key, which is why the journal upload runs plain HTTP ([ansible.md](../homelab-server-architecture/docs/platform/ansible.md)).
+
+**Why it matters.** It is how service-to-service authentication works where there is no overlay network - in Kubernetes service meshes and between cloud services - and is the comparison the plain-HTTP choice here is meant to prompt.
 
 ## netconsole (and netpoll)
 
@@ -898,6 +938,14 @@ Clearing it was step one of withdrawing lxc240 from service: stopping a guest wi
 only reports the first. On a host that reboots on a schedule, the second is the one that decides
 what is running tomorrow.
 
+## OpenSSF Scorecard
+
+**What it is.** An automated check from the Open Source Security Foundation that grades a repository on supply-chain practices: pinned dependencies, branch protection, token permissions in workflows, signed releases, dependency update tooling.
+
+**Here.** Not run. The repository already meets several of its checks - SHA-pinned actions, a branch ruleset, Dependabot - and would lose points on the two tag-pinned actions in `sbom.yml` and on workflows that declare no `permissions:` block.
+
+**Why it matters.** It turns "we follow good practice" into a score an outsider can read, and it is available as a GitHub Action.
+
 ## OT (Operational Technology)
 
 **What it is.** The hardware and software that controls and measures physical processes - sensors,
@@ -1005,6 +1053,14 @@ first suspect and would have explained the same symptoms.
 interface. And when the Proxmox interface misbehaves, pmxcfs is worth checking early - but check it,
 do not assume it, since a plausible suspect and a guilty one are different things.
 
+## Policy-as-Code
+
+**What it is.** Writing rules about configuration as code that a machine evaluates, instead of as prose somebody has to remember. Common engines are OPA with its language Rego, Conftest, and Kyverno for Kubernetes.
+
+**Here.** `validate-repo.sh` is a hand-built form of it: 44 checks that refuse a commit. The Tailscale ACL `tests` block is another.
+
+**Why it matters.** It is how an organisation enforces rules across many repositories and teams, and the natural next step once Terraform plans exist to check.
+
 ## privilege separation (OpenSSH)
 
 **What it is.** OpenSSH splits the handling of a connection in two. A small privileged process does
@@ -1063,6 +1119,14 @@ cluster each believe they are in charge and both write to shared storage.
 [HA](#ha-high-availability), a node that believes it has lost quorum self-fences. On a single node
 there is no genuine loss of quorum to detect, only false positives - which is the core argument for
 leaving HA switched off here.
+
+## Renovate
+
+**What it is.** A dependency update bot comparable to Dependabot, with broader file support: Docker Compose image tags, Ansible Galaxy requirements, pinned digests, and grouping or auto-merge rules per package.
+
+**Here.** Not used. Dependabot covers GitHub Actions only, and the compose images are deliberately left out of it ([dependabot.yml](../homelab-server-architecture/.github/dependabot.yml)).
+
+**Why it matters.** It can keep a pinned tag and its digest together and propose both at once, which is the piece a manual pinning policy is missing.
 
 ## repeat_interval (Alertmanager)
 
@@ -1186,6 +1250,14 @@ every upload would overwrite the previous one.
 `category` argument is the part that is easy to leave out and silently wrong: with one category for
 several images, the tab shows the last upload and reports the earlier findings as fixed.
 
+## SBOM (Software Bill of Materials)
+
+**What it is.** A machine-readable list of every component inside a piece of software - packages, versions, licences - in a standard format such as SPDX or CycloneDX.
+
+**Here.** Produced monthly for the pinned images by the `sbom.yml` workflow, as one of the four exercises in the [exercise-scope decision](../homelab-server-architecture/docs/decisions/exercise-scope-before-terraform.md).
+
+**Why it matters.** When a new vulnerability is published, an SBOM answers "are we affected" without pulling and scanning every image again. Several regulations, including the EU Cyber Resilience Act, now require one for products.
+
 ## scrub (SnapRAID)
 
 **What it is.** Re-reading data already in the array and checking it against the parity, to find
@@ -1250,6 +1322,14 @@ table rows, fenced code and YAML frontmatter, where those characters mean someth
 **Why it matters.** It is a silent formatting fault: the source looks right, the renderer disagrees,
 and no linter in a documentation repository need notice. A blank line is the whole fix.
 
+## Sigstore and cosign
+
+**What it is.** Sigstore is a public infrastructure for signing software artefacts without managing long-lived keys; `cosign` is its tool for signing and verifying container images. Signatures are logged in a public transparency log, Rekor.
+
+**Here.** `sbom.yml` installs cosign and verifies the images that publish a signature.
+
+**Why it matters.** A signature proves which builder produced an image, which a tag or a digest alone does not. Verifying it before deployment is the check that stops a tampered registry image.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -1264,6 +1344,14 @@ lives *inside* the free memory it tracks, corrupting one slot poisons the chain.
 allocation from that cache follows the bad pointer and faults - so unrelated processes die one after
 another with an identical error. Seeing the same faulting address repeat across different programs
 is the signature: one corruption event, re-read many times, not many separate faults.
+
+## SLSA (Supply-chain Levels for Software Artifacts)
+
+**What it is.** A framework (pronounced "salsa") that grades how trustworthy a build is, in levels: whether provenance is recorded, whether it is signed, whether the build ran on a hardened, isolated builder.
+
+**Here.** Not applied. Nothing is built here; the platform consumes upstream images, so the question is only whether those images carry SLSA provenance that can be checked.
+
+**Why it matters.** It is the vocabulary in which supply-chain requirements are written, and a provenance attestation is what a verifier checks alongside a signature.
 
 ## smartmon.sh and prometheus-node-exporter-collectors
 
@@ -1334,6 +1422,14 @@ Its limit is worth knowing - softdog is a kernel timer, so a completely locked-u
 watchdog down with it. Only a hardware watchdog survives that case, which is the argument for
 preferring `sp5100_tco` if it works on this board.
 
+## SOPS
+
+**What it is.** Secrets OPerationS, a tool that encrypts only the values in a YAML, JSON or env file and leaves the keys readable, using age, PGP or a cloud key service.
+
+**Here.** Not used; secrets in the repository are held with Ansible Vault.
+
+**Why it matters.** A diff of a SOPS file shows which secret changed, where an Ansible Vault diff shows only that the ciphertext changed. It is common in GitOps and Terraform setups, which is where the next track goes.
+
 ## sponge (moreutils)
 
 **What it is.** A small utility that reads all of its input before it writes any output. `cmd |
@@ -1346,6 +1442,14 @@ produced anything.
 redirect exposes a window in which the file is empty or half written and the metrics simply vanish
 for a scrape. Absent is not zero: a rule written as `> 0` reads an absent metric as silence rather
 than as a fault.
+
+## SSH certificates
+
+**What it is.** Instead of listing public keys in every `authorized_keys` file, a certificate authority signs a user's key with a validity period and a principal name, and servers trust the CA through `TrustedUserCAKeys`.
+
+**Here.** Not used. Access is managed by listing keys, per node, which is how a retired key stayed authorised as root on the hypervisor after it had been removed everywhere else.
+
+**Why it matters.** Certificates expire on their own, so a lost laptop stops being a standing credential. Tools such as step-ca, Teleport or Vault issue them, and Tailscale SSH offers a managed variant.
 
 ## sudoers.d and NOPASSWD
 
@@ -1415,6 +1519,14 @@ power-schedule scripts log under `homelab-setwake` and `homelab-shutdown`. Read 
 **Why it matters.** Cron sends output by mail, and on this host mail goes nowhere (see local
 mailer). The journal persists across the nightly power-off, so it is where this evidence can
 actually be read.
+
+## Tailnet Lock
+
+**What it is.** A Tailscale feature in which new nodes must be signed by trusted keys held on your own devices before other nodes accept them, rather than being admitted by the coordination server alone.
+
+**Here.** Not enabled, measured 2026-09-26 with `tailscale lock status`. Every access decision on this platform rests on the tailnet ([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
+
+**Why it matters.** Without it, whoever controls the coordination server or the admin account can add a node to the tailnet. With it, that also needs a signing key held on your own devices.
 
 ## taint flags
 
@@ -1549,6 +1661,14 @@ different things depending which side you ask from, and `nobody` in a container 
 kernel declining to answer rather than a real owner. See also
 [capabilities](#capabilities-and-cap_dac_override).
 
+## VEX (Vulnerability Exploitability eXchange)
+
+**What it is.** A statement attached to an SBOM saying whether a known vulnerability actually affects the product - "not affected, the vulnerable function is never called" - in a machine-readable form.
+
+**Here.** Not used. The weekly image scan reports every CVE that matches a package version, without that context.
+
+**Why it matters.** Most scanner findings are not exploitable where they occur, and VEX is the standard way to record that judgement once instead of re-reading the same list every week.
+
 ## vzdump
 
 **What it is.** Proxmox's backup tool for VMs and containers. `--mode snapshot` archives a
@@ -1598,6 +1718,14 @@ only Proxmox-native way to activate it drags in [HA](#ha-high-availability) and
 [fencing](#fencing). It also explains why systemd's own watchdog cannot simply be switched on: the
 device is taken, so systemd needs either a second device or watchdog-mux out of the way.
 
+## Wazuh
+
+**What it is.** An open-source security monitoring platform combining a host agent, log analysis, file integrity monitoring and vulnerability detection with a central manager - a free SIEM and XDR.
+
+**Here.** Not deployed. The platform's nearest equivalents are the `fleet_snapshot` diff, the `auditd` exercise and the journal aggregation.
+
+**Why it matters.** It is what those three pieces look like assembled into one product, and a common entry-level SIEM in small companies and security training.
+
 ## wildcard bind
 
 **What it is.** A listening socket bound to "every address" rather than to one: `0.0.0.0` for IPv4,
@@ -1626,3 +1754,11 @@ straight to the editor's port.
 **Why it matters.** It explains a listener that looks worse than it is: `coolwsd` binds `*:9983`,
 and nothing is supposed to reach it there, because every request arrives through the proxy. The bind
 is still wrong by this platform's rule - it is simply not the hole it appears to be.
+
+## Zero Trust
+
+**What it is.** An architecture principle: no request is trusted because of where on the network it comes from. Each access is authenticated, authorised against the identity and device making it, and limited to what is needed. Described in NIST SP 800-207.
+
+**Here.** The platform's access model: the LAN is untrusted, services bind the tailnet address, and ACL tags decide which node may reach which port ([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)). What it lacks is the per-request identity layer, which is what the identity track adds.
+
+**Why it matters.** It replaces the perimeter model, in which everything inside the firewall trusted everything else - the model that lets one compromised laptop reach every server.
