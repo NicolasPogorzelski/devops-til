@@ -583,6 +583,19 @@ switch entirely, so both answered correctly on lxc250 the whole time MagicDNS wa
 other program on the node. A tool that proves the resolver works proves nothing about whether
 anything can reach it. `getent` is the one that asks the question the applications ask.
 
+## GGUF
+
+**What it is.** The single-file model format of llama.cpp: weights, tokenizer and metadata in one
+file, usually already quantized. A vision model comes as two files, the model and an `mmproj`
+projector that turns an image into tokens the model can read.
+
+**Here.** Both inference backends load GGUF files from a models directory, one subdirectory per
+model with its projector beside it ([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)). Files are checked against the SHA-256
+Hugging Face publishes before they are used.
+
+**Why it matters.** A model is a file with a checksum, not an entry in a tool's private registry.
+It can be copied, verified, moved to another disk and managed by Ansible like any other artifact.
+
 ## GitOps
 
 **What it is.** Running infrastructure so that a Git repository is the declared desired state and an
@@ -594,6 +607,20 @@ them, and the weekly drift sweep only reports divergence; it does not correct it
 
 **Why it matters.** It turns drift correction from a report into a loop and makes every change
 reviewable as a commit. It is the default deployment model in Kubernetes environments.
+
+## GTT (Graphics Translation Table)
+
+**What it is.** The part of system RAM that an AMD GPU can map and use as if it were its own
+memory, over PCIe. The kernel reports it per process next to VRAM, in `/proc/<pid>/fdinfo/*`
+(`drm-total-vram`, `drm-total-gtt`).
+
+**Here.** Used on 2026-09-29 to prove that the 27B model on the admin desktop sits entirely in
+VRAM: 15.5 GiB VRAM, 93 MiB GTT, the latter being ordinary transfer buffers
+([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)).
+
+**Why it matters.** When VRAM runs out, a Vulkan driver can place the overflow in GTT silently.
+The model still works, only several times slower, and no log line says why. Reading `fdinfo` turns
+a guess into a measurement.
 
 ## HA (High Availability)
 
@@ -729,6 +756,20 @@ session. It also sets the shape of the precaution around such a change: the risk
 existing session, it is whether a *new* one can still be established afterwards, which is why the
 old one stays open until a fresh one is proven.
 
+## KV cache
+
+**What it is.** The memory in which a language model keeps the intermediate results (keys and
+values) of every token already in the context, so it does not recompute them for each new token.
+It grows with the context length and is reserved when the model loads.
+
+**Here.** Both backends store it as `q8_0` (8-bit) instead of 16-bit, which roughly halves it.
+That is what fits 64K of context next to the 27B model on a 20 GB card
+([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)).
+
+**Why it matters.** Model size alone does not say whether a model fits. Weights plus KV cache
+plus the desktop's own use must stay under the VRAM, and the KV cache is the part that the context
+setting controls.
+
 ## lateral movement
 
 **What it is.** An attacker who has taken one system using it as a base to reach the next, instead
@@ -784,6 +825,35 @@ rest of the playbook from whatever tree the control node held.
 
 **Why it matters.** A limit is read as "only these nodes", but it applies to every play, and a play
 it empties is skipped without an error.
+
+## linger (systemd user manager)
+
+**What it is.** `loginctl enable-linger <user>` starts that user's systemd instance at boot and
+keeps it running without a login. Without it, user units start only when the user logs in and
+stop when the last session ends.
+
+**Here.** Enabled for `admin` on the Bazzite desktop. The `llama-server` Quadlet is a user unit,
+so linger is what makes the primary inference backend available after a reboot with nobody at the
+machine. It was first switched on for an earlier Whisper experiment and kept for this reason.
+
+**Why it matters.** It looks like leftover configuration once its original purpose is gone.
+Switching it off breaks nothing visible on the desktop and silently takes the backend offline
+until the next login.
+
+## llama.cpp and llama-server
+
+**What it is.** llama.cpp is the C/C++ inference engine behind most local LLM tools, with
+backends for CUDA, Vulkan, ROCm and the CPU. `llama-server` is its built-in HTTP server with an
+OpenAI-compatible API. In router mode (`--models-dir`) it starts without a model, loads one on the
+first request that names it, and unloads it after an idle period (`--sleep-idle-seconds`).
+
+**Here.** It replaced Ollama on both inference nodes on 2026-09-29, the official container image
+in the same build on each ([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)). Measured on the same hardware and model:
+40.6 against 26.1 tokens/s on the desktop.
+
+**Why it matters.** Ollama wraps a similar engine in a convenience layer and picks up its
+optimisations late. The wrapper cost 35 % on the AMD card and 9 % on the NVIDIA card, so which
+tool is "best" depended on the hardware and had to be measured.
 
 ## LLMNR and mDNS
 
@@ -1266,6 +1336,34 @@ its cookie to its own host name, narrower than it has to.
 that nobody has listed, one customer could set cookies for every other customer's site, which is
 the problem the list exists to close.
 
+## Quadlet (Podman)
+
+**What it is.** A way to declare a Podman container as a systemd unit: a `.container` file in
+`~/.config/containers/systemd/` (or `/etc/containers/systemd/`) is translated into a regular
+service at `daemon-reload`. `/usr/libexec/podman/quadlet -dryrun -user` shows the generated unit
+without starting anything.
+
+**Here.** The `llama-server` backend on the Bazzite desktop is a rootless Quadlet, source in
+`snippets/bazzite/` of the homelab repository.
+
+**Why it matters.** Restart on failure, start at boot, logs in the journal and dependencies all
+come from systemd rather than from a container daemon, and the container runs as the user, not as
+root. On an image-based OS it needs nothing layered onto the image.
+
+## quantization (Q4_K_M, Q3_K_XL)
+
+**What it is.** Storing a model's weights with fewer bits than it was trained with, typically 3 to
+8 instead of 16. The name encodes the scheme: `Q4_K_M` is 4-bit in llama.cpp's K-quant family,
+medium variant; Unsloth's `UD-Q3_K_XL` is a dynamic 3-bit mix that keeps sensitive layers at
+higher precision.
+
+**Here.** The desktop runs the 27B model in Q3 because Q4 did not fit fully on the GPU next to
+the desktop's own use; vm100 runs its 9B model in Q4 ([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)).
+
+**Why it matters.** A model that spills partly to the CPU loses far more speed than one step of
+quantization loses quality. The choice is between a smaller quantization and a smaller model, not
+between quality and speed.
+
 ## quorum
 
 **What it is.** The rule a cluster uses to decide whether it is allowed to act: a majority of nodes
@@ -1305,6 +1403,20 @@ so too while its own route is not live.
 **Why it matters.** Repetition is how a channel teaches its reader to stop reading. When the same
 message arrives six times, check whether anything changed between them before treating each one as
 news - on 2026-09-22/24, two notifications out of roughly twenty carried information.
+
+## ROCm
+
+**What it is.** AMD's GPU compute stack, the counterpart to NVIDIA's CUDA: kernel driver interface
+(`/dev/kfd`), runtime and math libraries (rocBLAS and others), with per-architecture support such
+as `gfx1100` for the RX 7900 series.
+
+**Here.** Ollama's bundled ROCm 7.2.1 aborted on every model load on the Bazzite desktop after its
+kernel and firmware updates, while Fedora's ROCm 7.1.1 ran. Even working, it generated tokens 21 %
+slower than Vulkan on that card, so the desktop uses Vulkan ([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)).
+
+**Why it matters.** ROCm ships its own user-space runtime inside each application or image, so its
+compatibility with the host kernel is decided per image and can break with an OS update that
+touched nothing in the application.
 
 ## RTC and rtcwake
 
@@ -1923,6 +2035,20 @@ that context.
 
 **Why it matters.** Most scanner findings are not exploitable where they occur, and VEX is the
 standard way to record that judgement once instead of re-reading the same list every week.
+
+## Vulkan (compute) and RADV
+
+**What it is.** Vulkan is a cross-vendor graphics and compute API. RADV is Mesa's open-source
+Vulkan driver for AMD GPUs, shipped with the OS. llama.cpp can run inference on it without any
+vendor compute stack installed.
+
+**Here.** The primary inference backend on the Bazzite desktop runs llama.cpp on Vulkan/RADV:
+40 tokens/s against 33 with ROCm, and it needs only the render node, not `/dev/kfd`
+([LLM inference](../homelab-server-architecture/docs/services/llm-inference.md)).
+
+**Why it matters.** The driver comes with the operating system and games already depend on it, so
+it is updated and tested with the desktop instead of against it. The trade is prompt processing,
+where ROCm was about 8 % faster.
 
 ## vzdump
 
