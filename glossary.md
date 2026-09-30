@@ -982,6 +982,20 @@ zero ([game streaming stutter](applications/game-streaming-stutter.md)).
 dropping on overflow is behaving correctly, so nothing logs it. Count packets at both ends of
 the same interval; the difference is the only evidence.
 
+## mtime
+
+**What it is.** The modification time the filesystem stores for every file: the moment its content
+was last written. `stat -c %y <file>` prints it, and `ls -l` shows it in short form. Reading or
+copying a file does not change it; rewriting it with the same content does.
+
+**Here.** The quick check for whether an Ansible change reached a node: if the template's last
+commit is newer than the mtime of the file the role rendered, the playbook has not run since the
+change. See [Documentation-vs-Reality Audits](operations/doc-reality-audit.md#merged-is-not-applied-2026-09-30).
+
+**Why it matters.** It answers "when did this file last change" without a log. It cannot answer
+"is the content current": a role that renders identical content may leave the time untouched, so a
+date comparison only narrows the question, and `--check --diff` settles it.
+
 ## mTLS (mutual TLS)
 
 **What it is.** TLS in which both sides present a certificate, so the server authenticates the
