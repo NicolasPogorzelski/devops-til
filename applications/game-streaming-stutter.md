@@ -249,6 +249,76 @@ layers fixed it:
 2. **Root cause** - move from the pinned beta to stable 2026.914 (also a high-severity Linux
    security fix). The full connect -> gamepad -> quit cycle then ran without a crash.
 
+### Two gaps that showed up later (2026-10-01)
+
+The layers above held for crashes. They did not cover two ordinary events, and both broke
+the same assumption: **that the switch is a global setting.** It never was - it was a
+script that edits files, run at two moments.
+
+**1. A file born after the event is never touched.** A game patched with goverlay ran at
+75 FPS at the desk. The process environment named the config it actually loaded
+(`tr '\0' '\n' < /proc/<pid>/environ | grep MANGOHUD_CONFIGFILE`), and goverlay had just
+rewritten that per-game `MangoHud.conf` with its default `fps_limit=0` - unlimited, so the
+game ran to the 75 Hz ceiling. `mangohud-fps-mode` only edits files that exist when
+Sunshine calls it; a config created afterwards keeps whatever its writer put there until
+the next connect.
+
+The fix splits **desired state** from **enforcement**. `stream`/`desk` now write the mode
+to `~/.local/state/mangohud-fps-mode`, and `mangohud-fps-sync.service` runs a loop that
+re-applies it every 2 s, writing only the files that differ. That makes the loop
+[idempotent](../glossary.md#idempotency): with nothing to correct it writes nothing, and
+its own write does not trigger another. It is the same shape as
+[GitOps](../glossary.md#gitops) drift correction, at the scale of one key in ten files.
+Polling instead of inotify because `inotifywait` is not on the image and a recursive watch
+gains nothing over reading ten small files every two seconds.
+
+**2. A disconnect is not a session end.** That morning a stream had lasted 15 s; since then
+every other config sat at the stream limit of 60. Comparing the end of that session with a
+clean one in the Sunshine log showed the difference:
+
+| Session end | Log after `CLIENT DISCONNECTED` |
+|---|---|
+| "Quit app" in Moonlight (2026-09-29) | `Executing Undo Cmd` 8 s later |
+| Connection dropped (2026-10-01) | nothing, for nine hours |
+
+Sunshine runs `undo` when the *app is closed*. A client that merely disconnects leaves the
+session open so it can be resumed - so "undo on disconnect" was never what
+`global_prep_cmd` promised. The drop-in from above did not help either: it only runs when
+Sunshine *starts*.
+
+`sunshine-session-watch` follows the unit's journal (`journalctl -f -n 0 -o cat`). When the
+last client is gone and nobody reconnects within 30 s, it calls `POST /api/apps/close` on
+Sunshine's web API. Sunshine then runs its own `undo`, the path that was already tested,
+and the next connect is a fresh session with `do`. The rejected alternative - the watcher
+runs the desk/stream scripts itself on disconnect/reconnect - needs no password, but a
+resume would switch the display layout while Sunshine is re-opening the capture, a race
+nobody had tested.
+
+The API needs the web UI password, which shaped most of the script:
+
+- It is stored as an encrypted [systemd credential](../glossary.md#systemd-credentials)
+  (`systemd-creds encrypt --user`) and handed to the unit with `LoadCredentialEncrypted=`.
+  A credential is read **when the service starts**: after changing the password,
+  `systemctl --user restart`, not `start` - `start` on a running unit does nothing, and the
+  watcher would have kept the old password until its first real use failed with 401.
+- It reaches `curl` through stdin (`printf ... | curl -K -`, `printf` being a shell builtin),
+  never as an argument, so it does not show up in `ps`.
+- The certificate is self-signed for a name other than `localhost`, so `--cacert` fails
+  hostname verification. `-k` alone would send the password to anything listening on port
+  47990 while Sunshine is down; `--pinnedpubkey` (still checked under `-k`) restricts it to
+  the holder of Sunshine's private key - [public key pinning](../glossary.md#public-key-pinning).
+- **A secret typed at a prompt that has already timed out lands in the shell.** The first
+  `systemd-ask-password` call expired, and the password was entered at the next `$` prompt
+  as a command - into the session's history. Bash writes history at exit, so `history -d`
+  before closing the terminal keeps it out of `~/.bash_history`. The password was rotated
+  anyway.
+
+The general rule behind both gaps: **an event-driven switch is only as complete as its list
+of events.** List the ways the state can change, not the ways you intended to change it -
+here a third writer (goverlay) and a third way to end a session (the drop) were missing.
+Where the list cannot be complete, keep the desired state somewhere and reconcile against
+it.
+
 ### Upgrading Sunshine from Homebrew on an immutable desktop
 
 - The beta was [pinned](../glossary.md#homebrew-pin) because Vulkan encoding once existed

@@ -1575,6 +1575,22 @@ lock. That single comparison ruled out both a disk problem and a runaway process
 is the most useful diagnostic pair on this platform: **load says how many are waiting, pressure says
 what they are waiting for.**
 
+## public key pinning
+
+**What it is.** Accepting a TLS server only if its certificate carries one specific public key,
+given as a hash, instead of (or in addition to) checking that a trusted CA signed it for the
+requested host name. `curl --pinnedpubkey sha256//<base64>` does this and keeps checking the pin
+even under `-k`, which switches off the CA and host name checks.
+
+**Here.** `sunshine-session-watch` sends the Sunshine web UI password to
+`https://localhost:47990`. Sunshine's certificate is self-signed for another name, so normal
+verification fails; the script computes the pin from Sunshine's own `cacert.pem` at run time
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** `-k` alone authenticates nobody: any process that binds the port first while
+the real service is down receives the credential. A pin restores authentication without a CA, and
+breaks loudly (curl exit 90) instead of leaking when the key changes.
+
 ## Public Suffix List
 
 **What it is.** A list, maintained at `publicsuffix.org`, of domain suffixes under which unrelated
@@ -2095,7 +2111,8 @@ GameStream used.
 
 **Here.** Sunshine runs as a systemd user unit on the gaming PC (Bazzite, installed from
 Homebrew); Moonlight runs on the Nvidia Shield attached to the TV. Sunshine's
-`global_prep_cmd` switches displays and the MangoHud FPS limit on connect and disconnect
+`global_prep_cmd` switches displays and the MangoHud FPS limit when a session starts and when
+the app is closed - not on a mere disconnect, which keeps the session open for a resume
 ([game streaming stutter](applications/game-streaming-stutter.md)).
 
 **Why it matters.** The stream crosses many independent stages - game, capture, encoder,
@@ -2138,6 +2155,23 @@ one, `sysctl -w` sets one for this boot, and a file in `/etc/sysctl.d/` makes it
 
 Together they turn "the machine is alive and unreachable" into "the machine rebooted". On a host with
 no out-of-band console, that trade is almost always worth taking.
+
+## systemd credentials
+
+**What it is.** A way to hand a secret to one service without putting it in the unit, the
+environment or a world-readable file. `systemd-creds encrypt` seals it with a key bound to the
+machine (and, with `--user`, to the user); `LoadCredentialEncrypted=<id>:<path>` in the unit
+decrypts it at service start into a private directory that only that service sees,
+named by `$CREDENTIALS_DIRECTORY`.
+
+**Here.** The Sunshine web UI password for `sunshine-session-watch.service`, a user unit on the
+gaming PC, stored as `~/.config/sunshine-session-watch/api.cred`
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** Environment variables leak into child processes and `/proc/<pid>/environ`,
+and a plain file leaks into every backup. The encrypted file is useless off this machine. The
+catch: it is read once, at start - a changed secret needs a `restart`, and `start` on a running
+unit does nothing.
 
 ## systemd-cat
 
