@@ -29,6 +29,23 @@ was restored by hand on 2026-08-21.
 two media covers a media defect, one off site covers site loss, the extra 1 covers ransomware and a
 stolen credential, and the 0 covers the question that decides the day - whether it restores.
 
+## ADB (Android Debug Bridge)
+
+**What it is.** Android's remote-control channel: a client on the PC talks to a daemon on the
+device over USB or TCP (port 5555 for network debugging) and gets a shell, log access
+(`logcat`), screenshots (`screencap`) and file transfer. The first connection from a new PC
+must be approved on the device's screen; the PC's key is then remembered.
+
+**Here.** The Nvidia Shield that receives the game stream. Enabled under Developer options ->
+Network debugging, installed on Bazzite with `brew install android-platform-tools`. It turned
+the Shield into a second measuring point for
+[game streaming stutter](applications/game-streaming-stutter.md): interface counters, UDP
+errors, Moonlight's log and its performance overlay.
+
+**Why it matters.** Network debugging gives every approved PC on the LAN a full shell on the
+device. Switch it off when the diagnosis is done. As a technique, it is the difference between
+guessing about the far end of a pipeline and measuring it.
+
 ## air gap
 
 **What it is.** Keeping a copy off any network path that could reach it, usually by physically
@@ -219,6 +236,21 @@ documentation, YAML and shell, none of which CodeQL supports well enough to be w
 not. `upload-sarif` is the generic publishing endpoint that happens to live in the CodeQL
 repository, which is also why Dependabot's weekly pull requests carry `codeql-action` in the title
 for a repository that runs no CodeQL. Read the sub-path, not the repository name.
+
+## compositor
+
+**What it is.** The part of a Wayland desktop that owns the screen: it takes the images every
+application renders, combines them into one frame per display refresh, and hands that frame to
+the kernel for output. On GNOME it is Mutter, inside `gnome-shell`.
+
+**Here.** On the gaming PC, GNOME's compositor drives both the desk monitor and the streaming
+dummy plug. When it misses a refresh, every application on that output misses it too - which
+is why a trivial `vkcube` stuttered on the dummy plug more than the game did
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** Frame timing problems that affect every program on one output belong to the
+compositor or something competing with it, not to the programs. Test with a known-trivial
+client before tuning an application.
 
 ## corosync
 
@@ -445,6 +477,22 @@ it has been wrong: A.8.5 read *Enforced* for weeks while two nodes still accepte
 false assurance suppresses discovery more effectively than a stated gap does, because nobody looks
 at a row that already says yes.
 
+## drop-in (systemd)
+
+**What it is.** A file in `<unit>.d/*.conf` next to a unit that adds to or overrides single
+settings of that unit without editing the unit file itself. systemd merges them in order;
+`systemctl cat <unit>` shows the result, and `systemctl daemon-reload` makes a new drop-in
+take effect.
+
+**Here.** The Sunshine user unit on the gaming PC carries two: `homebrew-env.conf`
+(environment for the Homebrew install) and `reset-desk-state.conf`, which restores the desk
+monitor and MangoHud limit on every start
+([game streaming stutter](applications/game-streaming-stutter.md)). The same mechanism is used
+for service overrides throughout the homelab ([systemd Basics](linux/systemd-basics.md)).
+
+**Why it matters.** A drop-in survives when the package replaces the unit file, and removing it
+is one `rm` plus a reload. Editing the vendor unit in place is lost on the next upgrade.
+
 ## eBPF
 
 **What it is.** Extended Berkeley Packet Filter: a way to load small, verified programs into the
@@ -573,6 +621,20 @@ away.
 **Why it matters.** Inheriting a socket and binding one look identical from outside and are not the
 same act. The whole of [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24)
 is a daemon that should have reused an inherited descriptor and tried to bind instead.
+
+## frame pacing
+
+**What it is.** How evenly frames are delivered in time, as opposed to how many arrive per
+second. 60 FPS at a steady 16.7 ms per frame and 60 FPS alternating 13 ms and 20 ms show the
+same average and look completely different.
+
+**Here.** A game streamed from the gaming PC showed "60 FPS" in every overlay while a per-frame
+MangoHud log showed a third of frames too early and a quarter too late. A limiter fixed it
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** Averages are computed over windows longer than the problem. A single slow
+frame every few seconds is invisible in a one-second FPS counter and obvious to a viewer. Look
+at the distribution - per-frame logs, percentiles - before trusting a rate.
 
 ## frontmatter
 
@@ -707,6 +769,35 @@ IPv4 silently. One that does not, as some TV apps do not, waits for the IPv6 att
 
 **Why it matters.** It is why removing an address family looks harmless in a browser and can still
 break an embedded client. The fallback is a property of each client, not of the server.
+
+## HDMI dummy plug
+
+**What it is.** A small plug in a GPU output that pretends to be a monitor: it reports display
+modes to the graphics driver, so the desktop can run at a resolution and refresh rate no
+physical screen is showing.
+
+**Here.** The gaming PC streams at 4K from a dummy plug on `HDMI-1`. It is enabled in every
+layout (portal capture is bound to it): 60 Hz as an invisible second monitor at the desk,
+120 Hz HDR while streaming, with games capped at 60 FPS. It has no [VRR](#vrr-and-vsync).
+
+**Why it matters.** A fixed-rate display without VRR exposes every uneven frame, which a VRR
+desk monitor hides. It is also a physical dependency: a plug in the wrong port made every
+stream fail to start, because the prep command targeted a connector with nothing attached.
+
+## Homebrew pin
+
+**What it is.** `brew pin <formula>` excludes a formula from `brew upgrade` and blocks its
+uninstall until `brew unpin`. The pin records *that* a version was frozen, not *why*.
+
+**Here.** On Bazzite, command-line tools the image does not ship come from Homebrew. The
+`sunshine-beta` formula had been pinned at setup because Vulkan encoding was needed. Months
+later the stable release carried that feature, a security fix, and no crash on session end -
+and the pin was the only reason the crashing version was still installed
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** A pin is a decision with an expiry date. Write the reason next to it, so
+the next reader can check whether it still holds. Same failure class as a stale reference in
+[Tailscale Exit Nodes](networking/tailscale-exit-nodes.md).
 
 ## hook output fields (Claude Code)
 
@@ -843,6 +934,22 @@ session. It also sets the shape of the precaution around such a change: the risk
 existing session, it is whether a *new* one can still be established afterwards, which is why the
 old one stays open until a fresh one is proven.
 
+## KMS capture
+
+**What it is.** Screen capture that reads the picture straight from the kernel's display
+subsystem (Kernel Mode Setting, the part of the graphics driver that drives outputs), below
+the desktop [compositor](#compositor). It needs `cap_sys_admin` on the capturing binary.
+
+**Here.** Sunshine's capture method on the gaming PC until the stutter diagnosis; now kept only
+as a rollback (`sunshine-display-mode kms-desk`). It survives display switching because it does
+not care which monitor was active at startup - but it samples on Sunshine's own clock and
+converts on the same GPU as the compositor, and measurably made GNOME miss refreshes
+([game streaming stutter](applications/game-streaming-stutter.md), cause 5).
+
+**Why it matters.** It works everywhere, which is why tools default to it - but it bypasses the
+compositor instead of cooperating with it. Reading a buffer the compositor is about to reuse,
+on an unsynchronised clock, is a contention source that no log reports.
+
 ## KV cache
 
 **What it is.** The memory in which a language model keeps the intermediate results (keys and
@@ -869,6 +976,22 @@ the rebuild described in
 
 **Why it matters.** Most intrusions start on the weakest system, not the most valuable one. What
 limits the damage is how little the first foothold can reach.
+
+## LD_LIBRARY_PATH
+
+**What it is.** An environment variable listing directories the dynamic linker searches for
+shared libraries *before* the system defaults (`man 8 ld.so`). Every child process inherits it,
+including programs that never asked for it.
+
+**Here.** The Sunshine user unit on the gaming PC sets it to Homebrew's `lib/`. `gdctl` runs on
+`/usr/bin/python3`, which then loaded Homebrew's `libpython3.14.so` and could not import the
+system `gi` module - the display-restore safety net failed silently for weeks behind a
+fail-open `-`. The fix drops the variable for that one call: `env -u LD_LIBRARY_PATH gdctl`
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** It is set for one program and silently changes every program that program
+starts. When a tool works in a terminal but not from a service, compare the environments -
+`env` in both, `ldd` on the failing binary.
 
 ## LDAP (Lightweight Directory Access Protocol)
 
@@ -1068,6 +1191,36 @@ does not switch the host off. Phishing-resistant forms are described under
 
 **Why it matters.** A leaked password stops being enough. TOTP codes can still be phished in real
 time, which is where passkeys go further.
+
+## microburst
+
+**What it is.** A burst of packets sent at full line rate for a few milliseconds, even though
+the average rate is low. Where a link steps down in speed (2.5 Gbit/s in, 1 Gbit/s out), the
+device in between must buffer what it cannot forward yet; a small buffer overflows and drops
+the tail of the burst.
+
+**Here.** Sunshine sends each video frame as one burst. The gaming PC's 2.5 Gbit/s port fed a
+path that ended at a 1 Gbit/s switch port to the Shield: about 4.7 % of packets vanished with
+no error counter on either network card. Limiting the PC to 1 Gbit/s made the loss exactly
+zero ([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** Average bandwidth (150 Mbit/s here) says nothing about bursts, and a switch
+dropping on overflow is behaving correctly, so nothing logs it. Count packets at both ends of
+the same interval; the difference is the only evidence.
+
+## mtime
+
+**What it is.** The modification time the filesystem stores for every file: the moment its content
+was last written. `stat -c %y <file>` prints it, and `ls -l` shows it in short form. Reading or
+copying a file does not change it; rewriting it with the same content does.
+
+**Here.** The quick check for whether an Ansible change reached a node: if the template's last
+commit is newer than the mtime of the file the role rendered, the playbook has not run since the
+change. See [Documentation-vs-Reality Audits](operations/doc-reality-audit.md#merged-is-not-applied-2026-09-30).
+
+**Why it matters.** It answers "when did this file last change" without a log. It cannot answer
+"is the content current": a role that renders identical content may leave the time untouched, so a
+date comparison only narrows the question, and `--check --diff` settles it.
 
 ## mTLS (mutual TLS)
 
@@ -1933,6 +2086,22 @@ living unbackuped on a single container is its own open item. The two guards aro
 decoration: mode `0440` keeps it unwritable, and the syntax check matters because a malformed file in
 this directory makes `sudo` refuse to run at all, on a node where root SSH is already disabled.
 
+## Sunshine and Moonlight
+
+**What it is.** A self-hosted game streaming pair. Sunshine runs on the host, captures the
+screen, encodes it as video and sends it over the network; Moonlight is the client that
+decodes and shows it, and sends controller input back. The protocol is the one Nvidia
+GameStream used.
+
+**Here.** Sunshine runs as a systemd user unit on the gaming PC (Bazzite, installed from
+Homebrew); Moonlight runs on the Nvidia Shield attached to the TV. Sunshine's
+`global_prep_cmd` switches displays and the MangoHud FPS limit on connect and disconnect
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** The stream crosses many independent stages - game, capture, encoder,
+network, decoder, display - each of which can cause stutter. The client overlay and the host
+log together show which stage lost the frame.
+
 ## supply chain attack
 
 **What it is.** An attack that reaches a target through something the target depends on, rather
@@ -2108,6 +2277,21 @@ device unit tentative.
 device without one still works perfectly; only systemd's view of it stays incomplete. Reading the
 unit state instead of the device is how that turns into a false alarm.
 
+## UDP
+
+**What it is.** The User Datagram Protocol: sends individual packets with no connection, no
+acknowledgement and no retransmission. A lost packet is simply gone; anything that needs
+reliability must add it on top.
+
+**Here.** Sunshine sends the game stream over UDP. Moonlight adds forward error correction
+(spare packets that let it rebuild a few lost ones) and asks for a fresh full frame when too
+many are missing - visible as a hitch. On Linux and Android, `/proc/net/snmp` counts UDP
+receive-buffer overflows (`RcvbufErrors`).
+
+**Why it matters.** For live video a late packet is worthless, so UDP is the right choice -
+but it means loss shows up as picture errors instead of slowdowns, and nothing on the path
+reports it. Loss must be measured, not waited for.
+
 ## ugrep (in the Claude Code tool shell)
 
 **What it is.** A grep implementation with its own regex engine, bundled into the Claude
@@ -2167,6 +2351,21 @@ different things depending which side you ask from, and `nobody` in a container 
 kernel declining to answer rather than a real owner. See also
 [capabilities](#capabilities-and-cap_dac_override).
 
+## VA-API and Vulkan Video
+
+**What it is.** Two Linux interfaces to the GPU's hardware video encoder. VA-API (Video
+Acceleration API) is the long-established one; Vulkan Video exposes the same hardware through
+the Vulkan graphics API and is newer (on AMD's Mesa driver it needs
+`RADV_EXPERIMENTAL=video_encode`).
+
+**Here.** Sunshine on the gaming PC encodes with Vulkan Video on the RX 7900 XT, as Bazzite's
+service configures it. Switching to VA-API was tried during the stutter diagnosis on a wrong
+premise; it added about 3 ms host latency and changed nothing else, and was reverted
+([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** "Experimental" is a label, not a measurement. Compare encoders by host
+processing latency with everything else held constant, not by reputation.
+
 ## vCPU overcommit
 
 **What it is.** Giving the guests more virtual CPUs in total than the host has hardware threads. Each
@@ -2191,6 +2390,20 @@ that context.
 
 **Why it matters.** Most scanner findings are not exploitable where they occur, and VEX is the
 standard way to record that judgement once instead of re-reading the same list every week.
+
+## VRR and VSync
+
+**What it is.** VSync makes the GPU wait for the display's next fixed refresh before showing a
+frame, so frames never tear but must fit a fixed grid (16.7 ms at 60 Hz). VRR (Variable
+Refresh Rate) lets the display wait for the GPU instead: the refresh happens when the frame is
+ready, within the display's supported range.
+
+**Here.** The desk monitor supports VRR up to 75 Hz, the streaming [dummy plug](#hdmi-dummy-plug)
+does not. The MangoHud limit is therefore 72 at the desk (below the VRR ceiling) and exactly
+60 while streaming ([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** VRR hides uneven [frame pacing](#frame-pacing). A game that looks smooth on
+a VRR monitor can stutter on any fixed-rate output - a TV, a capture device, a stream.
 
 ## Vulkan (compute) and RADV
 
@@ -2306,6 +2519,22 @@ instead of typing the passphrase.
 **Why it matters.** Its PIN method has a well-known design weakness, and the push-button method lets
 anyone near the router join during the window. With a passphrase in place it adds reach and no
 protection.
+
+## XDG Desktop Portal (screencast)
+
+**What it is.** A desktop service through which sandboxed or unprivileged programs ask the user
+for access to things like the screen. The user picks a monitor in a consent dialog, and the
+program receives that monitor's picture through PipeWire, the Linux media-routing service.
+
+**Here.** Sunshine's capture method on the gaming PC (`capture = portal`). The grant is bound to
+the chosen monitor, so the [dummy plug](#hdmi-dummy-plug) now exists in every display layout;
+only the desk monitor comes and goes. The first attempt failed because the prep command
+disabled the granted monitor (`RemoteDesktop Start failed`). GNOME 50 passes HDR through
+(BT.2020 + PQ) ([game streaming stutter](applications/game-streaming-stutter.md)).
+
+**Why it matters.** The compositor pushes each finished frame instead of the capturer reading
+behind its back - no privileges, no clock race. The price is that consent is tied to a
+monitor: anything that reconfigures displays must keep that monitor alive.
 
 ## Zero Trust
 

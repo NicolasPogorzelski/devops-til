@@ -76,6 +76,42 @@ None of these throw an error. Each requires reading the *effective* state
 believe you supplied. **Trust the output of the system, not the intent of the
 config.**
 
+## Merged is not applied (2026-09-30)
+
+A repository that deploys configuration through Ansible roles holds every file twice: the template
+in git, and the file the role rendered onto the node. A merge changes only the first. On 2026-09-29
+the changelog said the inference health probe had moved to port 8080, and the
+`prometheus_config` template carried it. The rendered `prometheus.yml` on the monitoring node did
+not, because the playbook had not run since 2026-09-15.
+
+A quick filter is to compare two dates, the last commit that touched the template and the
+[mtime](../glossary.md#mtime) of the file on the node:
+
+```bash
+git log -1 --format='%h %ad' --date=short -- ansible/roles/prometheus_config/templates/prometheus.yml.j2
+ssh <node> stat -c %y /opt/monitoring/prometheus/prometheus.yml
+```
+
+- `git log -1` shows only the newest commit; `--format='%h %ad'` prints its short hash and author
+  date, `--date=short` as `YYYY-MM-DD`, and `-- <path>` limits the log to commits touching that file.
+- `stat -c %y` prints the file's last modification time, and nothing else.
+
+A template newer than the rendered file means the change never reached the node. The dates are a
+hint, not proof: a run that renders identical content does not rewrite the file. The proof is
+`ansible-playbook <playbook> --check --diff --limit <node>`, which prints the lines a real run
+would change.
+
+The first reading of this case went wrong in a way worth keeping. Grepping the live config for the
+port found nothing, and the finding was written up as "the documentation claims a probe that does
+not exist" - which points the reconciliation at the document. The document was right; the node was
+stale. Only reading the template and the file date side by side showed which side had moved, which
+is the direction decision from the table above, made on too little evidence.
+
+The same session re-read a list of 21 findings from July against `main` and the fleet. Eleven were
+already closed, among them the hypervisor sshd hardening the list ranked highest. A findings list
+is a measurement with a date on it; acting on it weeks later without measuring again redoes
+finished work and misses what changed underneath.
+
 ## Public-repo hygiene: facts, not exploit detail
 
 For a portfolio/public repo, when an audit finds a live security gap that is
