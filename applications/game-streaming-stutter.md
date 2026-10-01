@@ -182,7 +182,7 @@ exists in every layout**:
 
 | Layout | Monitors |
 |---|---|
-| desk | `DP-1` primary + dummy at 60 Hz right of it (invisible second monitor) |
+| desk | `DP-1` primary + dummy at 60 Hz left of it, shifted down (invisible second monitor) |
 | stream | dummy only, 4K 120 Hz, HDR (`bt2100`) |
 
 Only `DP-1` comes and goes; the granted monitor never disappears, so the grant (stored in
