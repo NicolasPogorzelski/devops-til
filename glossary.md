@@ -117,6 +117,20 @@ AppImage into `/tmp` and starts `coolwsd` from it as `www-data`. That is why the
 owning the app that ships it, and its files live in `/tmp` on the container's root disk. A component
 that arrives this way skips the new-service checklist without anybody deciding to skip it.
 
+## ARP spoofing
+
+**What it is.** On an Ethernet segment, a machine finds the hardware address behind an IP address
+by asking with ARP and believing whatever answer arrives. Any device on the segment can answer for
+an address that is not its own and receive the traffic meant for it.
+
+**Here.** It is why the LAN exception in the [SMB binding decision](../homelab-server-architecture/docs/decisions/smb-bind-and-lan-access.md) counts as a residual risk:
+`smb_guard` on vm102 admits port 445 from two LAN source addresses, and a device on the home LAN
+that claims one of them passes that filter. It still needs a Samba account's password.
+
+**Why it matters.** It is the concrete reason an IP address is not an identity. A filter on source
+addresses holds against devices that play by the rules; a control that has to hold against one
+that does not needs a key, which is what WireGuard and Tailscale provide.
+
 ## blackbox exporter
 
 **What it is.** A Prometheus exporter that probes a target from outside instead of reading metrics
@@ -219,6 +233,21 @@ host is a standalone node - there is no cluster for corosync to talk to.
 says "HA needs a quorate cluster", corosync is what provides the quorum. On a single node those
 features are technically present and practically meaningless, which is a trap rather than a
 convenience - see [HA](#ha-high-availability) and [quorum](#quorum).
+
+## CPU type and x86-64 levels (Proxmox)
+
+**What it is.** The CPU model a virtual machine is shown, set per VM in Proxmox (`cpu:`). The
+generic levels `x86-64-v2`, `-v3` and `-v4` each promise a fixed set of instruction extensions, so a
+VM can move between hosts of different generations; `host` passes the physical CPU through as it is.
+`-v2` stops before AVX2, `-v3` includes it.
+
+**Here.** vm102 runs `x86-64-v2-AES`, measured 2026-10-01. The Ryzen 2600X underneath supports
+AVX2, and there is one host, so the portability the generic level buys is not used.
+
+**Why it matters.** Software picks its fastest code path from the extensions it sees. WireGuard's
+ChaCha20-Poly1305, which Tailscale runs in user space, has an AVX2 path; behind `-v2` it falls back to
+a slower one. It did not limit the 1 GbE ingress test, where neither vCPU saturated, but it would at
+2.5 GbE.
 
 ## CrowdSec
 
@@ -361,6 +390,21 @@ it with `apt-cache show <package> | grep -E '^(Depends|Recommends)'`.
 **Why it matters.** A `Depends` cannot be switched off with a flag, only neutralised after the
 fact - here by masking the unit before the install. Assuming a helper package is inert is how
 lxc260 ended up with two exporters fighting over one port.
+
+## DERP relay and direct connection (Tailscale)
+
+**What it is.** Two ways a packet between two tailnet nodes can travel. A direct connection is a
+WireGuard tunnel between the two nodes' own addresses; DERP (Designated Encrypted Relay for Packets)
+is a relay server run by Tailscale on the internet, used only while no direct path can be built.
+The traffic stays end-to-end encrypted either way; what changes is the route and the speed.
+
+**Here.** `tailscale ping storage` from the admin desktop answers `via <lan-ip>:41641 in 1ms`, which
+is a direct connection over the home LAN. Measured on 2026-10-01, an SMB upload over that path
+reached about 95 MB/s, so the internet uplink plays no part in media ingress.
+
+**Why it matters.** It decides whether a transfer between two machines in the same room runs at LAN
+speed or at the speed of the internet connection twice over. A relayed path is the first thing to
+check when a tailnet transfer is unexpectedly slow, and `tailscale ping` shows it in one line.
 
 ## DevOps
 
@@ -637,6 +681,33 @@ guests to - while it does bring its full set of consequences, above all self-fen
 here is deliberately recovery-oriented rather than highly available: the design accepts downtime and
 invests in being able to come back.
 
+## hairpinning (NAT loopback)
+
+**What it is.** Traffic between two devices in the same network that is sent to the router's public
+address and turned back into the network by the router, instead of going straight from one device
+to the other.
+
+**Here.** It does not happen on this platform. Tailscale nodes on the same LAN learn each other's
+local addresses through [NAT traversal](#nat-traversal) and connect directly, so tailnet traffic
+between them never reaches the router's public side.
+
+**Why it matters.** Where it does happen, a local transfer is capped by the router's NAT throughput
+and can break outright on routers that do not support it, which is a common reason for a service
+that works from outside and fails from inside the same home network.
+
+## Happy Eyeballs
+
+**What it is.** The client behaviour (RFC 8305) of trying IPv6 and IPv4 for the same name in quick
+succession and keeping whichever connects first, so a broken IPv6 path costs a fraction of a second
+instead of a timeout.
+
+**Here.** It decides what happens if Jellyfin stops listening on IPv6: MagicDNS returns both an IPv4
+and an IPv6 tailnet address for `gpu-vm`, and a client that implements Happy Eyeballs falls back to
+IPv4 silently. One that does not, as some TV apps do not, waits for the IPv6 attempt to time out.
+
+**Why it matters.** It is why removing an address family looks harmless in a browser and can still
+break an embedded client. The fallback is a property of each client, not of the server.
+
 ## hook output fields (Claude Code)
 
 **What it is.** A Claude Code hook speaks through JSON on stdout. Three fields carry
@@ -653,6 +724,22 @@ block - the call proceeds.
 **Why it matters.** The wrong field is not an error, it is a different behaviour: the
 reminder written as `additionalContext` re-invoked the model on every turn end (measured
 2026-09-17), and a guard timeout is the width of a bypass, not a safety margin.
+
+## host-only bridge
+
+**What it is.** A Linux bridge on the hypervisor with no physical network port attached
+(`bridge-ports none`). Guests given a virtual NIC on it can reach each other and the host, and
+nothing else: no frame on it ever reaches the wire, and no device on the LAN can send one to it.
+
+**Here.** Not built. It is the candidate for carrying SMB between the Proxmox host, vm100 and vm102
+instead of the LAN, an alternative to step 2 of the [SMB binding decision](../homelab-server-architecture/docs/decisions/smb-bind-and-lan-access.md), which moves the
+same mounts onto Tailscale. On Proxmox it is a `vmbr` stanza in `/etc/network/interfaces` without
+a `bridge-ports` member.
+
+**Why it matters.** It takes the LAN out of the path by construction rather than by filter, and it
+adds no daemon the mount would have to wait for at boot. What it does not give is identity:
+inside the bridge, addresses are still only addresses, which is acceptable because only the
+hypervisor decides what attaches to it.
 
 ## hrtimer interrupt warning
 
@@ -994,6 +1081,20 @@ connection by node key, which is why the journal upload runs plain HTTP
 **Why it matters.** It is how service-to-service authentication works where there is no overlay
 network - in Kubernetes [service meshes](#service-mesh) and between cloud services - and is the
 comparison the plain-HTTP choice here is meant to prompt.
+
+## NAT traversal
+
+**What it is.** The set of techniques two devices behind address translation use to reach each
+other directly: each learns the addresses at which it can be reached, they exchange them through a
+coordination service, and both send packets at the same time until one pair of addresses works.
+
+**Here.** Tailscale does this for every pair of nodes. Inside the home LAN the local address wins
+immediately, which is why the admin desktop reaches vm102 over a
+[direct connection](#derp-relay-and-direct-connection-tailscale) rather than through a relay.
+
+**Why it matters.** It is what lets an overlay network avoid both open ports on the router and a
+central relay for every byte. When it fails, Tailscale falls back to DERP and keeps working, only
+slower, so the failure shows up as a performance problem rather than an outage.
 
 ## netconsole (and netpoll)
 
@@ -1639,6 +1740,21 @@ missing.
 **Why it matters.** A signature proves which builder produced an image, which a tag or a digest
 alone does not. Verifying it before deployment is the check that stops a tampered registry image.
 
+## SLAAC and router advertisements
+
+**What it is.** IPv6's way of handing out addresses without a DHCP server. The router periodically
+sends a router advertisement (RA) naming the network prefix, and every host builds its own address
+from that prefix (Stateless Address Autoconfiguration). With a provider prefix, that address is
+globally routable.
+
+**Here.** vm100's netplan file mentions only `dhcp4`, yet `enp6s18` carries a global `2a01:` address
+and a ULA, both built from the router's RAs by `systemd-networkd` (measured 2026-10-01; the kernel's
+`accept_ra` reads 0 because networkd handles RAs itself). `accept-ra: false` in netplan stops it.
+
+**Why it matters.** A host gets a world-routable address without anyone configuring one, and every
+service bound to `[::]` is listening on it. What keeps it closed then is the router's inbound IPv6
+policy, a setting this repository does not control.
+
 ## slab allocator
 
 **What it is.** The kernel's allocator for its own small, frequently reused objects. It keeps
@@ -1681,6 +1797,21 @@ PASSED for a disk with 7680 unreadable sectors, because the drive's own self-ass
 that attribute against a threshold it can never cross. The per-attribute export is what makes the
 question answerable at all: not whether a disk calls itself healthy, but whether its error counters
 moved since yesterday.
+
+## SMB signing and encryption
+
+**What it is.** Two protections of SMB2/3 that Samba can require per server or per share. Signing
+(`server signing = mandatory`) adds a cryptographic checksum to every message, so a message altered
+or injected on the way is rejected. Encryption (`smb encrypt = required`) also hides the content.
+Both are keyed from the session's authentication, so they protect the transport, not access to it.
+
+**Here.** Neither is required on vm102 today. The shares are reached over the LAN, over Tailscale,
+whose WireGuard tunnel already provides both properties, and possibly later over a
+[host-only bridge](#host-only-bridge), where no third party can sit on the path.
+
+**Why it matters.** They are the way to protect SMB on a network you do not control, without
+putting a tunnel underneath it. Where a tunnel or an isolated segment already does that job,
+requiring them costs CPU on every read and buys little.
 
 ## socat
 
@@ -1771,6 +1902,18 @@ authorised as root on the hypervisor after it had been removed everywhere else.
 **Why it matters.** Certificates expire on their own, so a lost laptop stops being a standing
 credential. Tools such as step-ca, Teleport (an access platform that brokers SSH and database
 sessions) or HashiCorp Vault issue them, and Tailscale SSH offers a managed variant.
+
+## steal time
+
+**What it is.** The share of time a virtual CPU was ready to run but the hypervisor was running
+something else. Linux in a guest reports it as `steal` in `/proc/stat` and in `top` as `st`.
+
+**Here.** The guests hold 26 vCPUs on the host's 12 threads. During the SMB ingress test on
+2026-10-01, vm102 read 0 to 0.5 % steal, sampled every second, so the overcommit cost nothing.
+
+**Why it matters.** It is the one number that tells you whether [vCPU overcommit](#vcpu-overcommit)
+is hurting a guest. High CPU inside a guest with zero steal is the guest's own load; rising steal
+means the host is the bottleneck and adding vCPUs to the guest makes it worse.
 
 ## sudoers.d and NOPASSWD
 
@@ -2024,6 +2167,19 @@ different things depending which side you ask from, and `nobody` in a container 
 kernel declining to answer rather than a real owner. See also
 [capabilities](#capabilities-and-cap_dac_override).
 
+## vCPU overcommit
+
+**What it is.** Giving the guests more virtual CPUs in total than the host has hardware threads. Each
+vCPU is an ordinary host thread, scheduled like any other; an idle vCPU costs nothing.
+
+**Here.** 26 vCPUs on 12 threads, measured 2026-10-01: vm100 8, lxc230 4, and two each for vm102 and
+the six other containers, at a host load near 0.7.
+
+**Why it matters.** It resembles thin provisioning, with a milder failure: when guests want more CPU
+at once than the host has, they slow down and [steal time](#steal-time) rises, but nothing breaks. A
+full thin pool, by contrast, returns I/O errors. The limit to watch is concurrent demand, not the sum
+of the numbers.
+
 ## VEX (Vulnerability Exploitability eXchange)
 
 **What it is.** A statement attached to an SBOM saying whether a known vulnerability actually
@@ -2165,3 +2321,19 @@ is the per-request identity layer, which is what the identity track adds.
 
 **Why it matters.** It replaces the perimeter model, in which everything inside the firewall trusted
 everything else - the model that lets one compromised laptop reach every server.
+
+## zones and conduits (IEC 62443)
+
+**What it is.** The segmentation model of IEC 62443, the security standard family for industrial
+automation. Assets with the same security requirements are grouped into a zone; every path of
+communication between zones is a conduit, which is named, minimal and protected by its own controls.
+Anything that is not a declared conduit is not allowed to exist.
+
+**Here.** The tailnet tags are the zones and the ACL rules the conduits. SMB between vm100, the
+Proxmox host and vm102 is the one data path that runs outside that model, over the LAN, as the
+[SMB binding decision](../homelab-server-architecture/docs/decisions/smb-bind-and-lan-access.md) records.
+
+**Why it matters.** It moves the question from "is this port filtered" to "is this path declared".
+OT practice adds one priority that IT tends to rank lower: a conduit on which the process depends
+should not depend on a service outside the site, which is the argument against putting the storage
+path on a tunnel whose control plane is someone else's.
