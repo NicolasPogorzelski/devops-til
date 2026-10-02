@@ -29,6 +29,24 @@ was restored by hand on 2026-08-21.
 two media covers a media defect, one off site covers site loss, the extra 1 covers ransomware and a
 stolen credential, and the 0 covers the question that decides the day - whether it restores.
 
+## abliteration
+
+**What it is.** A weight edit that removes a language model's tendency to refuse. Inside the model,
+refusing turns out to be carried largely by one direction in its internal activations: run the
+model on prompts it refuses and on prompts it answers, subtract the averages, and that difference
+is the "refusal direction". Abliteration projects this direction out of the weight matrices, so
+the model can no longer move its activations along it. The result is published as a separate model,
+usually with `abliterated` in the name. No retraining is involved, which is why it is cheap and
+why it is imprecise: the same direction also carries some of the model's caution and formatting.
+
+**Here.** A candidate for the local AI workflow, tested against its own base model rather than
+taken on trust, because the published variants are made by individuals and not by the vendor.
+
+**Why it matters.** Refusals live in the weights, so no system prompt or harness setting removes
+them reliably. The documented cost is quality, above all in tool calling, which is exactly what an
+agent depends on. And a model that refuses nothing is no longer a guard against anything: every
+limit then has to come from the harness.
+
 ## ADB (Android Debug Bridge)
 
 **What it is.** Android's remote-control channel: a client on the PC talks to a daemon on the
@@ -527,6 +545,21 @@ interface through which ECC events would surface.
 **Here.** Initialised at boot (`EDAC MC: Ver: 3.0.0`), and reporting nothing - which follows from the
 memory having no [ECC](#ecc-error-correcting-code-memory) to report on.
 
+## egress
+
+**What it is.** Traffic leaving a system for somewhere else, as opposed to ingress, traffic
+arriving. Egress control decides where a host or process may connect to, not who may connect to
+it.
+
+**Here.** The platform's controls are almost entirely ingress controls: Tailscale ACLs, `lan_guard`,
+loopback binds. The local AI workflow is the first place where egress is the question, because its
+promise is that no data leaves, and that can only be shown by blocking or logging outbound
+connections.
+
+**Why it matters.** "It runs locally" says where inference happens, not where data goes. A
+locally pointed tool can still send telemetry, update checks or background requests to a vendor,
+and only an egress measurement tells the two apart.
+
 ## ExecStartPre
 
 **What it is.** A systemd service directive naming a command to run before the unit's own
@@ -769,6 +802,21 @@ IPv4 silently. One that does not, as some TV apps do not, waits for the IPv6 att
 
 **Why it matters.** It is why removing an address family looks harmless in a browser and can still
 break an embedded client. The fallback is a property of each client, not of the server.
+
+## harness (agent harness)
+
+**What it is.** The program around a language model that turns it into an agent: it builds the
+prompt, offers the model a set of tools, executes the tool calls the model asks for, feeds the
+results back and loops. Claude Code, OpenCode and Qwen Code are harnesses. The model only produces
+text; reading a file, running a shell command or searching the web is always the harness acting
+on that text.
+
+**Here.** The local AI workflow compares harnesses on the same local model served by
+`llama-server`, because the harness decides permissions, sandboxing and what leaves the machine.
+
+**Why it matters.** Every guard in an agent setup lives in the harness, not in the model: which
+commands need approval, which directories are writable, whether the network is reachable. Two
+harnesses on the same model can differ more than two models in the same harness.
 
 ## HDMI dummy plug
 
@@ -1560,6 +1608,20 @@ during [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-2
 went with it, and every later `sshd -t` failed on the missing directory rather than on the original
 cause - a diagnosis one layer away from the fault, produced by the cleanup rather than the defect.
 
+## prompt injection
+
+**What it is.** Instructions hidden in content a language model reads as data - a web page, a
+document, a code comment, a tool's output - which the model then follows as if the user had given
+them. It works because the model receives instructions and data as one stream of text and has no
+reliable way to tell them apart.
+
+**Here.** Relevant wherever a local agent both reads untrusted content and holds tools: a news
+agent fetching web pages, or a coding agent searching the web while it has a shell.
+
+**Why it matters.** There is no complete fix in the model. The defence is architectural: an agent
+that reads the internet gets no shell and no secrets, and an agent with a shell reads only trusted
+input or asks before acting. Least privilege, applied to tools.
+
 ## PSI (Pressure Stall Information)
 
 **What it is.** A kernel interface that reports how much time tasks spent *waiting* for CPU, memory
@@ -1824,6 +1886,20 @@ rather than that it achieved something - the same shape as `smart_health_passed`
 for a disk with 7680 unreadable sectors. The arithmetic is the point: 8 % a month is roughly a year
 for a full pass, so the coverage was not a fault but the schedule working as configured, and
 nothing was reading the number that would have said so.
+
+## SearXNG
+
+**What it is.** A self-hosted metasearch engine: it forwards a query to many public search engines,
+merges the results and returns them, without accounts, tracking cookies or profiling. It offers a
+JSON API, which is what lets an agent use it as its search tool.
+
+**Here.** Planned as the shared web-search backend for the local models, so that OpenWebUI and
+agent harnesses query one service the platform controls instead of each calling a commercial
+search API.
+
+**Why it matters.** Search cannot be local - the query has to reach the internet. SearXNG keeps
+the query away from an account and an API key, and its outbound traffic can be sent through one
+known path, but the search engines behind it still see each query.
 
 ## seccomp
 
@@ -2268,6 +2344,19 @@ telephony uses to set up calls.
 
 **Why it matters.** It turns a small compromise into a direct financial loss, and blocking the call
 classes nobody uses costs nothing.
+
+## tool calling
+
+**What it is.** A model's ability to answer with a structured request - a function name and JSON
+arguments - instead of prose, when it was told which tools exist. The harness executes the request
+and returns the result as the next message. Also called function calling. In llama.cpp it depends
+on the model's chat template, which `--jinja` makes `llama-server` apply.
+
+**Here.** The acceptance test of the desktop model on 2026-09-29 passed one tool call. An agent
+needs dozens in a row, each with valid arguments, which is a different test.
+
+**Why it matters.** It is the step where small and modified models fail first: a malformed
+argument or an invented tool name breaks the loop, and the agent stalls or improvises.
 
 ## TR-069
 
