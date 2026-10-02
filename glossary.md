@@ -14,6 +14,194 @@ a dictionary, not a register.
 
 ---
 
+## Contents
+
+- [3-2-1 rule (and 3-2-1-1-0)](#3-2-1-rule-and-3-2-1-1-0)
+- [abliteration](#abliteration)
+- [ADB (Android Debug Bridge)](#adb-android-debug-bridge)
+- [air gap](#air-gap)
+- [Alertmanager](#alertmanager)
+- [ansible_managed](#ansible_managed)
+- [any_errors_fatal (Ansible)](#any_errors_fatal-ansible)
+- [append-only (backup target)](#append-only-backup-target)
+- [AppImage](#appimage)
+- [ARP spoofing](#arp-spoofing)
+- [blackbox exporter](#blackbox-exporter)
+- [build provenance](#build-provenance)
+- [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override)
+- [CDI (Container Device Interface)](#cdi-container-device-interface)
+- [CNCF (Cloud Native Computing Foundation)](#cncf-cloud-native-computing-foundation)
+- [CodeQL](#codeql)
+- [compositor](#compositor)
+- [corosync](#corosync)
+- [CPU type and x86-64 levels (Proxmox)](#cpu-type-and-x86-64-levels-proxmox)
+- [CrowdSec](#crowdsec)
+- [CTID (container ID)](#ctid-container-id)
+- [CVE (Common Vulnerabilities and Exposures)](#cve-common-vulnerabilities-and-exposures)
+- [CVSS (Common Vulnerability Scoring System)](#cvss-common-vulnerability-scoring-system)
+- [D-state (uninterruptible sleep)](#d-state-uninterruptible-sleep)
+- [delegate_to and run_once (Ansible)](#delegate_to-and-run_once-ansible)
+- [Dependabot](#dependabot)
+- [Depends and Recommends (Debian packages)](#depends-and-recommends-debian-packages)
+- [DERP relay and direct connection (Tailscale)](#derp-relay-and-direct-connection-tailscale)
+- [DevOps](#devops)
+- [DevSecOps](#devsecops)
+- [drop-in (systemd)](#drop-in-systemd)
+- [eBPF](#ebpf)
+- [ECC (Error-Correcting Code memory)](#ecc-error-correcting-code-memory)
+- [EDAC (Error Detection And Correction)](#edac-error-detection-and-correction)
+- [egress](#egress)
+- [embedding](#embedding)
+- [ExecStartPre](#execstartpre)
+- [exit node (Tailscale) and Mullvad](#exit-node-tailscale-and-mullvad)
+- [Falco](#falco)
+- [fencing](#fencing)
+- [FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys)
+- [file descriptor](#file-descriptor)
+- [frame pacing](#frame-pacing)
+- [frontmatter](#frontmatter)
+- [FTS (full-text search)](#fts-full-text-search)
+- [FUSE (Filesystem in Userspace)](#fuse-filesystem-in-userspace)
+- [getent](#getent)
+- [GGUF](#gguf)
+- [GitOps](#gitops)
+- [GTT (Graphics Translation Table)](#gtt-graphics-translation-table)
+- [HA (High Availability)](#ha-high-availability)
+- [hairpinning (NAT loopback)](#hairpinning-nat-loopback)
+- [Happy Eyeballs](#happy-eyeballs)
+- [harness (agent harness)](#harness-agent-harness)
+- [HDMI dummy plug](#hdmi-dummy-plug)
+- [Homebrew pin](#homebrew-pin)
+- [hook output fields (Claude Code)](#hook-output-fields-claude-code)
+- [host-only bridge](#host-only-bridge)
+- [hrtimer interrupt warning](#hrtimer-interrupt-warning)
+- [idempotency](#idempotency)
+- [identity provider (IdP)](#identity-provider-idp)
+- [kernel oops](#kernel-oops)
+- [kex (SSH key exchange)](#kex-ssh-key-exchange)
+- [KillMode](#killmode)
+- [KMS capture](#kms-capture)
+- [KV cache](#kv-cache)
+- [lateral movement](#lateral-movement)
+- [LD_LIBRARY_PATH](#ld_library_path)
+- [LDAP (Lightweight Directory Access Protocol)](#ldap-lightweight-directory-access-protocol)
+- [least privilege](#least-privilege)
+- [limit (ansible-playbook --limit)](#limit-ansible-playbook---limit)
+- [linger (systemd user manager)](#linger-systemd-user-manager)
+- [llama.cpp and llama-server](#llamacpp-and-llama-server)
+- [LLMNR and mDNS](#llmnr-and-mdns)
+- [local mailer (Postfix and /etc/aliases)](#local-mailer-postfix-and-etcaliases)
+- [logical vs physical path (symlinks)](#logical-vs-physical-path-symlinks)
+- [LRM and CRM (Local / Cluster Resource Manager)](#lrm-and-crm-local--cluster-resource-manager)
+- [lxcfs](#lxcfs)
+- [machine sharing (Tailscale)](#machine-sharing-tailscale)
+- [MCE (Machine Check Exception)](#mce-machine-check-exception)
+- [memtest86+](#memtest86)
+- [MFA and TOTP](#mfa-and-totp)
+- [microburst](#microburst)
+- [MoE (mixture of experts)](#moe-mixture-of-experts)
+- [mtime](#mtime)
+- [mTLS (mutual TLS)](#mtls-mutual-tls)
+- [NAT traversal](#nat-traversal)
+- [netconsole (and netpoll)](#netconsole-and-netpoll)
+- [nftables](#nftables)
+- [nmi_watchdog](#nmi_watchdog)
+- [nowayout](#nowayout)
+- [nsswitch.conf](#nsswitchconf)
+- [nvcgo](#nvcgo)
+- [Object Lock (WORM)](#object-lock-worm)
+- [OCI hook (prestart hook)](#oci-hook-prestart-hook)
+- [OIDC (OpenID Connect)](#oidc-openid-connect)
+- [onboot](#onboot)
+- [OpenSSF Scorecard](#openssf-scorecard)
+- [OT (Operational Technology)](#ot-operational-technology)
+- [pct (Proxmox Container Toolkit)](#pct-proxmox-container-toolkit)
+- [Persistent=true (systemd timers)](#persistenttrue-systemd-timers)
+- [PerSourcePenalties (OpenSSH)](#persourcepenalties-openssh)
+- [pgvector](#pgvector)
+- [pipx](#pipx)
+- [pmxcfs (Proxmox Cluster File System)](#pmxcfs-proxmox-cluster-file-system)
+- [Policy-as-Code](#policy-as-code)
+- [privilege separation (OpenSSH)](#privilege-separation-openssh)
+- [prompt injection](#prompt-injection)
+- [PSI (Pressure Stall Information)](#psi-pressure-stall-information)
+- [public key pinning](#public-key-pinning)
+- [Public Suffix List](#public-suffix-list)
+- [Quadlet (Podman)](#quadlet-podman)
+- [quantization (Q4_K_M, Q3_K_XL)](#quantization-q4_k_m-q3_k_xl)
+- [quorum](#quorum)
+- [RAG (retrieval-augmented generation)](#rag-retrieval-augmented-generation)
+- [Renovate](#renovate)
+- [repeat_interval (Alertmanager)](#repeat_interval-alertmanager)
+- [ROCm](#rocm)
+- [RTC and rtcwake](#rtc-and-rtcwake)
+- [restic](#restic)
+- [rpcbind (and nfs-common)](#rpcbind-and-nfs-common)
+- [rpm-ostree](#rpm-ostree)
+- [RPO and RTO](#rpo-and-rto)
+- [restart policy (Docker)](#restart-policy-docker)
+- [SARIF (Static Analysis Results Interchange Format)](#sarif-static-analysis-results-interchange-format)
+- [SBOM (Software Bill of Materials)](#sbom-software-bill-of-materials)
+- [scrub (SnapRAID)](#scrub-snapraid)
+- [SearXNG](#searxng)
+- [seccomp](#seccomp)
+- [service mesh](#service-mesh)
+- [SIEM and XDR](#siem-and-xdr)
+- [SIGHUP (and what sshd does with it)](#sighup-and-what-sshd-does-with-it)
+- [Setext heading (Markdown)](#setext-heading-markdown)
+- [Sigstore and cosign](#sigstore-and-cosign)
+- [SLAAC and router advertisements](#slaac-and-router-advertisements)
+- [slab allocator](#slab-allocator)
+- [SLSA (Supply-chain Levels for Software Artifacts)](#slsa-supply-chain-levels-for-software-artifacts)
+- [smartmon.sh and prometheus-node-exporter-collectors](#smartmonsh-and-prometheus-node-exporter-collectors)
+- [SMB signing and encryption](#smb-signing-and-encryption)
+- [socat](#socat)
+- [socket activation](#socket-activation)
+- [softdog](#softdog)
+- [SOPS](#sops)
+- [speculative decoding](#speculative-decoding)
+- [sponge (moreutils)](#sponge-moreutils)
+- [SSH certificates](#ssh-certificates)
+- [steal time](#steal-time)
+- [sudoers.d and NOPASSWD](#sudoersd-and-nopasswd)
+- [Sunshine and Moonlight](#sunshine-and-moonlight)
+- [supply chain attack](#supply-chain-attack)
+- [sysctl](#sysctl)
+- [systemd credentials](#systemd-credentials)
+- [systemd-cat](#systemd-cat)
+- [Tailnet Lock](#tailnet-lock)
+- [taint flags](#taint-flags)
+- [tentative (systemd device unit state)](#tentative-systemd-device-unit-state)
+- [thin pool (LVM)](#thin-pool-lvm)
+- [tmpfs](#tmpfs)
+- [toll fraud](#toll-fraud)
+- [tool calling](#tool-calling)
+- [TR-069](#tr-069)
+- [Trivy](#trivy)
+- [udev](#udev)
+- [UDP](#udp)
+- [ugrep (in the Claude Code tool shell)](#ugrep-in-the-claude-code-tool-shell)
+- [UPnP and PCP](#upnp-and-pcp)
+- [uv (and `uv tool`)](#uv-and-uv-tool)
+- [user namespace and UID mapping](#user-namespace-and-uid-mapping)
+- [VA-API and Vulkan Video](#va-api-and-vulkan-video)
+- [vCPU overcommit](#vcpu-overcommit)
+- [VEX (Vulnerability Exploitability eXchange)](#vex-vulnerability-exploitability-exchange)
+- [VRR and VSync](#vrr-and-vsync)
+- [Vulkan (compute) and RADV](#vulkan-compute-and-radv)
+- [vzdump](#vzdump)
+- [WAL (write-ahead log)](#wal-write-ahead-log)
+- [watchdog-mux](#watchdog-mux)
+- [Wazuh](#wazuh)
+- [wildcard bind](#wildcard-bind)
+- [WOPI](#wopi)
+- [WPS (Wi-Fi Protected Setup)](#wps-wi-fi-protected-setup)
+- [XDG Desktop Portal (screencast)](#xdg-desktop-portal-screencast)
+- [Zero Trust](#zero-trust)
+- [zones and conduits (IEC 62443)](#zones-and-conduits-iec-62443)
+
+---
+
 ## 3-2-1 rule (and 3-2-1-1-0)
 
 **What it is.** Three copies of the data, on two kinds of media, one of them off site. The extended
@@ -560,6 +748,22 @@ connections.
 locally pointed tool can still send telemetry, update checks or background requests to a vendor,
 and only an egress measurement tells the two apart.
 
+## embedding
+
+**What it is.** Turning a piece of text into a vector - a list of numbers that captures its
+meaning - so that texts with similar meaning land close together even when they share no words. A
+small, specialised embedding model produces it; it generates no text, it measures meaning.
+
+**Here.** The building block of the planned private knowledge store on lxc260 (see [pgvector](#pgvector)):
+the semantic half, beside [full-text search](#fts-full-text-search) for exact wording. The compute is
+cheap enough to run on a CPU, so it needs no GPU of its own.
+
+**Why it matters.** It enables search by meaning rather than by exact word, and it is what lets a
+model work over data larger than its context window: instead of loading everything, an agent
+retrieves only the relevant chunks and reasons over those. That retrieval step is [RAG](#rag-retrieval-augmented-generation).
+
+---
+
 ## ExecStartPre
 
 **What it is.** A systemd service directive naming a command to run before the unit's own
@@ -685,6 +889,21 @@ means "a document begins here", not "metadata follows".
 **Why it matters.** Two constructs that look identical do different jobs, and only one of them has
 a closing delimiter. Deleting the `---` from a playbook because it "looked like empty frontmatter"
 is a plausible edit that `ansible-lint` will then object to.
+
+## FTS (full-text search)
+
+**What it is.** An index over the literal words of a body of text for fast exact and keyword
+queries - PostgreSQL's full-text search, or SQLite's FTS. It matches words, not meaning.
+
+**Here.** The exact-match half of the planned knowledge store: "find this known line" in a book or a
+note. It sits beside [embeddings](#embedding), which cover the case where the meaning is remembered
+but not the wording.
+
+**Why it matters.** For exact wording, FTS is precise and cheap, where a semantic search would
+return a confident near-miss. Using the fuzzy tool for an exact question is the classic retrieval
+mistake.
+
+---
 
 ## FUSE (Filesystem in Userspace)
 
@@ -1256,6 +1475,20 @@ zero ([game streaming stutter](applications/game-streaming-stutter.md)).
 dropping on overflow is behaving correctly, so nothing logs it. Count packets at both ends of
 the same interval; the difference is the only evidence.
 
+## MoE (mixture of experts)
+
+**What it is.** A model in which only a subset of parameters - the "experts" - activates per
+token, so a large total parameter count runs at the compute and memory-bandwidth cost of a much
+smaller active set. The "A3B" in a name means about three billion parameters active per token.
+
+**Here.** The 35B-A3B, the 30B-A3B coder and gpt-oss-20b are MoE; the chosen 27B is dense and
+activates all its parameters. See the [model and harness evaluation](../homelab-server-architecture/docs/decisions/local-ai-assistant-eval.md).
+
+**Why it matters.** MoE is faster per token for its size, but faster is not more correct: measured
+here, the MoE candidates lost the one objective code test that the slower dense 27B passed.
+
+---
+
 ## mtime
 
 **What it is.** The modification time the filesystem stores for every file: the moment its content
@@ -1550,6 +1783,20 @@ log is therefore not evidence that nothing was attempted, and troubleshooting an
 failure by reading the server's log alone can point at exactly the wrong layer. Raising `LogLevel` to
 `VERBOSE` is what makes the mechanism visible.
 
+## pgvector
+
+**What it is.** A PostgreSQL extension that adds a vector column type and nearest-neighbour
+search, so [embeddings](#embedding) live in the same database as ordinary structured data.
+
+**Here.** The proposed home for the knowledge store's semantic index, on lxc260's existing
+PostgreSQL - the cluster that is already dumped nightly and restore-tested monthly.
+
+**Why it matters.** It keeps the structured catalogue, the [full-text](#fts-full-text-search) index
+and the semantic index in one backed-up database instead of standing up a separate vector store
+with its own backup and failure modes.
+
+---
+
 ## pipx
 
 **What it is.** Installs a Python command-line tool into its own virtual environment and
@@ -1708,6 +1955,22 @@ cluster each believe they are in charge and both write to shared storage.
 [HA](#ha-high-availability), a node that believes it has lost quorum self-fences. On a single node
 there is no genuine loss of quorum to detect, only false positives - which is the core argument for
 leaving HA switched off here.
+
+## RAG (retrieval-augmented generation)
+
+**What it is.** Giving a model the relevant context at query time - retrieve first, then
+generate - instead of relying on what it memorised in training.
+
+**Here.** The pattern behind the planned knowledge store and behind auditing a repository larger
+than the context window: find the relevant files or passages, then answer over them.
+
+**Why it matters.** It lets a local model answer over private data it was never trained on and over
+data too large to fit the window. The retrieval decides the answer: feed it the wrong chunks and a
+capable model still answers wrongly, which is why the retrieval tool must match the question type -
+a structured SQL query for exact catalogue facts, [FTS](#fts-full-text-search) for exact wording,
+[embeddings](#embedding) for meaning.
+
+---
 
 ## Renovate
 
@@ -2122,6 +2385,22 @@ and leaves the keys readable, using age, PGP or a cloud key service.
 **Why it matters.** A diff of a SOPS file shows which secret changed, where an Ansible Vault diff
 shows only that the ciphertext changed. It is common in [GitOps](#gitops) and Terraform setups,
 which is where the next track goes.
+
+## speculative decoding
+
+**What it is.** A speedup in which a small "draft" model proposes several tokens and the large
+model verifies them in a single pass, keeping the ones it would have produced anyway. The output is
+identical; the large model simply takes fewer steps.
+
+**Here.** Considered to speed up the slow dense 27B on the desktop. It needs the draft and target
+models in the same process and backend, so it cannot be handed to another machine (a CUDA draft
+cannot accelerate the desktop's Vulkan target).
+
+**Why it matters.** It can roughly double tokens per second with no quality loss, but it needs spare
+VRAM for the draft model - which a 20 GB card already filled by the 27B barely has, so it is a
+trade against context size, not a free win.
+
+---
 
 ## sponge (moreutils)
 
