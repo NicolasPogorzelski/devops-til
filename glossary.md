@@ -1974,8 +1974,9 @@ moved since yesterday.
 or injected on the way is rejected. Encryption (`smb encrypt = required`) also hides the content.
 Both are keyed from the session's authentication, so they protect the transport, not access to it.
 
-**Here.** Neither is required on vm102 today. The shares are reached over the LAN, over Tailscale,
-whose WireGuard tunnel already provides both properties, and possibly later over a
+**Here.** vm102 requires signing (`server signing = required`, read with `testparm -s` on
+2026-10-01) and does not require encryption. The shares are reached over the LAN, over Tailscale,
+whose WireGuard tunnel already encrypts, and possibly later over a
 [host-only bridge](#host-only-bridge), where no third party can sit on the path.
 
 **Why it matters.** They are the way to protect SMB on a network you do not control, without
