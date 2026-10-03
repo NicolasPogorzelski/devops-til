@@ -26,10 +26,12 @@ a dictionary, not a register.
 - [append-only (backup target)](#append-only-backup-target)
 - [AppImage](#appimage)
 - [ARP spoofing](#arp-spoofing)
+- [automount (systemd)](#automount-systemd)
 - [blackbox exporter](#blackbox-exporter)
 - [build provenance](#build-provenance)
 - [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override)
 - [CDI (Container Device Interface)](#cdi-container-device-interface)
+- [CIFS (Common Internet File System)](#cifs-common-internet-file-system)
 - [CNCF (Cloud Native Computing Foundation)](#cncf-cloud-native-computing-foundation)
 - [CodeQL](#codeql)
 - [compositor](#compositor)
@@ -52,6 +54,7 @@ a dictionary, not a register.
 - [EDAC (Error Detection And Correction)](#edac-error-detection-and-correction)
 - [egress](#egress)
 - [embedding](#embedding)
+- [errno (error number)](#errno-error-number)
 - [ExecStartPre](#execstartpre)
 - [exit node (Tailscale) and Mullvad](#exit-node-tailscale-and-mullvad)
 - [Falco](#falco)
@@ -354,6 +357,25 @@ that claims one of them passes that filter. It still needs a Samba account's pas
 addresses holds against devices that play by the rules; a control that has to hold against one
 that does not needs a key, which is what WireGuard and Tailscale provide.
 
+## automount (systemd)
+
+**What it is.** A `.automount` unit puts a trigger on an empty directory instead of mounting
+something there. The first program that touches the path makes systemd start the matching `.mount`
+unit and holds that access until the mount has succeeded or failed. The kernel side of the trigger
+is `autofs`, which is why `mount` lists an `autofs` entry on the path even while nothing is mounted.
+`TimeoutIdleSec=` unmounts it again after a quiet period.
+
+**Here.** vm100's four media shares from vm102: `srv-media-filme`, `srv-media-serien`,
+`srv-media-audiobooks` and `srv-media-podcasts`, each a `.automount` with `TimeoutIdleSec=600` over a
+[CIFS](#cifs-common-internet-file-system) `.mount`. Docker is ordered after the four triggers by the
+`docker_mount_ordering` role.
+
+**Why it matters.** The trigger and the mount fail independently. A trigger is up in milliseconds
+whether or not the server answers, so ordering after it costs nothing and guarantees nothing about
+the data. The mount is attempted at first access, and if that attempt fails, that one access fails
+- on vm100 the access was `runc` binding the path into Jellyfin, so the container start failed with
+it ([KE-27](../homelab-server-architecture/docs/platform/known-errors.md#ke-27)). The next access tries again, which is why a plain `docker start` later succeeds.
+
 ## blackbox exporter
 
 **What it is.** A Prometheus exporter that probes a target from outside instead of reading metrics
@@ -414,6 +436,22 @@ container's device request `nvidia.com/gpu=all` against it.
 `unresolvable CDI devices nvidia.com/gpu=all`, and falls back to the legacy
 [OCI hook](#oci-hook-prestart-hook). The declarative path is configured and never used at boot; the
 fragile path is the one that runs.
+
+## CIFS (Common Internet File System)
+
+**What it is.** The name Linux keeps for its SMB client. The protocol it speaks today is SMB2 or SMB3;
+CIFS was strictly the old SMB1 dialect, but the kernel module, `mount -t cifs`, `mount.cifs` and every
+kernel log line (`CIFS: VFS: ...`) still carry the name.
+
+**Here.** vm100 mounts its four media shares from vm102 this way (`Type=cifs`, `vers=3.1.1`, read
+only), and the Proxmox host mounts its service shares the same way. vm102's Samba is the server.
+
+**Why it matters.** Two client-side properties have shown up on this platform. All mounts from one
+client to one server share a single TCP connection, with one SMB session per user on top of it, so
+mounts made in the same instant are not independent of each other. And the kernel reports a failed
+mount as a negative [errno](#errno-error-number) in `cifs_mount failed w/return code = -N`, which is
+the fastest way to tell a server that is unreachable (`-113`) from one that refused or could not
+complete the session (`-11`, `-13`) ([KE-27](../homelab-server-architecture/docs/platform/known-errors.md#ke-27)).
 
 ## CNCF (Cloud Native Computing Foundation)
 
@@ -763,6 +801,25 @@ model work over data larger than its context window: instead of loading everythi
 retrieves only the relevant chunks and reasons over those. That retrieval step is [RAG](#rag-retrieval-augmented-generation).
 
 ---
+
+## errno (error number)
+
+**What it is.** The small integer a Linux system call returns to say why it failed, each with a
+symbolic name: `EACCES` (13, permission denied), `EAGAIN` (11, resource temporarily unavailable -
+try again), `ENODEV` (19, no such device), `EHOSTUNREACH` (113, no route to host),
+`EADDRNOTAVAIL` (99, the address to bind does not exist on this machine). Programs print either the
+name, the text, or the number; the kernel itself often prints the number negated. `errno -l` (from
+`moreutils`) lists them all.
+
+**Here.** In vm100's journal, `cifs_mount failed w/return code = -11` and `-113`, followed by
+`runc`'s `no such device` when the container tried to bind the unmounted path; on the
+Tailscale-bound services, `EADDRNOTAVAIL` at boot.
+
+**Why it matters.** The number distinguishes faults that look the same one layer up. On vm100 both
+`-113` (vm102 unreachable) and `-11` (vm102 up, session setup refused) ended in the same
+`no such device` from Docker, and only the errno in the kernel log told them apart
+([KE-27](../homelab-server-architecture/docs/platform/known-errors.md#ke-27)). `EAGAIN` in particular is an explicit "this may work if you repeat it", which
+makes a retry the matching response rather than a workaround.
 
 ## ExecStartPre
 
@@ -2104,6 +2161,10 @@ start is attempted once at daemon start and then dropped: `RestartCount` stays 0
 still points at the previous clean shutdown, so `docker ps -a` prints `Exited (0)` and looks exactly
 like a container somebody stopped on purpose. This is what kept Jellyfin down on vm100 on
 2026-08-24 until it was started by hand.
+It happened four times on vm100 between 2026-08-05 and 2026-10-03, twice from the NVIDIA hook and
+twice from a failed [CIFS](#cifs-common-internet-file-system) mount behind an
+[automount](#automount-systemd). The `docker_boot_retry` role now starts such containers once per
+boot, selecting them by a non-empty `State.Error`, which `docker stop` never sets ([KE-27](../homelab-server-architecture/docs/platform/known-errors.md#ke-27)).
 
 ## SARIF (Static Analysis Results Interchange Format)
 
