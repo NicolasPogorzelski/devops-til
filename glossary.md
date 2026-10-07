@@ -107,6 +107,7 @@ a dictionary, not a register.
 - [mTLS (mutual TLS)](#mtls-mutual-tls)
 - [NAT traversal](#nat-traversal)
 - [netconsole (and netpoll)](#netconsole-and-netpoll)
+- [netstack (Tailscale)](#netstack-tailscale)
 - [nftables](#nftables)
 - [nmi_watchdog](#nmi_watchdog)
 - [nowayout](#nowayout)
@@ -134,6 +135,7 @@ a dictionary, not a register.
 - [quantization (Q4_K_M, Q3_K_XL)](#quantization-q4_k_m-q3_k_xl)
 - [quorum](#quorum)
 - [RAG (retrieval-augmented generation)](#rag-retrieval-augmented-generation)
+- [Recv-Q and Send-Q](#recv-q-and-send-q)
 - [Renovate](#renovate)
 - [repeat_interval (Alertmanager)](#repeat_interval-alertmanager)
 - [ROCm](#rocm)
@@ -181,6 +183,7 @@ a dictionary, not a register.
 - [tool calling](#tool-calling)
 - [TR-069](#tr-069)
 - [Trivy](#trivy)
+- [TUN device](#tun-device)
 - [udev](#udev)
 - [UDP](#udp)
 - [ugrep (in the Claude Code tool shell)](#ugrep-in-the-claude-code-tool-shell)
@@ -1602,6 +1605,26 @@ why the receiver binds the LAN address rather than the Tailscale one, a document
 platform's binding rule: a Tailscale address lives on a TUN device served by a userspace daemon,
 and that daemon is frozen along with everything else during exactly the failure being captured.
 
+## netstack (Tailscale)
+
+**What it is.** A complete TCP/IP stack that `tailscaled` runs inside its own process, built on
+gVisor's network code, instead of handing packets to the kernel. Every connection that ends there is
+accepted, acknowledged, buffered and flow-controlled by Go code in one daemon rather than by the
+kernel's TCP implementation.
+
+**Here.** `tailscaled` on vm100 runs in kernel mode with a [TUN device](#tun-device), yet the
+netstack is still in play: `tailscale serve --tcp` terminates the incoming connection in the netstack
+and opens a second, ordinary connection to `127.0.0.1`. Until 2026-10-07 every Jellyfin stream to the
+streaming box crossed it.
+
+**Why it matters.** It is a second TCP stack in the data path, and its limits are not the kernel's.
+On 2026-10-07 a stream stalled with `tailscaled` holding 5.8 MB of video it had accepted from the
+loopback side and was not passing on, while the journal logged
+`netstack: decrementing connsInFlightByClient[...] because the packet was not handled` for the
+client's new connections. Binding Jellyfin to the Tailscale address directly took the netstack out of
+the path; the same stream then ran without a stall at roughly half the `tailscaled` CPU. Which limit
+inside the netstack tripped was not established.
+
 ## nftables
 
 **What it is.** The Linux kernel's packet filter, and the successor to iptables. Rules live in named
@@ -2028,6 +2051,20 @@ a structured SQL query for exact catalogue facts, [FTS](#fts-full-text-search) f
 [embeddings](#embedding) for meaning.
 
 ---
+
+## Recv-Q and Send-Q
+
+**What it is.** The two byte counts `ss` prints for every TCP socket. `Recv-Q` is data the kernel
+has received for the socket that the owning program has not yet read; `Send-Q` is data the program
+has written that the peer has not yet acknowledged.
+
+**Here.** `ss -tnp` on vm100 during the 2026-10-07 stall showed the two ends of one loopback
+connection: `docker-proxy` with 4.1 MB in `Send-Q`, and `tailscaled` with 5.8 MB in `Recv-Q`,
+unchanged across three readings.
+
+**Why it matters.** The pair says which side stopped. A large `Recv-Q` that does not shrink points
+at the reading program, not the network: the bytes have arrived and nobody is collecting them. A
+large `Send-Q` on its own points the other way, at a peer or a path that is not acknowledging.
 
 ## Renovate
 
@@ -2727,6 +2764,21 @@ reduces to [CVSS](#cvss-common-vulnerability-scoring-system) bucket counts, and 
 `:main`, measured 2026-08-17, so the weekly result describes an image nobody has started. The workflow's own comment claims the compose files "cannot drift
 from reality", which is the assumption that measurement contradicted. Until the pinned files are
 deployed, read every count as a lower bound on something adjacent.
+
+## TUN device
+
+**What it is.** A virtual network interface whose other end is a program instead of a cable. The
+kernel routes IP packets into it like into any interface, and the program reads them, does something
+with them - encrypts them, for a VPN - and writes replies back.
+
+**Here.** `tailscale0` on the hypervisor and on vm100. Its presence means `tailscaled` runs in
+kernel mode: the node's Tailscale address is a real kernel address that a service can bind, and TCP
+to it is handled by the kernel. A node without one runs `tailscaled` in userspace networking, where
+only the [netstack](#netstack-tailscale) exists.
+
+**Why it matters.** It decides what "bind to the Tailscale IP" can mean on a node. With a TUN device,
+`docker-proxy` can listen on the Tailscale address and the kernel carries the stream; without one,
+`tailscale serve` is the only way in, and every byte crosses the netstack.
 
 ## udev
 
