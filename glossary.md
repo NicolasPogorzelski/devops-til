@@ -60,6 +60,7 @@ a dictionary, not a register.
 - [errno (error number)](#errno-error-number)
 - [ExecStartPre](#execstartpre)
 - [exit node (Tailscale) and Mullvad](#exit-node-tailscale-and-mullvad)
+- [external storage (Nextcloud)](#external-storage-nextcloud)
 - [Falco](#falco)
 - [fencing](#fencing)
 - [FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys)
@@ -914,6 +915,21 @@ measured on the admin desktop on 2026-09-26.
 **Why it matters.** While an exit node is active, a device may lose its path into the home network
 unless LAN access is allowed in the client, which is why a streaming box that uses Mullvad and
 Jellyfin is a decision rather than a default.
+
+## external storage (Nextcloud)
+
+**What it is.** A Nextcloud app (`files_external`) that shows a folder from somewhere else - an SMB
+share, S3, another server - inside a user's file view. Nextcloud does not copy the files; each read
+and write goes to the remote system, with credentials stored in Nextcloud's database. Mounts are
+listed and tested with `occ files_external:list` and `occ files_external:verify <id>`.
+
+**Here.** On lxc210. Mounts 4 and 5 point at the Paperless ingest shares on vm102, so a document
+dropped into that folder in Nextcloud lands in Paperless's consume directory. Measured 2026-10-08:
+both reach vm102 by its LAN address, which `lan_guard` and `smb_guard` refuse for lxc210, so both
+mounts are dead.
+
+**Why it matters.** A dead mount fails quietly. The folder still appears in the web interface, an
+upload into it errors or vanishes, and nothing on the platform alerts on it.
 
 ## Falco
 
