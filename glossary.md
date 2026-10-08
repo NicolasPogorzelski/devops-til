@@ -26,6 +26,7 @@ a dictionary, not a register.
 - [append-only (backup target)](#append-only-backup-target)
 - [AppImage](#appimage)
 - [ARP spoofing](#arp-spoofing)
+- [audio passthrough (bitstream)](#audio-passthrough-bitstream)
 - [automount (systemd)](#automount-systemd)
 - [blackbox exporter](#blackbox-exporter)
 - [build provenance](#build-provenance)
@@ -48,6 +49,8 @@ a dictionary, not a register.
 - [DERP relay and direct connection (Tailscale)](#derp-relay-and-direct-connection-tailscale)
 - [DevOps](#devops)
 - [DevSecOps](#devsecops)
+- [Dolby Vision profiles](#dolby-vision-profiles)
+- [DRC (dynamic range control)](#drc-dynamic-range-control)
 - [drop-in (systemd)](#drop-in-systemd)
 - [eBPF](#ebpf)
 - [ECC (Error-Correcting Code memory)](#ecc-error-correcting-code-memory)
@@ -99,6 +102,7 @@ a dictionary, not a register.
 - [lxcfs](#lxcfs)
 - [machine sharing (Tailscale)](#machine-sharing-tailscale)
 - [MCE (Machine Check Exception)](#mce-machine-check-exception)
+- [Media3 and ExoPlayer](#media3-and-exoplayer)
 - [memtest86+](#memtest86)
 - [MFA and TOTP](#mfa-and-totp)
 - [microburst](#microburst)
@@ -119,6 +123,7 @@ a dictionary, not a register.
 - [onboot](#onboot)
 - [OpenSSF Scorecard](#openssf-scorecard)
 - [OT (Operational Technology)](#ot-operational-technology)
+- [PCM (pulse-code modulation)](#pcm-pulse-code-modulation)
 - [pct (Proxmox Container Toolkit)](#pct-proxmox-container-toolkit)
 - [Persistent=true (systemd timers)](#persistenttrue-systemd-timers)
 - [PerSourcePenalties (OpenSSH)](#persourcepenalties-openssh)
@@ -134,8 +139,10 @@ a dictionary, not a register.
 - [Quadlet (Podman)](#quadlet-podman)
 - [quantization (Q4_K_M, Q3_K_XL)](#quantization-q4_k_m-q3_k_xl)
 - [quorum](#quorum)
+- [race condition](#race-condition)
 - [RAG (retrieval-augmented generation)](#rag-retrieval-augmented-generation)
 - [Recv-Q and Send-Q](#recv-q-and-send-q)
+- [refresh rate switching (frame rate matching)](#refresh-rate-switching-frame-rate-matching)
 - [Renovate](#renovate)
 - [repeat_interval (Alertmanager)](#repeat_interval-alertmanager)
 - [ROCm](#rocm)
@@ -359,6 +366,23 @@ that claims one of them passes that filter. It still needs a Samba account's pas
 **Why it matters.** It is the concrete reason an IP address is not an identity. A filter on source
 addresses holds against devices that play by the rules; a control that has to hold against one
 that does not needs a key, which is what WireGuard and Tailscale provide.
+
+## audio passthrough (bitstream)
+
+**What it is.** The player does not decode a compressed surround track (AC3, E-AC3, TrueHD,
+DTS) but hands the encoded stream unchanged to the AV receiver, which decodes it. Over HDMI the
+stream travels wrapped in IEC 61937 frames that look like two-channel PCM to the link, which is why
+Android's log shows `HAL configured ... format 0x1, channelMask 0x3` for a 5.1 Dolby track.
+
+**Here.** Moonfin on the streaming box bitstreamed AC3 and E-AC3 to the receiver until 2026-10-08.
+A refresh-rate switch renegotiates HDMI, kills the passthrough track, and Moonfin's recovery of it
+hung five of seven starts. Passthrough is disabled until upstream fixes it
+([jellyfin.md](../homelab-server-architecture/docs/services/jellyfin.md#moonfin-direct-play) in the
+platform repository).
+
+**Why it matters.** Passthrough is the only way object audio (Atmos, DTS:X) reaches a receiver from
+an Android TV box. Turning it off moves decoding into the player: the channels stay identical, the
+objects are reduced to their channel bed, and dynamic range control moves with the decoder.
 
 ## automount (systemd)
 
@@ -723,6 +747,38 @@ rather than measured. `security-controls.md` carries a status column for exactly
 it has been wrong: A.8.5 read *Enforced* for weeks while two nodes still accepted passwords. A
 false assurance suppresses discovery more effectively than a stated gap does, because nobody looks
 at a row that already says yes.
+
+## Dolby Vision profiles
+
+**What it is.** Dolby Vision is HDR with per-scene metadata (the RPU). Its profiles describe how
+that metadata travels: profile 7 (Blu-ray) carries a second enhancement layer, profile 8 one
+HEVC layer with the RPU and an HDR10 fallback, profile 5 one layer without fallback. Log lines name
+them as codec strings, `dvhe.07.06` and `dvhe.08.06`.
+
+**Here.** Both profiles occur among the 4K remuxes on vm102: two of the three Dolby Vision titles
+tested on 2026-10-08 were profile 7, one profile 8. The Shield cannot decode profile 7's
+enhancement layer, so Moonfin converts the RPU to profile 8 on the fly (`DoVi P7 handled as
+convert`) and drops the enhancement layer. The box moved to Moonfin after Dolby Vision trouble with
+the official Jellyfin app; whether profile 7 handling was that trouble has not been checked.
+
+**Why it matters.** "Supports Dolby Vision" is not one capability. Which profile a file carries and
+which profiles player and decoder handle decides whether a title plays in DV, falls back to HDR10,
+or fails.
+
+## DRC (dynamic range control)
+
+**What it is.** Dolby and DTS tracks carry gain values that let a decoder compress loud and quiet
+passages towards each other, for late-night listening or small speakers. Whether and how much of
+it is applied is the decoder's choice, usually a receiver setting such as "Dynamic range:
+Maximum / Standard / Minimum".
+
+**Here.** With passthrough the AV receiver decoded and applied its own setting. Since
+2026-10-08 Moonfin decodes AC3 and E-AC3 with its bundled FFmpeg, configures no DRC of its own, and
+the receiver's setting no longer reaches a PCM signal. Whether FFmpeg applies the gain values by
+default was not measured.
+
+**Why it matters.** It is the one audible difference between decoding in the receiver and decoding
+in the player for channel-based audio, and it is easy to mistake for a loss of quality.
 
 ## drop-in (systemd)
 
@@ -1491,6 +1547,21 @@ memory, a memory fault produces no MCE, so silence is not evidence of health. Th
 as `smartctl -H PASSED` on a disk with 7680 unreadable sectors: a check that cannot fail is not a
 check.
 
+## Media3 and ExoPlayer
+
+**What it is.** ExoPlayer is Google's media player library for Android; since 2023 it ships as
+part of AndroidX Media3 (`androidx.media3`). Apps build their player from its parts: extractors,
+renderers for video and audio, an audio sink that owns the `AudioTrack`, and a track selector.
+Its log tags (`ExoPlayerImpl`, `MediaCodecAudioRenderer`) show up in `logcat`.
+
+**Here.** Moonfin 2.6.0 plays through Media3 1.10.1 with its own wrappers around the audio sink:
+`PassthroughRecoveryAudioSink` and `RouteFlapHold` hold and rebuild a passthrough track that an
+HDMI renegotiation killed. JustPlayer is built on Media3 as well.
+
+**Why it matters.** Most Android TV players share this engine, so its log lines and failure
+modes transfer between apps, while each app's wrappers around it decide what happens after an
+error.
+
 ## memtest86+
 
 **What it is.** A memory tester that boots instead of the operating system and writes and reads
@@ -1809,6 +1880,21 @@ IT seat those are inconveniences. Read from an OT seat they are the constraints 
 may be attempted at all, which is why the platform has no [HA](#ha-high-availability) and is
 designed for recovery instead.
 
+## PCM (pulse-code modulation)
+
+**What it is.** Uncompressed digital audio: a sample per channel at a fixed rate and bit depth,
+for example 48 kHz, 16 bit, six channels for 5.1. Every decoder's output is PCM; HDMI carries up
+to eight channels of it.
+
+**Here.** Since 2026-10-08 Moonfin sends decoded multichannel PCM to the receiver instead of the
+Dolby bitstream (`audio track opened pcm16 6ch @48000Hz`). Moonfin's recovery for a PCM track
+after an HDMI renegotiation held in six of six starts, where the bitstream recovery held in two of
+seven.
+
+**Why it matters.** For channel-based audio, PCM is the decoded original, not a lower quality; the
+loss when switching from bitstream to PCM is object audio and the receiver's own decoder
+settings.
+
 ## pct (Proxmox Container Toolkit)
 
 **What it is.** The Proxmox command-line tool for LXC containers, addressed by numeric ID:
@@ -2036,6 +2122,21 @@ cluster each believe they are in charge and both write to shared storage.
 there is no genuine loss of quorum to detect, only false positives - which is the core argument for
 leaving HA switched off here.
 
+## race condition
+
+**What it is.** A fault whose outcome depends on the order or timing of events that nothing
+synchronises. The same steps succeed or fail from one run to the next, which makes single tests
+misleading in both directions.
+
+**Here.** Moonfin opens the audio track about 30 ms after requesting a refresh-rate switch; the TV
+renegotiates HDMI 0.9 to 1.5 s later and kills the track. Whether the rebuilt track runs cleanly
+varied: two of seven starts played. A first diagnosis on 2026-10-07 drew a subtitle correlation
+from a handful of starts.
+
+**Why it matters.** A race needs a rate, not a result: count successes over several runs before
+and after a change, and look for the ordering that removes it rather than a setting that seems to
+make one run pass.
+
 ## RAG (retrieval-augmented generation)
 
 **What it is.** Giving a model the relevant context at query time - retrieve first, then
@@ -2065,6 +2166,21 @@ unchanged across three readings.
 **Why it matters.** The pair says which side stopped. A large `Recv-Q` that does not shrink points
 at the reading program, not the network: the bytes have arrived and nobody is collecting them. A
 large `Send-Q` on its own points the other way, at a peer or a path that is not acknowledging.
+
+## refresh rate switching (frame rate matching)
+
+**What it is.** The player switches the display to a refresh rate that is a whole multiple of the
+content's frame rate, 23.976 Hz for film, so every frame is shown for the same time. On Android an
+app requests it through the window's `preferredDisplayModeId`; the switch makes the HDMI link
+renegotiate, and both picture and audio drop for about a second.
+
+**Here.** Moonfin switches the Shield from its 59.94 Hz UI to 23.976 Hz after the video decoder
+starts, which puts the renegotiation on top of a running audio track. The official Jellyfin app
+switches first, from the frame rate in the server's metadata, and can wait before starting the
+player.
+
+**Why it matters.** Without it 24p film on a 60 Hz output judders (3:2 pulldown). With it, the
+order of switch and playback start decides whether the audio path survives.
 
 ## Renovate
 
