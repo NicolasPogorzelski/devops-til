@@ -129,7 +129,7 @@ matters. Start there when an entry below uses a word you do not know.
 | Topic | Summary |
 |---|---|
 | [Ollama Deployment](ai/ollama-deployment.md) | Modelfile syntax, quantization tags, context-window trade-offs, OLLAMA_HOST, ROCm vs CUDA |
-| [Local LLM Coding Fallback (aider + Ollama)](ai/local-llm-coding-fallback.md) | Self-hosted Claude Code fallback: native Anthropic API vs aider, the KV-cache `q8_0` lever, "optimal = largest fully-resident context", `size` vs `size_vram` spill check, aider config |
+| [Local LLM Coding Fallback (aider + Ollama)](ai/local-llm-coding-fallback.md) | **Retired 2026-10-11** (aider removed, Ollama replaced by llama-server). Self-hosted Claude Code fallback: native Anthropic API vs aider, the KV-cache `q8_0` lever, "optimal = largest fully-resident context", `size` vs `size_vram` spill check, aider config |
 | [Multi-Agent Workflows](ai/multi-agent-workflows.md) | Spawning subagents in Claude Code, CI/CD parallel-stage analogy, when it helps vs. when it defeats active learning, unlock conditions (Terraform/k8s arc), and the meta-test: can you tell if the output is wrong? |
 
 ## Applications

@@ -1,5 +1,18 @@
 # Local LLM Coding Fallback (aider + Ollama)
 
+> **Retired 2026-10-11.** The fallback described here no longer exists. On LXC250 aider
+> left no trace of use after the day it was set up (no chat history, config untouched
+> since then) and has been uninstalled ([`pipx`](../glossary.md#pipx) `uninstall aider-chat`,
+> `~/.aider*` removed). Its Ollama endpoint had already disappeared from Tailscale:
+> inference moved to [`llama-server`](../glossary.md#llamacpp-and-llama-server) on both GPU
+> hosts ([LLM inference](../../homelab-server-architecture/docs/services/llm-inference.md)),
+> and the native Ollama it pointed at is gone. The note stays for what still holds
+> anywhere a local model is served: `num_ctx` silently truncating context, the
+> [KV cache](../glossary.md#kv-cache) `q8_0` lever, and "optimal = largest fully-resident
+> context". The `.aider*` patterns in the homelab `.gitignore` stay as well: aider may
+> still be installed on the FedoraOS notebook, and an ignore line for a tool nobody runs
+> costs nothing.
+
 ## The problem this solves
 
 When the Claude Pro usage limit hits mid-task, the choice is a forced pause or a
