@@ -1442,7 +1442,7 @@ setting controls.
 of attacking each target from outside.
 
 **Here.** Until 2026-09-26 the policy let every tier1 service reach every other on all ports, and
-the control node shared a tag with the operator's phone and workstations. Both paths were closed in
+the control node shared a tag with the admin phone and workstations. Both paths were closed in
 the rebuild described in
 [tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md).
 
@@ -1487,7 +1487,7 @@ only into the provider.
 needs, and nothing it might need some day.
 
 **Here.** The rule behind the 2026-09-26 policy: each device reaches the services its owner uses, by
-host and port, and the operator phone reaches the hypervisor only for its web interface, meant to be
+host and port, and the admin phone reaches the hypervisor only for its web interface, meant to be
 backed by a Proxmox user that may do nothing but shut down
 ([tailscale-acl.md](../homelab-server-architecture/docs/platform/tailscale-acl.md)).
 
@@ -1672,7 +1672,7 @@ requires a command, which is why it is written into a runbook rather than a list
 (time-based one-time password) is the common form: an authenticator app derives a six-digit code
 from a shared secret and the current time.
 
-**Here.** Planned for the Proxmox user of the operator phone, so that knowing its password alone
+**Here.** Planned for the Proxmox user of the admin phone, so that knowing its password alone
 does not switch the host off. Phishing-resistant forms are described under
 [FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys).
 
@@ -1894,8 +1894,8 @@ Enforcement sits on the storage side, so it binds the account owner too.
 
 **Why it matters.** Distance answers fire. It does not answer a stolen credential, and on this
 platform the control node already holds hypervisor root, so an account that can reach everything
-exists. Object Lock is the one option where the guarantee does not depend on the operator
-configuring it correctly, because the storage service refuses the deletion. Everything else,
+exists. Object Lock is the one option where the guarantee does not depend on the bucket
+being configured correctly, because the storage service refuses the deletion. Everything else,
 append-only servers included, is that property rebuilt by hand and therefore capable of being
 misconfigured or switched off.
 
@@ -2414,7 +2414,7 @@ effect at the next boot, `flatpak` is for applications, and `dnf` is not used fo
 system.
 
 **Here.** Both admin machines - Bazzite on the gaming PC, Fedora on the notebook - are
-the operator side of every playbook and PR.
+the admin side of every playbook and PR.
 
 **Why it matters.** "Install a linter" is a reboot, so per-user tooling (`uv`, `brew`,
 `flatpak`) is the normal route. And `/home` is a symlink to `/var/home` on these
