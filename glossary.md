@@ -18,6 +18,7 @@ a dictionary, not a register.
 
 - [3-2-1 rule (and 3-2-1-1-0)](#3-2-1-rule-and-3-2-1-1-0)
 - [abliteration](#abliteration)
+- [absent() (PromQL)](#absent-promql)
 - [ADB (Android Debug Bridge)](#adb-android-debug-bridge)
 - [air gap](#air-gap)
 - [Alertmanager](#alertmanager)
@@ -25,6 +26,7 @@ a dictionary, not a register.
 - [any_errors_fatal (Ansible)](#any_errors_fatal-ansible)
 - [append-only (backup target)](#append-only-backup-target)
 - [AppImage](#appimage)
+- [apt-mark hold](#apt-mark-hold)
 - [ARP spoofing](#arp-spoofing)
 - [audio passthrough (bitstream)](#audio-passthrough-bitstream)
 - [automount (systemd)](#automount-systemd)
@@ -52,6 +54,7 @@ a dictionary, not a register.
 - [Dolby Vision profiles](#dolby-vision-profiles)
 - [DRC (dynamic range control)](#drc-dynamic-range-control)
 - [drop-in (systemd)](#drop-in-systemd)
+- [dual-stack](#dual-stack)
 - [eBPF](#ebpf)
 - [ECC (Error-Correcting Code memory)](#ecc-error-correcting-code-memory)
 - [EDAC (Error Detection And Correction)](#edac-error-detection-and-correction)
@@ -84,6 +87,7 @@ a dictionary, not a register.
 - [hrtimer interrupt warning](#hrtimer-interrupt-warning)
 - [idempotency](#idempotency)
 - [identity provider (IdP)](#identity-provider-idp)
+- [increase() and gauges (PromQL)](#increase-and-gauges-promql)
 - [kernel oops](#kernel-oops)
 - [kex (SSH key exchange)](#kex-ssh-key-exchange)
 - [KillMode](#killmode)
@@ -118,6 +122,7 @@ a dictionary, not a register.
 - [nowayout](#nowayout)
 - [nsswitch.conf](#nsswitchconf)
 - [nvcgo](#nvcgo)
+- [NVML and NVENC (NVIDIA)](#nvml-and-nvenc-nvidia)
 - [Object Lock (WORM)](#object-lock-worm)
 - [OCI hook (prestart hook)](#oci-hook-prestart-hook)
 - [OIDC (OpenID Connect)](#oidc-openid-connect)
@@ -137,11 +142,13 @@ a dictionary, not a register.
 - [PSI (Pressure Stall Information)](#psi-pressure-stall-information)
 - [public key pinning](#public-key-pinning)
 - [Public Suffix List](#public-suffix-list)
+- [qcow2 and raw (disk image formats)](#qcow2-and-raw-disk-image-formats)
 - [Quadlet (Podman)](#quadlet-podman)
 - [quantization (Q4_K_M, Q3_K_XL)](#quantization-q4_k_m-q3_k_xl)
 - [quorum](#quorum)
 - [race condition](#race-condition)
 - [RAG (retrieval-augmented generation)](#rag-retrieval-augmented-generation)
+- [recording rule (Prometheus)](#recording-rule-prometheus)
 - [Recv-Q and Send-Q](#recv-q-and-send-q)
 - [refresh rate switching (frame rate matching)](#refresh-rate-switching-frame-rate-matching)
 - [Renovate](#renovate)
@@ -249,6 +256,24 @@ them reliably. The documented cost is quality, above all in tool calling, which 
 agent depends on. And a model that refuses nothing is no longer a guard against anything: every
 limit then has to come from the harness.
 
+## absent() (PromQL)
+
+**What it is.** A PromQL function that returns a single series with value 1 when the selector inside
+it matches nothing, and nothing when it matches anything. It is the only way to make "this metric
+does not exist" into a result a rule can fire on. The series it returns carries only the labels of
+equality matchers in the selector - `absent(x{job="a"})` yields `{job="a"}`, without the metric
+name.
+
+**Here.** `DatabaseBackupMetricsMissing` in lxc200's `alert.rules.yml` wraps one `absent()` per
+database timestamp - two backups, two restore tests - each tagged with a `metric` label via
+`label_replace`, because two absences on the same job would otherwise have identical labels and
+collapse into one under `or`.
+
+**Why it matters.** A staleness rule written as `time() - metric > threshold` produces no result
+when the metric was never written, which looks exactly like health. The MariaDB restore test ran
+for three weeks without ever writing its timestamp, and `MariaDBRestoreTestStale` could not fire
+once in that time. Every "last success" metric needs an `absent()` partner.
+
 ## ADB (Android Debug Bridge)
 
 **What it is.** Android's remote-control channel: a client on the PC talks to a daemon on the
@@ -353,6 +378,22 @@ AppImage into `/tmp` and starts `coolwsd` from it as `www-data`. That is why the
 `dpkg -l` does not list it, `systemctl` does not manage it, no Ansible role can own it without
 owning the app that ships it, and its files live in `/tmp` on the container's root disk. A component
 that arrives this way skips the new-service checklist without anybody deciding to skip it.
+
+## apt-mark hold
+
+**What it is.** A Debian package state that tells APT never to upgrade, remove or replace the
+package, set with `apt-mark hold <pkg>` and listed with `apt-mark showhold`. `dpkg -l` shows it as
+`hi` instead of `ii`. APT does not log who set it or when; `history.log` records installs and
+upgrades, not selection changes.
+
+**Here.** On the hypervisor `samba`, `samba-common` and `samba-common-bin` were found held at
+4.22.6 on 2026-10-10, while the libraries beside them had moved to 4.22.11 in the upgrade of
+2026-10-08 - a mixed version set, with the newer release's security fixes withheld from the held
+half, on a host where `smbd` was disabled and nothing needed the server package.
+
+**Why it matters.** A hold is an undocumented decision that keeps working after everyone has
+forgotten it. Every `apt upgrade` prints the held packages under "kept back" and nobody reads that
+line; `apt-get -s --ignore-hold` shows what the hold is blocking without changing anything.
 
 ## ARP spoofing
 
@@ -796,6 +837,21 @@ for service overrides throughout the homelab ([systemd Basics](linux/systemd-bas
 
 **Why it matters.** A drop-in survives when the package replaces the unit file, and removing it
 is one `rm` plus a reload. Editing the vendor unit in place is lost on the next upgrade.
+
+## dual-stack
+
+**What it is.** A host or socket that speaks IPv4 and IPv6 at once. A service that binds the wildcard
+`[::]` on Linux usually accepts both families on one socket, so `*:22` means every IPv4 and every
+IPv6 address the host holds.
+
+**Here.** The seven containers and vm102 carry a globally routable IPv6 address from the router's
+prefix on their LAN interface; the hypervisor and vm100 do not (measured 2026-10-10). On the
+eight that do, a wildcard bind is reachable beyond the local segment unless something in front
+of it drops the traffic. That is why the sshd binding decision and `lan_guard` both matter: `ss -ltn`
+showing `[::]:22` is not a local-only listener.
+
+**Why it matters.** IPv4 habits - "it's behind NAT" - do not carry over. A rule written for an IPv4
+address or a firewall table that only covers `ip` and not `inet` leaves the IPv6 half open.
 
 ## eBPF
 
@@ -1280,6 +1336,23 @@ every service keeps its own user table.
 **Why it matters.** It concentrates trust. One place to add or remove a person, one place where a
 stolen admin password opens everything, and one service that must be up for anyone to sign in -
 which is why every application here keeps a local administrator that does not depend on it.
+
+## increase() and gauges (PromQL)
+
+**What it is.** `increase(x[d])` estimates how much a counter grew over the window `d`. It assumes
+a counter only goes up, so any drop between two samples is read as a reset to zero and the value
+after the drop is added as fresh growth. A gauge - a value that can legitimately fall, such as a
+temperature or a count of pending sectors - breaks that assumption.
+
+**Here.** `SmartAttributeDegrading` used `increase()` on SMART raw values keyed by kernel letter.
+When the aux-disk and an IronWolf swapped `/dev/sdi` and `/dev/sdb` across a boot, each series
+jumped between 0 and 8168, and `increase()` reported growth: in thirty days the alert was active
+during 151 hours, 125 of them on rises no disk made. The rule now compares the value against `min_over_time(...[25h])` on series
+keyed by serial number.
+
+**Why it matters.** The function returns a number either way, so the mistake never shows as an
+error. For gauges, ask "is the value above where it was" with `x > min_over_time(x[d])`, or use
+`delta()`, and make sure the series identity is the physical thing being measured.
 
 ## kernel oops
 
@@ -1793,6 +1866,22 @@ meaning the caller invokes a function that runs in a different process and waits
 is a boot-window failure by nature, striking exactly when the system is most loaded and least
 watched. Six occurrences in vm100's journal since January, every one during startup.
 
+## NVML and NVENC (NVIDIA)
+
+**What it is.** Two parts of NVIDIA's driver stack. NVML (NVIDIA Management Library) is the
+interface `nvidia-smi` and monitoring tools use to query the GPU. NVENC and NVDEC are the hardware
+video encoder and decoder that ffmpeg uses for transcoding.
+
+**Here.** Jellyfin on vm100 transcodes with NVENC/NVDEC inside its container. KE-10 is the GPU
+access going stale at runtime: `nvidia-smi` inside the container fails, and the CUDA watchdog
+restarts Jellyfin - but only when nothing plays that does not need the GPU. Direct play uses
+neither NVML nor NVENC.
+
+**Why it matters.** "The GPU is gone" is not one failure. A broken NVML connection stops
+`nvidia-smi`, which is what the watchdog tests; what a running NVENC session does at that moment has
+not been measured here, which is why the watchdog restarts at once when a video transcode is among
+the sessions.
+
 ## Object Lock (WORM)
 
 **What it is.** A property of an object in S3-compatible storage that forbids deleting or
@@ -2097,6 +2186,20 @@ its cookie to its own host name, narrower than it has to.
 that nobody has listed, one customer could set cookies for every other customer's site, which is
 the problem the list exists to close.
 
+## qcow2 and raw (disk image formats)
+
+**What it is.** Two formats for a virtual disk stored as a file. *raw* is a plain byte-for-byte
+image with no structure of its own; it can be sparse, but it cannot hold snapshots. *qcow2* (QEMU
+Copy-On-Write version 2) keeps a mapping table, which gives it internal snapshots, thin allocation
+and backing files, at a small cost in I/O.
+
+**Here.** vm100's second disk sat as a raw file on the directory storage `appdata_aux-disk`, which
+is why Proxmox could not snapshot the VM at all. It was converted to qcow2 on the same storage with
+`qm disk move ... --format qcow2` on 2026-10-10.
+
+**Why it matters.** On directory storage the format decides whether a VM has a rollback path. On
+LVM-thin or ZFS the storage itself snapshots, and the format question does not arise.
+
 ## Quadlet (Podman)
 
 **What it is.** A way to declare a Podman container as a systemd unit: a `.container` file in
@@ -2166,6 +2269,24 @@ data too large to fit the window. The retrieval decides the answer: feed it the 
 capable model still answers wrongly, which is why the retrieval tool must match the question type -
 a structured SQL query for exact catalogue facts, [FTS](#fts-full-text-search) for exact wording,
 [embeddings](#embedding) for meaning.
+
+## recording rule (Prometheus)
+
+**What it is.** A Prometheus rule with `record:` instead of `alert:`. At every evaluation it runs a
+PromQL expression and stores the result as a new time series under the given name, conventionally
+`level:metric:operation`. Rules in one group run in order, so an alert later in the same group can
+read what a recording rule above it just wrote.
+
+**Here.** The `smart` group in lxc200's `alert.rules.yml` records
+`serial:smartmon_current_pending_sector_raw_value:max` and two siblings: the SMART counters joined
+to `smartmon_device_info` and re-keyed by `serial_number`, so their history follows the disk rather
+than the kernel letter. A fourth, `disk:smartmon_device_info:latest`, keeps the newest device
+mapping per letter.
+
+**Why it matters.** Range functions such as `min_over_time()` work on stored series. Changing a
+series' identity - here from kernel letter to serial - therefore needs a series that is stored
+under the new identity, and that is what a recording rule is for. The recorded history starts on
+the day the rule is deployed.
 
 ---
 
