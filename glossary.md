@@ -51,6 +51,7 @@ a dictionary, not a register.
 - [DERP relay and direct connection (Tailscale)](#derp-relay-and-direct-connection-tailscale)
 - [DevOps](#devops)
 - [DevSecOps](#devsecops)
+- [DID_TIME_OUT and DID_SOFT_ERROR (SCSI host byte)](#did_time_out-and-did_soft_error-scsi-host-byte)
 - [Dolby Vision profiles](#dolby-vision-profiles)
 - [DRC (dynamic range control)](#drc-dynamic-range-control)
 - [drop-in (systemd)](#drop-in-systemd)
@@ -125,6 +126,7 @@ a dictionary, not a register.
 - [NVML and NVENC (NVIDIA)](#nvml-and-nvenc-nvidia)
 - [Object Lock (WORM)](#object-lock-worm)
 - [OCI hook (prestart hook)](#oci-hook-prestart-hook)
+- [Offline_Uncorrectable (SMART 198)](#offline_uncorrectable-smart-198)
 - [OIDC (OpenID Connect)](#oidc-openid-connect)
 - [onboot](#onboot)
 - [OpenSSF Scorecard](#openssf-scorecard)
@@ -134,6 +136,7 @@ a dictionary, not a register.
 - [Persistent=true (systemd timers)](#persistenttrue-systemd-timers)
 - [PerSourcePenalties (OpenSSH)](#persourcepenalties-openssh)
 - [pgvector](#pgvector)
+- [pipefail (and set -e)](#pipefail-and-set--e)
 - [pipx](#pipx)
 - [pmxcfs (Proxmox Cluster File System)](#pmxcfs-proxmox-cluster-file-system)
 - [Policy-as-Code](#policy-as-code)
@@ -180,6 +183,7 @@ a dictionary, not a register.
 - [softdog](#softdog)
 - [SOPS](#sops)
 - [speculative decoding](#speculative-decoding)
+- [spiceproxy (Proxmox)](#spiceproxy-proxmox)
 - [sponge (moreutils)](#sponge-moreutils)
 - [SSH certificates](#ssh-certificates)
 - [steal time](#steal-time)
@@ -200,6 +204,7 @@ a dictionary, not a register.
 - [Trivy](#trivy)
 - [TUN device](#tun-device)
 - [udev](#udev)
+- [UDMA CRC error count (SMART 199)](#udma-crc-error-count-smart-199)
 - [UDP](#udp)
 - [ugrep (in the Claude Code tool shell)](#ugrep-in-the-claude-code-tool-shell)
 - [UPnP and PCP](#upnp-and-pcp)
@@ -789,6 +794,23 @@ rather than measured. `security-controls.md` carries a status column for exactly
 it has been wrong: A.8.5 read *Enforced* for weeks while two nodes still accepted passwords. A
 false assurance suppresses discovery more effectively than a stated gap does, because nobody looks
 at a row that already says yes.
+
+## DID_TIME_OUT and DID_SOFT_ERROR (SCSI host byte)
+
+**What it is.** Two values of the host byte, the part of a SCSI command's result in which the
+controller driver reports how the command fared on the way to the disk, as opposed to what the disk
+itself answered. `DID_TIME_OUT`: the command got no answer within the device timeout, 30 s by
+default (`/sys/class/scsi_device/<address>/device/timeout`), and was aborted. `DID_SOFT_ERROR`: the
+driver gave up on this attempt and asks the SCSI layer to retry. Each appears in the kernel log as
+`FAILED Result: hostbyte=DID_...`, followed by an `I/O error` line when no retry is left.
+
+**Here.** The signature of KE-14 on the boot SSD behind the SAS2008 HBA, address `9:0:0:0`. On
+2026-10-13 the boot window held 62 aborted commands in two bursts; six were writes, which the driver
+logged as possibly completed, and the 10 that failed for good were all reads.
+
+**Why it matters.** The host byte says where to look. A medium error would arrive as sense data from
+the disk; these say the command never came back. That points at the path - controller, link,
+power - and is why KE-14 was diagnosed to the transport layer rather than to the flash.
 
 ## Dolby Vision profiles
 
@@ -1916,6 +1938,21 @@ reaches the running state at all. That distinction is what lets the failure surv
 [restart policy](#restart-policy-docker): a policy reacts to a container that ran and exited, and a
 hook failure means it never ran.
 
+## Offline_Uncorrectable (SMART 198)
+
+**What it is.** SMART attribute 198: sectors the drive found unreadable during its own background
+scan (offline data collection), as opposed to during a read the host asked for. Its neighbour 197,
+`Current_Pending_Sector`, counts sectors waiting to be remapped on the next write. Both fall when a
+write succeeds or the sector is reallocated; neither resets on its own.
+
+**Here.** The KE-13 aux-disk. The two read identical at every measurement - 8168 through 2026-10-12,
+8784 on 2026-10-13 after a step during that morning's boot - while `Reported_Uncorrect` stayed at 21.
+That combination means the drive keeps finding bad sectors that no host read has hit yet.
+
+**Why it matters.** It is one of the attributes that predict failure, and it changes without any
+error in the kernel log, so only a SMART export notices. The drive's own health verdict cannot:
+this attribute normalises against a threshold of 0, so `smartctl -H` keeps saying `PASSED`.
+
 ## OIDC (OpenID Connect)
 
 **What it is.** A sign-in protocol built on OAuth 2.0, the standard for handing an application a
@@ -2067,6 +2104,23 @@ and the semantic index in one backed-up database instead of standing up a separa
 with its own backup and failure modes.
 
 ---
+
+## pipefail (and set -e)
+
+**What it is.** Two Bash options. `set -e` (errexit) ends the script as soon as a command returns
+non-zero. `set -o pipefail` gives a pipeline the status of its last failing member instead of only
+its last command, so `a | b` fails when `a` fails. Together, usually as `set -euo pipefail`, they
+make a script stop at the first error instead of carrying on with bad data.
+
+**Here.** The house header of the shell scripts in the homelab repository, `guest-backup.sh` among
+them. On 2026-10-12 its disk-size guard piped `qm config` through `grep`, and for a VM with no
+matching line `grep` returned 1 - "nothing found", not an error - which ended the run before vm102,
+vm100 and the metric.
+
+**Why it matters.** The options cannot tell a failure from a command that reports "no" by exit
+status: `grep` without a match, `[ ]` false, `diff` with differences. Such a command needs `|| true`
+or an `if`, and the place to test that is the script's own shell options, not an interactive shell
+that has neither set.
 
 ## pipx
 
@@ -2753,6 +2807,20 @@ trade against context size, not a free win.
 
 ---
 
+## spiceproxy (Proxmox)
+
+**What it is.** The Proxmox service that relays SPICE connections, a remote-console protocol for VMs
+that offers more than VNC (clipboard, USB redirection, several monitors). It runs on every Proxmox
+host whether or not any VM uses SPICE, and listens on TCP 3128.
+
+**Here.** On the hypervisor it binds the Tailscale address on 3128, because the `LISTEN_IP` in
+`/etc/default/pveproxy` applies to it as well. No VM uses SPICE, measured 2026-10-13, and the ACL
+grants nobody 3128.
+
+**Why it matters.** It is the listener that is easy to mistake for something foreign - 3128 is
+also the classic Squid proxy port. Knowing it belongs to Proxmox saves a diagnosis, and knowing
+nothing uses it is why the ACL leaves it closed.
+
 ## sponge (moreutils)
 
 **What it is.** A small utility that reads all of its input before it writes any output. `cmd |
@@ -3045,6 +3113,24 @@ device unit tentative.
 **Why it matters.** Tags are how udev tells systemd which devices are worth having units for. A
 device without one still works perfectly; only systemd's view of it stays incomplete. Reading the
 unit state instead of the device is how that turns into a false alarm.
+
+## UDMA CRC error count (SMART 199)
+
+**What it is.** SMART attribute 199, called `UDMA_CRC_Error_Count` on most drives and
+`CRC_Error_Count` on Samsung SSDs. Every frame on a SATA link carries a checksum; the drive counts
+the frames it received from the host whose checksum did not match. The host resends such a frame,
+so no data is lost. The raw value only ever rises and never resets, so its level records the past
+and only its growth describes the present.
+
+**Here.** On the hypervisor, read by `smart_metrics`. Measured 2026-10-13: one 8 TB data disk on the
+HBA at 368, unchanged since 2026-10-03; the Toshiba on an onboard port at 33; one disk at 4; the
+KE-13 aux-disk at 0; the KE-14 boot SSD at 1, against hundreds of command timeouts.
+
+**Why it matters.** It measures the path, not the disk: cable, connector, backplane or HBA port.
+It is not one of the attributes that predict a drive failure - those are reallocated, pending and
+uncorrectable sectors - so a high value is a reason to reseat or replace a cable, not a disk. The
+boot SSD reading 1 also narrows KE-14: a timeout means the drive did not answer at all, and a link
+that corrupted frames would have left a trail here.
 
 ## UDP
 
