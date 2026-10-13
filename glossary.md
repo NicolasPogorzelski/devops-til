@@ -113,6 +113,7 @@ a dictionary, not a register.
 - [MFA and TOTP](#mfa-and-totp)
 - [microburst](#microburst)
 - [MoE (mixture of experts)](#moe-mixture-of-experts)
+- [Moonfin](#moonfin)
 - [mtime](#mtime)
 - [mTLS (mutual TLS)](#mtls-mutual-tls)
 - [NAT traversal](#nat-traversal)
@@ -208,6 +209,7 @@ a dictionary, not a register.
 - [UDP](#udp)
 - [ugrep (in the Claude Code tool shell)](#ugrep-in-the-claude-code-tool-shell)
 - [UPnP and PCP](#upnp-and-pcp)
+- [upstream](#upstream)
 - [uv (and `uv tool`)](#uv-and-uv-tool)
 - [user namespace and UID mapping](#user-namespace-and-uid-mapping)
 - [VA-API and Vulkan Video](#va-api-and-vulkan-video)
@@ -1731,6 +1733,19 @@ here, the MoE candidates lost the one objective code test that the slower dense 
 
 ---
 
+## Moonfin
+
+**What it is.** A third-party Jellyfin client for Android TV and other platforms, developed outside
+the Jellyfin project. It talks to the Jellyfin server over the same API as the official apps, and
+an optional server plugin adds features of its own.
+
+**Here.** The player on the streaming box, the client most of the viewing goes through. The server
+plugin is not installed; Jellyfin on vm100 carries five other third-party plugins.
+
+**Why it matters.** A server upgrade is only finished when the clients still play. A client
+maintained by somebody else follows the server on its own schedule, so before a major Jellyfin
+release the question is whether Moonfin supports it - a question only its developers can answer.
+
 ## mtime
 
 **What it is.** The modification time the filesystem stores for every file: the moment its content
@@ -3173,6 +3188,21 @@ never used it, which means some still held it on 2026-09-26. No share existed at
 **Why it matters.** The router's own documentation warns that malware on a permitted device can use
 it to open the firewall. Allowing it per device and only where needed keeps the firewall's state
 under the owner's control.
+
+## upstream
+
+**What it is.** The project that develops a piece of software, as seen from those who use it,
+package it or build on it. A fix "upstream" is one made in that project's own code and released by
+it, as opposed to a local patch or a workaround on this platform.
+
+**Here.** Moonfin's developers for the client on the streaming box, the Jellyfin project for the
+server, the plugin authors for its five plugins, Debian for the packages. Issue #1775 in Moonfin is
+an upstream fix this platform waits for.
+
+**Why it matters.** Some open items cannot be closed here by any amount of work: the decision or
+the code belongs to somebody else. Recording them as "waits on upstream", with the issue or the
+release to watch, keeps them from reading as neglected work - and keeps a local workaround from
+quietly becoming permanent.
 
 ## uv (and `uv tool`)
 
