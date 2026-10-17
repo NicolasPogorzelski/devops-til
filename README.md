@@ -40,6 +40,7 @@ matters. Start there when an entry below uses a word you do not know.
 
 | Topic | Summary |
 |---|---|
+| [Homelab Ansible Track](ansible/homelab-ansible-track.md) | The learning log of the homelab's Ansible track, roadmap items 1-13: roles and playbooks as completed, notes per session |
 | [Playbook Structure](ansible/playbook-structure.md) | Minimum required fields, plays vs tasks, YAML indentation rules |
 | [Task Control](ansible/task-control.md) | `register`, `changed_when`, `ansible.builtin.fail`, `when` with Jinja2 filters, `shell` vs `command`, `docker --format`/Jinja2 collision in ad-hoc commands; **`ansible.builtin.cron` cannot remove an entry it did not write** (it finds entries by its own `#Ansible:` marker) - adoption pattern for hand-deployed jobs; **making a role dry-runnable**: `check_mode: false` on read-only probes, `when: not ansible_check_mode` on `systemctl enable`; `assert` as a precondition that deploys first and fails with a diagnosis |
 | [Privilege Escalation](ansible/privilege-escalation.md) | `become`, `become_user`, and how to configure NOPASSWD sudo for Ansible |

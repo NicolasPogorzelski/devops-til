@@ -35,6 +35,7 @@ a dictionary, not a register.
 - [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override)
 - [CDI (Container Device Interface)](#cdi-container-device-interface)
 - [CIFS (Common Internet File System)](#cifs-common-internet-file-system)
+- [CLAUDE.md and AGENTS.md (context files)](#claudemd-and-agentsmd-context-files)
 - [CNCF (Cloud Native Computing Foundation)](#cncf-cloud-native-computing-foundation)
 - [CodeQL](#codeql)
 - [compositor](#compositor)
@@ -187,6 +188,7 @@ a dictionary, not a register.
 - [spiceproxy (Proxmox)](#spiceproxy-proxmox)
 - [sponge (moreutils)](#sponge-moreutils)
 - [SSH certificates](#ssh-certificates)
+- [sshd (OpenSSH server)](#sshd-openssh-server)
 - [steal time](#steal-time)
 - [sudoers.d and NOPASSWD](#sudoersd-and-nopasswd)
 - [Sunshine and Moonlight](#sunshine-and-moonlight)
@@ -198,6 +200,7 @@ a dictionary, not a register.
 - [taint flags](#taint-flags)
 - [tentative (systemd device unit state)](#tentative-systemd-device-unit-state)
 - [thin pool (LVM)](#thin-pool-lvm)
+- [TMPDIR and mkstemp](#tmpdir-and-mkstemp)
 - [tmpfs](#tmpfs)
 - [toll fraud](#toll-fraud)
 - [tool calling](#tool-calling)
@@ -528,6 +531,24 @@ mounts made in the same instant are not independent of each other. And the kerne
 mount as a negative [errno](#errno-error-number) in `cifs_mount failed w/return code = -N`, which is
 the fastest way to tell a server that is unreachable (`-113`) from one that refused or could not
 complete the session (`-11`, `-13`) ([KE-27](../homelab-server-architecture/docs/platform/known-errors.md#ke-27)).
+
+## CLAUDE.md and AGENTS.md (context files)
+
+**What it is.** A Markdown file in a repository that a coding agent reads into its context at the
+start of every session. `CLAUDE.md` is Claude Code's name for it, `AGENTS.md` the vendor-neutral
+convention other agents read. A user-level file (`~/.claude/CLAUDE.md`) applies to every
+repository on that machine; a project file applies to one and is usually committed.
+
+**Here.** `homelab-server-architecture/CLAUDE.md` holds the project's working rules; the global
+file holds the learning-mode duties (explain every flag, glossary gate, blank-file-first). The
+global one is not in the `dotfiles` repository, so it exists only on the machine it was written on.
+
+**Why it matters.** Everything in it costs context on every turn, whether the task needs it or
+not. An ETH Zurich study (arXiv 2602.11988, ICLR 2026) found generated context files lowered task
+success against no file at all and raised cost; hand-written ones helped a little. Anthropic's
+guidance points the same way: keep it short, keep only lines whose removal would cause a mistake,
+and move workflows that are needed only sometimes into skills, which load on demand. Rules the
+agent cannot infer from the code - how to behave, what never to do - are what belongs there.
 
 ## CNCF (Cloud Native Computing Foundation)
 
@@ -2862,6 +2883,23 @@ authorised as root on the hypervisor after it had been removed everywhere else.
 credential. Tools such as step-ca, Teleport (an access platform that brokers SSH and database
 sessions) or HashiCorp Vault issue them, and Tailscale SSH offers a managed variant.
 
+## sshd (OpenSSH server)
+
+**What it is.** The SSH server: the daemon - a background service waiting for requests - that
+accepts an SSH connection, checks the key, and starts a shell. `ssh` is the client that connects;
+`sshd` is the program on the other end. Both come from OpenSSH. It listens on TCP port 22, on the
+addresses `ListenAddress` names, or on every address when nothing is named (`0.0.0.0:22` and
+`[::]:22`). `ListenAddress` accumulates: each line adds a bind rather than replacing the last.
+
+**Here.** On every node. Ansible on lxc250 reaches each node through it, and so does every admin
+session. Eight nodes, lxc250 the ninth, bind sshd to their Tailscale address alone; the hypervisor
+listens on every address, filtered by `lan_guard`, because its LAN path is the only way in when
+Tailscale does not come up and it has no console.
+
+**Why it matters.** On every node it is the door to root, which is why it is narrowed three ways:
+keys only, the overlay address only, and a firewall in front. Where those three would remove the
+last recovery path, the trade-off has to be decided rather than applied by default.
+
 ## steal time
 
 **What it is.** The share of time a virtual CPU was ready to run but the hypervisor was running
@@ -3044,6 +3082,25 @@ it acquires an implicit ordering requirement against whatever regenerates it, an
 is invisible in the consuming config - nothing in `docker.service` mentions `/var/run/cdi`. Same
 shape as [KE-18](../homelab-server-architecture/docs/platform/known-errors.md#ke-18): a resource
 that exists in steady state and does not exist yet at boot.
+
+## TMPDIR and mkstemp
+
+**What it is.** `TMPDIR` is the environment variable through which a program learns where to put
+its temporary files; unset, the convention is `/tmp`. `mkstemp` is the C library call that
+creates such a file under a unique name and opens it in one step, so that no other process can
+slip in between. If the directory `TMPDIR` names does not exist, `mkstemp` fails with
+`No such file or directory`, and the program never gets to its real work.
+
+**Here.** `sponge` writes its input to a temporary file from `mkstemp` and renames it over the
+target afterwards. Debian's `prometheus-node-exporter-apt.service` sets
+`Environment=TMPDIR=/var/lib/prometheus/node-exporter`, a directory that belongs to the
+`prometheus-node-exporter` package. The `apt_metrics` drop-in replaces `ExecStart` and leaves
+that line alone, so the unit works only while that directory exists. On the hypervisor it was
+removed with the package on 2026-10-13, and the unit has failed at every run since.
+
+**Why it matters.** A systemd drop-in overrides only the keys it names; everything else in the
+vendor unit stays in force, including settings that point at paths owned by other packages.
+Clearing `ExecStart=` does not clear `Environment=`.
 
 ## toll fraud
 
