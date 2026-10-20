@@ -33,6 +33,7 @@ a dictionary, not a register.
 - [blackbox exporter](#blackbox-exporter)
 - [build provenance](#build-provenance)
 - [capabilities and CAP_DAC_OVERRIDE](#capabilities-and-cap_dac_override)
+- [CA (certificate authority) and trust store](#ca-certificate-authority-and-trust-store)
 - [CDI (Container Device Interface)](#cdi-container-device-interface)
 - [CIFS (Common Internet File System)](#cifs-common-internet-file-system)
 - [CLAUDE.md and AGENTS.md (context files)](#claudemd-and-agentsmd-context-files)
@@ -41,6 +42,7 @@ a dictionary, not a register.
 - [compositor](#compositor)
 - [corosync](#corosync)
 - [CPU type and x86-64 levels (Proxmox)](#cpu-type-and-x86-64-levels-proxmox)
+- [credential helper (Git)](#credential-helper-git)
 - [CrowdSec](#crowdsec)
 - [CTID (container ID)](#ctid-container-id)
 - [CVE (Common Vulnerabilities and Exposures)](#cve-common-vulnerabilities-and-exposures)
@@ -87,6 +89,7 @@ a dictionary, not a register.
 - [hook output fields (Claude Code)](#hook-output-fields-claude-code)
 - [host-only bridge](#host-only-bridge)
 - [hrtimer interrupt warning](#hrtimer-interrupt-warning)
+- [HTTP Basic authentication](#http-basic-authentication)
 - [idempotency](#idempotency)
 - [identity provider (IdP)](#identity-provider-idp)
 - [increase() and gauges (PromQL)](#increase-and-gauges-promql)
@@ -136,6 +139,7 @@ a dictionary, not a register.
 - [PCM (pulse-code modulation)](#pcm-pulse-code-modulation)
 - [pct (Proxmox Container Toolkit)](#pct-proxmox-container-toolkit)
 - [Persistent=true (systemd timers)](#persistenttrue-systemd-timers)
+- [personal access token (GitLab)](#personal-access-token-gitlab)
 - [PerSourcePenalties (OpenSSH)](#persourcepenalties-openssh)
 - [pgvector](#pgvector)
 - [pipefail (and set -e)](#pipefail-and-set--e)
@@ -171,6 +175,7 @@ a dictionary, not a register.
 - [SearXNG](#searxng)
 - [seccomp](#seccomp)
 - [service mesh](#service-mesh)
+- [shell builtin](#shell-builtin)
 - [SIEM and XDR](#siem-and-xdr)
 - [SIGHUP (and what sshd does with it)](#sighup-and-what-sshd-does-with-it)
 - [Setext heading (Markdown)](#setext-heading-markdown)
@@ -211,6 +216,7 @@ a dictionary, not a register.
 - [UDMA CRC error count (SMART 199)](#udma-crc-error-count-smart-199)
 - [UDP](#udp)
 - [ugrep (in the Claude Code tool shell)](#ugrep-in-the-claude-code-tool-shell)
+- [umask](#umask)
 - [UPnP and PCP](#upnp-and-pcp)
 - [upstream](#upstream)
 - [uv (and `uv tool`)](#uv-and-uv-tool)
@@ -225,6 +231,7 @@ a dictionary, not a register.
 - [watchdog-mux](#watchdog-mux)
 - [Wazuh](#wazuh)
 - [wildcard bind](#wildcard-bind)
+- [word splitting and globbing (shell)](#word-splitting-and-globbing-shell)
 - [WOPI](#wopi)
 - [WPS (Wi-Fi Protected Setup)](#wps-wi-fi-protected-setup)
 - [XDG Desktop Portal (screencast)](#xdg-desktop-portal-screencast)
@@ -498,6 +505,22 @@ that holds them, so container root has `CAP_DAC_OVERRIDE` over owners the
 habits older than that still assume it. When a privileged process in a container gets `EACCES`,
 check whether the file's owner exists inside the namespace before looking at mode bits.
 
+## CA (certificate authority) and trust store
+
+**What it is.** A CA is a key pair whose certificate others agree to trust; it signs server
+certificates, and a client accepts a server when the chain ends at a CA in its trust store - the
+list of CA certificates that client trusts. Each client has its own: the system store, Firefox's
+own store, Git's (`http.sslCAInfo`), curl's (`--cacert`), a container's.
+
+**Here.** The Test-Projekt builds its own root CA (`pki/make-ca.sh`) for the `*.lab.test` names.
+Its `ca.crt` is imported in the browser, passed to curl with `--cacert`, set for one Git clone with
+`http.sslCAInfo`, and copied into GitLab's `trusted-certs/` so GitLab trusts its own calls through
+the proxy.
+
+**Why it matters.** "Trusted" is per client, not per machine: a CA in Firefox does nothing for curl
+or Git. And clients find the issuer by name first - two CAs with the same subject but different keys
+end in "invalid signature", which is why the fingerprint, not the name, identifies a CA.
+
 ## CDI (Container Device Interface)
 
 **What it is.** A specification for handing hardware to a container declaratively. A vendor writes a
@@ -621,6 +644,21 @@ AVX2, and there is one host, so the portability the generic level buys is not us
 ChaCha20-Poly1305, which Tailscale runs in user space, has an AVX2 path; behind `-v2` it falls back to
 a slower one. It did not limit the 1 GbE ingress test, where neither vCPU saturated, but it would at
 2.5 GbE.
+
+## credential helper (Git)
+
+**What it is.** A program Git asks for a username and password before an HTTPS request and tells
+the result afterwards, so it can store them: `cache` keeps them in memory for a while, `store`
+writes them to a plain-text file, `libsecret` uses the desktop keyring. Configured with
+`credential.helper`; with none set, Git prompts on the terminal every time.
+
+**Here.** None is set on the Fedora notebook (`git config --get-all credential.helper` prints
+nothing), so the clone and the push of the Test-Projekt's push test each asked for username and
+token.
+
+**Why it matters.** Convenience and exposure are the same setting: `store` puts a token on disk
+in clear text. For a short-lived test token, prompting twice is the safer default; for daily work,
+a keyring-backed helper.
 
 ## CrowdSec
 
@@ -1346,6 +1384,19 @@ of a 33-second stall in which the Jellyfin GPU hook timed out.
 guest's vCPU, not that the guest was busy. It is one of the few signals a guest gets for host-side
 contention, which is otherwise invisible from within. Read it as a timestamped marker of "this VM
 was starved here" and line it up against whatever timed out.
+
+## HTTP Basic authentication
+
+**What it is.** The simplest HTTP login: the client sends `Authorization: Basic <base64 of
+user:password>` with every request, and the server answers `401` with a `WWW-Authenticate` header
+when it is missing or wrong. Base64 is encoding, not encryption - it is only safe inside TLS.
+
+**Here.** Twice in the Test-Projekt: Caddy's `basic_auth` gate in front of the lldap UI (the `401`
+in 5.6), and Git over HTTPS to GitLab, where the "password" is a personal access token.
+
+**Why it matters.** The credential travels with every request and the server can only check it,
+not limit it - which is why a scoped, expiring token is the right thing to put into it rather than
+an account password.
 
 ## idempotency
 
@@ -2108,6 +2159,19 @@ staleness rules carry `for: 15m`.
 alert evaluated in the first minutes after boot can see yesterday's timestamp. Cron has no
 equivalent, which is what silently lost the PostgreSQL backups in June and July.
 
+## personal access token (GitLab)
+
+**What it is.** A random secret GitLab issues for one account, with chosen scopes (for example
+`read_repository`, `write_repository`) and an expiry date. It stands in for the password where
+a program authenticates - Git over HTTPS, the API - and can be revoked on its own.
+
+**Here.** The Test-Projekt switches off password authentication for Git over HTTPS in 5.11, so the
+push test in 5.12 signs in as `root` with a short-lived token instead.
+
+**Why it matters.** A leaked token opens only what its scopes allow and only until it expires or is
+revoked; a leaked password opens the whole account, including the web UI. It also bypasses 2FA -
+which is exactly why its scope and lifetime have to be small.
+
 ## PerSourcePenalties (OpenSSH)
 
 **What it is.** A rate-limiting mechanism in `sshd`, on by default since OpenSSH 9.8. It records
@@ -2630,6 +2694,21 @@ would, at the node level rather than per service.
 
 **Why it matters.** It is where mTLS and fine-grained service identity usually live in an enterprise
 Kubernetes platform.
+
+## shell builtin
+
+**What it is.** A command the shell executes itself instead of starting a separate program:
+`read`, `printf`, `echo`, `cd`, `unset`, `export`. `type <name>` says which kind a command is
+(`printf is a shell builtin`); `/usr/bin/printf` is the external program of the same name.
+
+**Here.** The Test-Projekt `install.md` writes every `.env` with `printf` (5.7, 5.9, 5.13, 5.14),
+and in 5.9 reads the password with `read -rsp` first. Both are builtins, so the value never becomes
+an argument of a new process.
+
+**Why it matters.** The arguments of every process are readable by every local user in
+`/proc/<pid>/cmdline` and therefore in `ps`. A secret passed to an external program on its command
+line is visible for as long as that program runs; a secret handled only by builtins is not. It is
+also why `cd` has to be a builtin - a child process cannot change its parent's directory.
 
 ## SIEM and XDR
 
@@ -3234,6 +3313,21 @@ differently from the same pattern in a hook or in `validate-repo.sh`. The push-r
 regex looked correct under ugrep and did not match a plain `git push` under GNU grep.
 Test hook and script patterns with `/usr/bin/grep` or `command grep`.
 
+## umask
+
+**What it is.** A per-process mask of permission bits that newly created files and directories do
+*not* get. A program asks for `666` (files) or `777` (directories); the umask is subtracted. With
+the common default `022` a new file ends up `644` - readable by everyone. `umask` prints the current
+value; `(umask 077; cmd)` tightens it for one command in a subshell.
+
+**Here.** The Test-Projekt `install.md` creates every `.env` with `install -m 600 /dev/null .env`
+before `printf … > .env` writes the secret into it, so the file never exists with the umask's
+default mode.
+
+**Why it matters.** `printf secret > file` followed by `chmod 600 file` leaves a window in which the
+secret sits in a world-readable file - a small [race condition](#race-condition). Setting the mode
+first, or the umask, closes it; a later `>` into the existing file keeps its mode.
+
 ## UPnP and PCP
 
 **What it is.** Two protocols that let a program on the LAN ask the router to open a port towards
@@ -3437,6 +3531,20 @@ starts first takes the port and the other fails with `EADDRINUSE`.
 **Why it matters.** A wildcard listener is reachable from every network the node is attached to,
 including the untrusted LAN, and at boot it usually wins the race against a correctly gated service.
 Check with `ss -ltnp` and read column four.
+
+## word splitting and globbing (shell)
+
+**What it is.** Two steps the shell applies to an *unquoted* expansion such as `$PW`: word
+splitting cuts the value at spaces, tabs and newlines into separate arguments, and globbing
+(pathname expansion) replaces each word containing `*`, `?` or `[…]` with the matching file names.
+Inside double quotes, `"$PW"`, neither happens and the value stays one argument, exactly as stored.
+
+**Here.** The Test-Projekt `install.md` writes passwords with `printf '…%s\n' "$PW"`. Unquoted, a
+password containing a space would arrive as two arguments and `printf` would write only the first
+into `.env`; one containing `*` could turn into a list of file names.
+
+**Why it matters.** The failure is silent: the command succeeds and stores something else. Quote
+every expansion unless splitting is the intent; ShellCheck flags the unquoted ones (SC2086).
 
 ## WOPI
 
