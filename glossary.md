@@ -20,6 +20,7 @@ a dictionary, not a register.
 - [abliteration](#abliteration)
 - [absent() (PromQL)](#absent-promql)
 - [ADB (Android Debug Bridge)](#adb-android-debug-bridge)
+- [age (file encryption) and recipients](#age-file-encryption-and-recipients)
 - [air gap](#air-gap)
 - [Alertmanager](#alertmanager)
 - [ansible_managed](#ansible_managed)
@@ -91,6 +92,7 @@ a dictionary, not a register.
 - [host-only bridge](#host-only-bridge)
 - [hrtimer interrupt warning](#hrtimer-interrupt-warning)
 - [HTTP Basic authentication](#http-basic-authentication)
+- [HTTP status codes (and curl's 000)](#http-status-codes-and-curls-000)
 - [idempotency](#idempotency)
 - [identity provider (IdP)](#identity-provider-idp)
 - [increase() and gauges (PromQL)](#increase-and-gauges-promql)
@@ -179,6 +181,7 @@ a dictionary, not a register.
 - [service mesh](#service-mesh)
 - [session cookie (and private windows)](#session-cookie-and-private-windows)
 - [shell builtin](#shell-builtin)
+- [shell redirection (>, >> and sudo tee)](#shell-redirection---and-sudo-tee)
 - [SIEM and XDR](#siem-and-xdr)
 - [SIGHUP (and what sshd does with it)](#sighup-and-what-sshd-does-with-it)
 - [Setext heading (Markdown)](#setext-heading-markdown)
@@ -311,6 +314,23 @@ errors, Moonlight's log and its performance overlay.
 **Why it matters.** Network debugging gives every approved PC on the LAN a full shell on the
 device. Switch it off when the diagnosis is done. As a technique, it is the difference between
 guessing about the far end of a pipeline and measuring it.
+
+## age (file encryption) and recipients
+
+**What it is.** A small file-encryption tool built on public-key cryptography. `age-keygen`
+creates an identity: a private key (`AGE-SECRET-KEY-1…`) and its public key (`age1…`). Encrypting
+needs only the public key of each *recipient*; decrypting needs a matching private key. Anyone may
+hold the public key; only the holder of the identity can read what was encrypted to it.
+
+**Here.** The Test-Projekt's `backup.sh` encrypts every backup set to the public keys listed in
+`scripts/backup-recipients.txt`. A fresh clone lists the reference build's key, so `install.md` 4.1
+generates a new identity on the workstation and writes its public key into that file on the host;
+5.16 proves it by decrypting a backup on the workstation. On 2026-10-20 the host step was skipped,
+and the test answered `no identity matched any of the recipients`.
+
+**Why it matters.** The server that makes the backups never holds the key that opens them - a
+compromised host cannot read old backups. The price: whoever loses the identity loses every backup,
+and a backup encrypted to the wrong public key looks perfectly fine until someone tries to restore.
 
 ## air gap
 
@@ -1415,6 +1435,23 @@ in 5.6), and Git over HTTPS to GitLab, where the "password" is a personal access
 **Why it matters.** The credential travels with every request and the server can only check it,
 not limit it - which is why a scoped, expiring token is the right thing to put into it rather than
 an account password.
+
+## HTTP status codes (and curl's 000)
+
+**What it is.** The three-digit number a server puts first in every answer. 2xx success (`200`),
+3xx redirect - go to the `Location` header instead (`302`, `308`), 4xx the request is refused (`401`
+not signed in, `403` signed in but not allowed, `404` not found), 5xx the server side failed (`502`:
+the proxy got no answer from the service behind it). `000` is not HTTP at all: curl prints it when
+no HTTP answer arrived - name not resolved, connection refused, or the TLS certificate rejected.
+
+**Here.** Every check in the Test-Projekt `install.md` reads them with `curl -w '%{http_code}'`: `502`
+from Caddy before a backend runs, `401` from the lldap gate, `308` from port 80 to HTTPS, `302` from
+GitLab and XWiki sign-up pages that send an anonymous visitor to the login. A `000` on 2026-10-20
+twice meant the check ran on the server, where `*.lab.test` does not resolve.
+
+**Why it matters.** The code says which layer answered. `502` proves TLS and the proxy work and
+points at the backend; `000` points below HTTP - name, network, certificate - where the service is
+not even reached.
 
 ## idempotency
 
@@ -2757,6 +2794,23 @@ an argument of a new process.
 `/proc/<pid>/cmdline` and therefore in `ps`. A secret passed to an external program on its command
 line is visible for as long as that program runs; a secret handled only by builtins is not. It is
 also why `cd` has to be a builtin - a child process cannot change its parent's directory.
+
+## shell redirection (>, >> and sudo tee)
+
+**What it is.** `cmd > file` sends a command's output into a file, emptying it first; `cmd >> file`
+appends. The shell opens the file before the command runs, with the shell's own rights - so in
+`sudo cmd > file` the redirection is *not* covered by `sudo`. For a file only root may write,
+`cmd | sudo tee file` (replace) or `| sudo tee -a file` (append) does the writing as root; `tee`
+also copies everything to the terminal.
+
+**Here.** The Test-Projekt `install.md` uses all three: `echo '<key>' > …/backup-recipients.txt` in
+4.1 (the admin owns the clone), and `| sudo tee -a /srv/xwiki/data/data/xwiki.cfg` in 5.15 (the file
+belongs to root). On 2026-10-20 that `tee` line was pasted cut off after `/srv/xwiki/da`; `tee`
+created a new file of that name and echoed the line as if all were well.
+
+**Why it matters.** `>` where `>>` was meant destroys the file's previous content, and neither form
+complains about a wrong path - it creates a new file. What a write command prints proves nothing;
+read the target afterwards (`cat`, `grep`, `ls -l`).
 
 ## SIEM and XDR
 
