@@ -55,6 +55,7 @@ a dictionary, not a register.
 - [DevOps](#devops)
 - [DevSecOps](#devsecops)
 - [DID_TIME_OUT and DID_SOFT_ERROR (SCSI host byte)](#did_time_out-and-did_soft_error-scsi-host-byte)
+- [docker exec](#docker-exec)
 - [Dolby Vision profiles](#dolby-vision-profiles)
 - [DRC (dynamic range control)](#drc-dynamic-range-control)
 - [drop-in (systemd)](#drop-in-systemd)
@@ -149,6 +150,7 @@ a dictionary, not a register.
 - [privilege separation (OpenSSH)](#privilege-separation-openssh)
 - [prompt injection](#prompt-injection)
 - [PSI (Pressure Stall Information)](#psi-pressure-stall-information)
+- [psql (PostgreSQL client)](#psql-postgresql-client)
 - [public key pinning](#public-key-pinning)
 - [Public Suffix List](#public-suffix-list)
 - [qcow2 and raw (disk image formats)](#qcow2-and-raw-disk-image-formats)
@@ -175,6 +177,7 @@ a dictionary, not a register.
 - [SearXNG](#searxng)
 - [seccomp](#seccomp)
 - [service mesh](#service-mesh)
+- [session cookie (and private windows)](#session-cookie-and-private-windows)
 - [shell builtin](#shell-builtin)
 - [SIEM and XDR](#siem-and-xdr)
 - [SIGHUP (and what sshd does with it)](#sighup-and-what-sshd-does-with-it)
@@ -192,6 +195,7 @@ a dictionary, not a register.
 - [speculative decoding](#speculative-decoding)
 - [spiceproxy (Proxmox)](#spiceproxy-proxmox)
 - [sponge (moreutils)](#sponge-moreutils)
+- [SQL JOIN](#sql-join)
 - [SSH certificates](#ssh-certificates)
 - [sshd (OpenSSH server)](#sshd-openssh-server)
 - [steal time](#steal-time)
@@ -872,6 +876,20 @@ logged as possibly completed, and the 10 that failed for good were all reads.
 **Why it matters.** The host byte says where to look. A medium error would arrive as sense data from
 the disk; these say the command never came back. That points at the path - controller, link,
 power - and is why KE-14 was diagnosed to the transport layer rather than to the flash.
+
+## docker exec
+
+**What it is.** Runs a command inside an already running container: `docker exec <container> <cmd>`.
+The command sees the container's file system, network and installed tools, not the host's. `-it`
+adds a terminal for interactive programs; without it the output simply comes back.
+
+**Here.** The Test-Projekt's checks use it to ask a service from the inside: `psql` in
+`openproject-db`, `curl` in `gitlab`, `ruby` in `openproject`. The tools exist in those images, not
+necessarily on the host, and the container resolves `git.lab.test` and `lldap` the way the service does.
+
+**Why it matters.** It tests from the place that matters: whether *GitLab* trusts the CA or reaches
+lldap, not whether the host does. It also needs root on the host (`sudo`), because whoever can exec
+into a container controls it.
 
 ## Dolby Vision profiles
 
@@ -2309,6 +2327,19 @@ lock. That single comparison ruled out both a disk problem and a runaway process
 is the most useful diagnostic pair on this platform: **load says how many are waiting, pressure says
 what they are waiting for.**
 
+## psql (PostgreSQL client)
+
+**What it is.** The command-line client of PostgreSQL. `-U` is the database user, `-d` the
+database, `-c "<SQL>"` runs one statement and exits, `-x` prints each row as a vertical list of
+`column | value` pairs - easier to read for wide rows.
+
+**Here.** `sudo docker exec openproject-db psql -U openproject -d openproject -c "…"` in 5.13 of the
+Test-Projekt `install.md` reads OpenProject's own tables to check what the web UI saved: the
+enabled wiki modules and the stored LDAP connection.
+
+**Why it matters.** The UI can show a value it did not save, or save one it does not show (a greyed
+field, a section saved with the wrong button). Reading the table is the independent check.
+
 ## public key pinning
 
 **What it is.** Accepting a TLS server only if its certificate carries one specific public key,
@@ -2695,6 +2726,23 @@ would, at the node level rather than per service.
 **Why it matters.** It is where mTLS and fine-grained service identity usually live in an enterprise
 Kubernetes platform.
 
+## session cookie (and private windows)
+
+**What it is.** After a login the server sends a cookie, a small value the browser stores per
+site and sends back with every request; the server recognises the session by it. A private window
+keeps a separate cookie store that starts empty and is discarded when the last private window
+closes - but all private windows open at the same time share that one store.
+
+**Here.** The Test-Projekt `install.md` tests directory users (`alice`, `bob`) in a private window
+while the admin stays signed in in the normal one. It also names the failure an old cookie causes:
+lldap answering `Invalid JWT` because the browser still holds a session from an earlier server under
+the same name (5.7).
+
+**Why it matters.** Two identities at once without logging out - which saves a fresh password and
+TOTP round for the admin each time - and a test that starts with no leftover state. To test a second
+user, sign out in the private window or close every private window first, or the first user's
+session is still there.
+
 ## shell builtin
 
 **What it is.** A command the shell executes itself instead of starting a separate program:
@@ -2948,6 +2996,19 @@ produced anything.
 redirect exposes a window in which the file is empty or half written and the metrics simply vanish
 for a scrape. Absent is not zero: a rule written as `> 0` reads an absent metric as silence rather
 than as a fault.
+
+## SQL JOIN
+
+**What it is.** Combines rows of two tables where a column matches:
+`… from enabled_modules em join projects p on p.id = em.project_id` pairs every enabled module with
+the project it belongs to. `em` and `p` are short aliases for the table names.
+
+**Here.** The wiki check in 5.13 of the Test-Projekt `install.md`: `enabled_modules` holds only a
+project *number*, so the join fetches the readable `identifier` from `projects`, and
+`where em.name='wiki'` keeps only wiki modules. `(0 rows)` means no project has the wiki on.
+
+**Why it matters.** Normalised databases keep each fact once and point at it by ID; a question that
+spans two facts - "which project has which module" - is a join.
 
 ## SSH certificates
 
