@@ -70,6 +70,7 @@ a dictionary, not a register.
 - [fencing](#fencing)
 - [FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys)
 - [file descriptor](#file-descriptor)
+- [flock (file lock)](#flock-file-lock)
 - [frame pacing](#frame-pacing)
 - [frontmatter](#frontmatter)
 - [FTS (full-text search)](#fts-full-text-search)
@@ -1091,6 +1092,23 @@ away.
 **Why it matters.** Inheriting a socket and binding one look identical from outside and are not the
 same act. The whole of [KE-24](../homelab-server-architecture/docs/platform/known-errors.md#ke-24)
 is a daemon that should have reused an inherited descriptor and tried to bind instead.
+
+## flock (file lock)
+
+**What it is.** A command from `util-linux` that runs another command while holding a lock on a file,
+and waits while another process holds it. The file stays empty; it is only the meeting point. The
+kernel releases the lock when the holding process exits, so a crashed job cannot leave it behind.
+The lock is advisory: it binds only processes that ask for it.
+
+**Here.** `snapraid-maintenance@.service` on vm102 runs sync, scrub and status under
+`flock /run/lock/snapraid-maintenance.lock`. A Sunday sync still running when the scrub starts at
+midnight makes the scrub wait instead of failing on SnapRAID's own lock
+([KE-33](../homelab-server-architecture/docs/platform/known-errors.md#ke-33)). Full note:
+[flock: One Job at a Time](linux/flock-job-serialisation.md).
+
+**Why it matters.** Two schedules that normally leave each other room collide on the night one job
+runs long. Without a lock the second job fails and nobody notices until a staleness alert; with one
+it starts late and succeeds.
 
 ## frame pacing
 
