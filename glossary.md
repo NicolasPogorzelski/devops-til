@@ -50,6 +50,7 @@ a dictionary, not a register.
 - [CVSS (Common Vulnerability Scoring System)](#cvss-common-vulnerability-scoring-system)
 - [D-state (uninterruptible sleep)](#d-state-uninterruptible-sleep)
 - [delegate_to and run_once (Ansible)](#delegate_to-and-run_once-ansible)
+- [Debian LTS](#debian-lts)
 - [Dependabot](#dependabot)
 - [Depends and Recommends (Debian packages)](#depends-and-recommends-debian-packages)
 - [DERP relay and direct connection (Tailscale)](#derp-relay-and-direct-connection-tailscale)
@@ -70,6 +71,7 @@ a dictionary, not a register.
 - [ExecStartPre](#execstartpre)
 - [exit node (Tailscale) and Mullvad](#exit-node-tailscale-and-mullvad)
 - [external storage (Nextcloud)](#external-storage-nextcloud)
+- [Extended attributes (xattr)](#extended-attributes-xattr)
 - [Falco](#falco)
 - [fencing](#fencing)
 - [FIDO2, WebAuthn and passkeys](#fido2-webauthn-and-passkeys)
@@ -190,6 +192,7 @@ a dictionary, not a register.
 - [slab allocator](#slab-allocator)
 - [SLSA (Supply-chain Levels for Software Artifacts)](#slsa-supply-chain-levels-for-software-artifacts)
 - [smartmon.sh and prometheus-node-exporter-collectors](#smartmonsh-and-prometheus-node-exporter-collectors)
+- [SMART selective self-test](#smart-selective-self-test)
 - [SMB signing and encryption](#smb-signing-and-encryption)
 - [socat](#socat)
 - [socket activation](#socket-activation)
@@ -789,6 +792,21 @@ git checks run exactly once on lxc250 however many hosts `--limit` leaves in the
 aimed at `localhost` is removed by any limit that does not name it; a play aimed at `all` with
 delegated tasks cannot be.
 
+## Debian LTS
+
+**What it is.** Long Term Support: a second phase of security support for a Debian release after
+the Debian security team stops. Debian supports a release for three years; Debian LTS, run by a
+separate volunteer and paid team, extends it to five. LTS covers fewer architectures and not every
+package, and its fixes arrive through the same `security.debian.org` suite, so `apt` shows no
+difference.
+
+**Here.** Debian 12 (bookworm) runs on eight LXCs and vm102. Its regular support ended on
+2026-07-11; LTS runs until 2028-06-30 (debian.org/releases/bookworm, read 2026-10-17).
+
+**Why it matters.** A node on LTS still receives security fixes, but a package outside the LTS
+scope receives none and nothing reports it. The upgrade to Debian 13 is due before 2028-06-30, and
+lxc210 needs it sooner for Nextcloud 35.
+
 ## Dependabot
 
 **What it is.** A GitHub service that watches a repository's declared dependencies and opens pull
@@ -1107,6 +1125,22 @@ mounts are dead.
 
 **Why it matters.** A dead mount fails quietly. The folder still appears in the web interface, an
 upload into it errors or vanishes, and nothing on the platform alerts on it.
+
+## Extended attributes (xattr)
+
+**What it is.** Name-value pairs a filesystem stores next to a file, outside its contents and its
+ordinary permissions. Names live in namespaces: `user.` for applications, `security.` for SELinux
+labels and capabilities, `trusted.` for root-only data. `getfattr -n <name>` reads one, `setfattr`
+writes one.
+
+**Here.** MergerFS uses them as its runtime control channel: the virtual file
+`/mnt/mergerfs/.mergerfs` exposes `user.mergerfs.*` attributes. `getfattr -n
+user.mergerfs.srcmounts --only-values` lists the live branches, and `setfattr` with `+>` appended
+disk06 on 2026-10-17 without a remount.
+
+**Why it matters.** A change made through the attribute lives only until the next mount. The
+persistent source stays `/etc/fstab`, so both have to agree, and `findmnt` keeps showing the old
+branch list until a remount.
 
 ## Falco
 
@@ -2927,6 +2961,19 @@ PASSED for a disk with 7680 unreadable sectors, because the drive's own self-ass
 that attribute against a threshold it can never cross. The per-attribute export is what makes the
 question answerable at all: not whether a disk calls itself healthy, but whether its error counters
 moved since yesterday.
+
+## SMART selective self-test
+
+**What it is.** A SMART self-test that reads only the logical block address ranges ("spans") given
+to it, up to five per run. `smartctl -t select,<start>-<end>` starts one span, `-t select,next`
+continues with the range after the last one, and `-t select,redo` repeats it. The drive runs it in
+the background; `smartctl -l selective` shows the current position.
+
+**Here.** Used on disk06 (18 TB) to split a full surface read into four sessions that fit between
+the morning start and the 23:30 shutdown; a long test of the whole disk takes longer than one day.
+
+**Why it matters.** A power-down aborts any self-test, so a full read on a host that is switched
+off every night never completes as one long test. Spans keep the work resumable.
 
 ## SMB signing and encryption
 
