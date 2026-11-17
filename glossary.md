@@ -57,6 +57,7 @@ a dictionary, not a register.
 - [DevOps](#devops)
 - [DevSecOps](#devsecops)
 - [DID_TIME_OUT and DID_SOFT_ERROR (SCSI host byte)](#did_time_out-and-did_soft_error-scsi-host-byte)
+- [digest (container image)](#digest-container-image)
 - [docker exec](#docker-exec)
 - [Dolby Vision profiles](#dolby-vision-profiles)
 - [DRC (dynamic range control)](#drc-dynamic-range-control)
@@ -915,6 +916,33 @@ logged as possibly completed, and the 10 that failed for good were all reads.
 **Why it matters.** The host byte says where to look. A medium error would arrive as sense data from
 the disk; these say the command never came back. That points at the path - controller, link,
 power - and is why KE-14 was diagnosed to the transport layer rather than to the flash.
+
+## digest (container image)
+
+**What it is.** The SHA-256 hash of an image's manifest, written `sha256:` followed by 64 hex
+characters. The manifest is a small JSON document that lists the hash of the image's configuration
+and of each of its layers, so one hash covers every byte of the image: change a layer and its hash
+changes, the manifest changes, and so does the digest. A multi-platform image has one more level, an
+index that lists one manifest per architecture; its digest covers all of them, and Docker picks the
+matching manifest on pull. A tag such as `grafana/grafana:13.2.3` is a name the publisher assigns
+and can point at a different image at any time. A digest is computed from the content and cannot
+be repointed. Written together, `image: name:tag@sha256:...`, the tag is only for the reader: Docker
+pulls by the digest and refuses content that does not match it.
+
+**Here.** Every compose file under `docker/` in the homelab repository pins a version tag;
+`apache/tika` in the Paperless stack carries a digest as well. The GitHub Actions are pinned the
+same way one level up, by commit SHA with the version in a trailing comment. A digest is read from
+the registry without pulling the image, for example with `docker buildx imagetools inspect
+<image>:<tag>`.
+
+**Why it matters.** A tag pin trusts whoever controls the tag: a hijacked publisher account, or a
+release rebuilt under the same tag, reaches the fleet at the next update without any change in the
+repository. A digest pin turns that into a visible diff that someone has to merge, and it makes the
+weekly [Trivy](#trivy) scan read the image that actually runs. It proves identity, not
+trustworthiness: an image that was already malicious when it was pinned stays malicious. Who built
+it is the question a signature answers ([Sigstore and cosign](#sigstore-and-cosign)). Like a SHA
+pin, a digest never updates itself, so it needs a bot such as [Dependabot](#dependabot) to propose
+new versions. See also [supply chain attack](#supply-chain-attack).
 
 ## docker exec
 
