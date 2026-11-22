@@ -461,10 +461,10 @@ DTS) but hands the encoded stream unchanged to the AV receiver, which decodes it
 stream travels wrapped in IEC 61937 frames that look like two-channel PCM to the link, which is why
 Android's log shows `HAL configured ... format 0x1, channelMask 0x3` for a 5.1 Dolby track.
 
-**Here.** Moonfin on the streaming box bitstreamed AC3 and E-AC3 to the receiver until 2026-10-08.
-A refresh-rate switch renegotiates HDMI, kills the passthrough track, and Moonfin's recovery of it
-hung five of seven starts. Passthrough is disabled until upstream fixes it
-([jellyfin.md](../homelab-server-architecture/docs/services/jellyfin.md#moonfin-direct-play) in the
+**Here.** Moonfin on the streaming box has passthrough off for every format and sends 5.1 PCM to
+the receiver. A pause, a track switch or the HDMI renegotiation after a refresh-rate switch drops
+the passthrough track, and Moonfin's recovery of that track races with playback and hangs it
+([KE-38](../homelab-server-architecture/docs/platform/known-errors.md#ke-38) in the
 platform repository).
 
 **Why it matters.** Passthrough is the only way object audio (Atmos, DTS:X) reaches a receiver from
@@ -954,10 +954,10 @@ passages towards each other, for late-night listening or small speakers. Whether
 it is applied is the decoder's choice, usually a receiver setting such as "Dynamic range:
 Maximum / Standard / Minimum".
 
-**Here.** With passthrough the AV receiver decoded and applied its own setting. Since
-2026-10-08 Moonfin decodes AC3 and E-AC3 with its bundled FFmpeg, configures no DRC of its own, and
-the receiver's setting no longer reaches a PCM signal. Whether FFmpeg applies the gain values by
-default was not measured.
+**Here.** With passthrough the AV receiver decoded and applied its own setting. Moonfin
+decodes every format itself and its night mode, the app's own DRC, is off; the receiver's setting
+does not act on a PCM signal. Whether Moonfin's decoders apply the gain values by default was not
+measured.
 
 **Why it matters.** It is the one audible difference between decoding in the receiver and decoding
 in the player for channel-based audio, and it is easy to mistake for a loss of quality.
